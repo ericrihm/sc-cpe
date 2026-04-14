@@ -52,7 +52,9 @@ jobs:
       PDF_SIGNING_KEY_PASSWORD: ${{ secrets.PDF_SIGNING_KEY_PASSWORD }}
       # Email
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-      FROM_EMAIL: "certs@simplycyber.io"
+      # Using signalplane.io as the verified Resend sender domain to avoid
+      # re-verifying simplycyber.io. Reply-to still points at SC.
+      FROM_EMAIL: "Simply Cyber CPE <certs@signalplane.io>"
       # Branding / routing
       ISSUER_NAME: "Simply Cyber LLC"
       VERIFY_BASE_URL: "https://cpe.simplycyber.io/verify.html"
