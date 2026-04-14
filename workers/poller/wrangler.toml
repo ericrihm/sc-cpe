@@ -1,6 +1,8 @@
 name = "sc-cpe-poller"
 main = "src/index.js"
 compatibility_date = "2026-04-01"
+workers_dev = false
+preview_urls = false
 
 # Fires every minute; the worker self-gates to the ET weekday window.
 [triggers]
