@@ -476,6 +476,11 @@ def sign_pdf_pades(
         "location": "https://simplycyber.io",
         "signingdate": dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d%H%M%S+00'00'"),
         "reason": f"Simply Cyber CPE certificate {cert_id[:12]}",
+        # Reserve fixed signature slot. endesive's auto-precompute path
+        # under-allocates when an RFC-3161 timestamp token is embedded
+        # (asserts len(zeros) == len(contents)); 32768 hex bytes (16 KiB)
+        # is comfortably above a SHA-256 CMS + TSA response.
+        "aligned": 32768,
     }
 
     # endesive.pdf.cms.sign takes timestampurl as a kwarg; it is NOT read from
