@@ -475,8 +475,6 @@ def sign_pdf_pades(
         "location": "https://simplycyber.io",
         "signingdate": dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d%H%M%S+00'00'"),
         "reason": f"Simply Cyber CPE certificate {cert_id[:12]}",
-        "signform": False,
-        "signaturebox": (0, 0, 0, 0),  # invisible signature; visible text is in the PDF body
     }
     if tsa_url:
         udct["timestampurl"] = tsa_url
