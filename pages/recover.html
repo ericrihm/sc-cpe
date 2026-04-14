@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SC-CPE — Recover your dashboard link</title>
+<link rel="stylesheet" href="/style.css">
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+</head>
+<body>
+<main class="narrow">
+    <h1>Recover your dashboard link</h1>
+    <p class="lead">Your dashboard URL is the only way to access your attendance and certificates. Enter the email you registered with and we'll send you the link if it's on file.</p>
+
+    <form id="f">
+        <label>
+            Email
+            <input name="email" type="email" required maxlength="254" autocomplete="email">
+        </label>
+        <div class="cf-turnstile" data-sitekey="REPLACE_WITH_TURNSTILE_SITEKEY" data-theme="light"></div>
+        <button type="submit">Send recovery link</button>
+    </form>
+
+    <div id="err" class="err" hidden></div>
+
+    <section id="ok" hidden>
+        <h2>Request received</h2>
+        <p id="ok-msg">If that email is registered, we've sent a recovery link. Check your inbox (and spam folder).</p>
+        <p class="muted">Didn't get it? You can try again in an hour; each IP is limited to 5 recovery requests per hour.</p>
+    </section>
+
+    <p class="muted" style="margin-top:2rem;"><a href="/">Back to registration</a></p>
+</main>
+<script>
+document.getElementById("f").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const turnstileToken = fd.get("cf-turnstile-response");
+    const err = document.getElementById("err");
+    err.hidden = true;
+    if (!turnstileToken) {
+        err.textContent = "please complete the challenge";
+        err.hidden = false;
+        return;
+    }
+    try {
+        const r = await fetch("/api/recover", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                email: fd.get("email"),
+                turnstile_token: turnstileToken,
+            }),
+        });
+        const data = await r.json();
+        if (!r.ok) {
+            err.textContent = data.error || "error";
+            err.hidden = false;
+            return;
+        }
+        document.getElementById("f").hidden = true;
+        if (data.message) document.getElementById("ok-msg").textContent = data.message;
+        document.getElementById("ok").hidden = false;
+    } catch (x) {
+        err.textContent = "network error";
+        err.hidden = false;
+    }
+});
+</script>
+</body>
+</html>

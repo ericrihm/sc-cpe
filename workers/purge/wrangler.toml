@@ -1,0 +1,16 @@
+name = "sc-cpe-purge"
+main = "src/index.js"
+compatibility_date = "2026-04-01"
+
+# Daily at 09:00 UTC (~05:00 ET). Sweeps expired raw chat and emits telemetry.
+[triggers]
+crons = ["0 9 * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "sc-cpe"
+database_id = "28218db6-6f35-4bfb-85cd-abd2881b6049"
+
+[[r2_buckets]]
+binding = "RAW_CHAT"
+bucket_name = "sc-cpe-raw-chat"

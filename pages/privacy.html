@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Privacy Policy — SC-CPE</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<main class="narrow">
+    <h1>Privacy Policy</h1>
+    <p class="lead">This policy explains what personal data SC-CPE collects, why, how long it is kept, and what rights you have over it. We aim to be direct and specific — if anything is unclear, contact us.</p>
+    <p><strong>Last updated:</strong> 2026-04-14 &nbsp;|&nbsp; <strong>Version:</strong> v1</p>
+
+    <h2>1. Who We Are</h2>
+    <p>SC-CPE is operated by <strong>Simply Cyber LLC</strong>, a US-based limited liability company. We act as the data controller for the personal data described in this policy.</p>
+    <p>When we provide this service to residents of the European Economic Area (EEA) or the United Kingdom, we are subject to the EU General Data Protection Regulation (GDPR) by virtue of Article 3(2) — we process data of individuals in those regions and monitor their behaviour in connection with an online service directed at them.</p>
+    <!-- TODO: Eric — add Simply Cyber LLC's registered address or principal place of business here if you want a formal "controller contact" entry for GDPR Art. 13 purposes -->
+
+    <h2>2. What We Collect and Why</h2>
+    <p>We collect only the data needed to operate the service. The table below describes each category.</p>
+
+    <dl>
+        <dt>Legal name</dt>
+        <dd>Collected at registration. Used to populate your CPE certificates. This must match the name on your professional certifications — you attest to this at registration.</dd>
+
+        <dt>Email address</dt>
+        <dd>Collected at registration. Used to deliver certificate download links and service notifications (e.g., material changes to these policies).</dd>
+
+        <dt>YouTube channel ID</dt>
+        <dd>Collected when you verify your account by posting your verification code in live chat. This is the stable, unique identifier YouTube assigns to your channel. Used to match your chat messages to your SC-CPE account during attendance polling.</dd>
+
+        <dt>YouTube display name (most recent)</dt>
+        <dd>Collected as a side-effect of attendance polling. We store the most recently seen display name associated with your channel ID as a human-readable audit reference. Display names can change on YouTube; we retain only the most recent one.</dd>
+
+        <dt>Chat messages</dt>
+        <dd>
+            <p>We query the YouTube Live Chat API during each Daily Threat Briefing broadcast. This means we temporarily receive all chat messages posted in the Simply Cyber live chat, regardless of whether the sender is a registered SC-CPE user. We process these in memory to identify qualifying messages from registered users.</p>
+            <p>What we <em>persist</em> long-term per message (for registered users only): message ID, channel ID, timestamp, and a SHA-256 hash of the message text. The hash lets us detect duplicate submissions without retaining the original text.</p>
+            <p>Raw chat data (full message text, JSON payloads from the YouTube API) is written to Cloudflare R2 object storage in JSONL format for operational debugging. This raw data is automatically deleted after <strong>7 days</strong> via R2 lifecycle policy. We do not retain or index chat messages from users who are not registered with SC-CPE.</p>
+        </dd>
+
+        <dt>IP address</dt>
+        <dd>Not stored in raw form. When your browser or API request reaches our service, we derive a one-way SHA-256 hash of your IP address for abuse-rate-limiting and fraud-detection purposes. The hash cannot be reversed to obtain your original IP address.</dd>
+
+        <dt>(ISC)² member number (optional)</dt>
+        <dd>Optionally provided at registration or profile update. If provided, it may be included on certificates to assist with (ISC)² CPE submission. You are not required to provide this.</dd>
+    </dl>
+
+    <h2>3. Legal Basis for Processing (GDPR)</h2>
+    <p>Where the GDPR applies, we rely on the following legal bases under Article 6:</p>
+    <ul>
+        <li><strong>Legitimate interests (Art. 6(1)(f)):</strong> Providing the CPE certificate service, detecting and preventing abuse, maintaining audit records for certificate integrity. Our legitimate interest in operating a trustworthy CPE programme is balanced against your privacy interests; the data collected is the minimum necessary for these purposes.</li>
+        <li><strong>Consent (Art. 6(1)(a)):</strong> Where we ask you to agree at registration (e.g., legal name attestation, acceptance of these policies). You may withdraw consent at any time by requesting account deletion, though this will end your ability to use the service.</li>
+    </ul>
+
+    <h2>4. Retention Periods</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Data</th>
+                <th>Retention period</th>
+                <th>Reason</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Raw chat JSONL in R2</td>
+                <td>7 days, then auto-deleted</td>
+                <td>Operational debugging only</td>
+            </tr>
+            <tr>
+                <td>Attendance records (message hash, timestamp, channel ID)</td>
+                <td>7 years</td>
+                <td>Supports post-audit defensibility if a cert is challenged</td>
+            </tr>
+            <tr>
+                <td>Certificate records</td>
+                <td>7 years</td>
+                <td>Certificate verification and audit trail</td>
+            </tr>
+            <tr>
+                <td>Audit log</td>
+                <td>7 years</td>
+                <td>Fraud investigation, abuse detection, legal compliance</td>
+            </tr>
+            <tr>
+                <td>Account / profile data</td>
+                <td>Until deletion request, then purged within 30 days</td>
+                <td>Service operation</td>
+            </tr>
+        </tbody>
+    </table>
+    <p>When you request account deletion, we perform a soft-delete of your profile and personal identifiers. Audit log entries referencing your account are retained for 7 years but are not used for any purpose other than integrity and fraud review. A hard-delete of all personal identifiers is completed within 30 days of a verified request, except where retention is required by law.</p>
+
+    <h2>5. Who We Share Data With</h2>
+    <p>We do not sell your personal data. We share data only with the following sub-processors, who act on our instructions:</p>
+    <ul>
+        <li><strong>Cloudflare, Inc.</strong> — Provides DNS, CDN, Pages (web hosting), D1 (database), R2 (object storage), Workers (serverless compute), and Turnstile (CAPTCHA). Data may be processed on Cloudflare's global network. Cloudflare acts as a data processor under its Data Processing Addendum.</li>
+        <li><strong>Resend, Inc.</strong> — Provides transactional email delivery (certificate links, notifications). We transmit your email address and certificate-related content to Resend for delivery.</li>
+    </ul>
+    <p>We also query the <strong>YouTube Data API v3</strong> (operated by Google LLC) to retrieve live chat messages and stream metadata. This is a read-only query — we do not transmit your personal data to Google. YouTube's own privacy policy governs data Google holds about you as a YouTube user.</p>
+
+    <h2>6. Your Rights (GDPR)</h2>
+    <p>If you are located in the EEA or UK, you have the following rights over your personal data:</p>
+    <ul>
+        <li><strong>Access:</strong> Request a copy of the personal data we hold about you.</li>
+        <li><strong>Rectification:</strong> Ask us to correct inaccurate data (e.g., a misspelled legal name).</li>
+        <li><strong>Erasure:</strong> Request deletion of your personal data ("right to be forgotten"), subject to retention obligations described above.</li>
+        <li><strong>Data portability:</strong> Request your data in a structured, machine-readable format.</li>
+        <li><strong>Objection:</strong> Object to processing based on legitimate interests.</li>
+        <li><strong>Withdrawal of consent:</strong> Where processing is based on consent, you may withdraw it at any time. Withdrawal does not affect the lawfulness of prior processing.</li>
+        <li><strong>Complaint:</strong> Lodge a complaint with your local supervisory authority (e.g., your national data protection authority) if you believe we have not handled your data in accordance with the GDPR.</li>
+    </ul>
+    <p>To exercise any of these rights, contact us at <a href="mailto:privacy@simplycyber.io">privacy@simplycyber.io</a>. We will respond within 30 days (or as required by applicable law).</p>
+    <!-- TODO: Eric — confirm privacy@simplycyber.io is the right address -->
+
+    <h2>7. CCPA — Do Not Sell or Share My Personal Information</h2>
+    <p>For California residents: Simply Cyber LLC does not sell your personal information, and does not share your personal information with third parties for cross-context behavioural advertising, as those terms are defined under the California Consumer Privacy Act (CCPA) and its amendments. You have the right to know what personal information we collect, request deletion, and opt out of any future sale — though we have no such sale to opt out of.</p>
+
+    <h2>8. Cookies and Tracking</h2>
+    <p>We do not use analytics cookies or any third-party tracking pixels.</p>
+    <p><strong>Cloudflare cookies:</strong> Cloudflare may set a cookie named <code>__cf_bm</code> (and similar) on your device for bot management and security purposes. This is set by Cloudflare's infrastructure, not by our application code, and is necessary for the service to function. See <a href="https://www.cloudflare.com/privacypolicy/" rel="noopener">Cloudflare's privacy policy</a> for details.</p>
+    <p><strong>Certificate verification:</strong> The certificate verification portal sets <code>Cache-Control: no-store</code> to prevent caching of certificate status information in browsers or intermediate proxies.</p>
+    <p>We set no first-party analytics or tracking cookies.</p>
+
+    <h2>9. International Data Transfers</h2>
+    <p>Simply Cyber LLC is based in the United States. When you use SC-CPE, your data may be processed on Cloudflare's global network infrastructure, which operates data centres across multiple countries. Cloudflare provides Standard Contractual Clauses (SCCs) as a transfer mechanism for personal data transferred from the EEA and UK to third countries. By using the service, you acknowledge that your data may be transferred internationally in accordance with these safeguards.</p>
+
+    <h2>10. Children</h2>
+    <p>This service is not directed at children. You must be at least 13 years old to register. We do not knowingly collect personal data from individuals under 13. If you believe a child under 13 has registered, please contact us at <a href="mailto:privacy@simplycyber.io">privacy@simplycyber.io</a> and we will delete the account promptly.</p>
+
+    <h2>11. Security</h2>
+    <p>We take reasonable technical measures to protect your personal data:</p>
+    <ul>
+        <li>All traffic between your browser and the service is encrypted with TLS.</li>
+        <li>Data stored in Cloudflare D1 is encrypted at rest.</li>
+        <li>Registration and dashboard pages are protected with Cloudflare Turnstile CAPTCHA to prevent automated account creation.</li>
+        <li>PDF certificates are digitally signed using the PAdES (PDF Advanced Electronic Signatures) standard to prevent tampering.</li>
+        <li>IP addresses are hashed on receipt and never stored in raw form.</li>
+    </ul>
+    <p>No security measure is perfect. If you discover a vulnerability, please disclose it responsibly to <a href="mailto:privacy@simplycyber.io">privacy@simplycyber.io</a>.</p>
+
+    <h2>12. Changes to This Policy</h2>
+    <p>We may update this Privacy Policy from time to time. Each version is identified by a version number and effective date at the top of this page. We will notify registered users of material changes by email. Continued use of the service after a new version takes effect constitutes acknowledgement of the updated policy.</p>
+
+    <h2>13. Contact</h2>
+    <p>For privacy-related questions, requests, or concerns, contact us at <a href="mailto:privacy@simplycyber.io">privacy@simplycyber.io</a>.</p>
+    <!-- TODO: Eric — confirm privacy@simplycyber.io is active and monitored -->
+
+    <p><a href="/">&larr; Back to registration</a></p>
+</main>
+</body>
+</html>
