@@ -521,7 +521,7 @@ def sign_pdf_pades(
         "pdf_pades_level",
         cert_id=cert_id,
         tsa_url=tsa_url or None,
-        level=("PAdES-T" if has_ts else "PAdES-B"),
+        pades_level=("PAdES-T" if has_ts else "PAdES-B"),
     )
     return signed_pdf
 
