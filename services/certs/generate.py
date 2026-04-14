@@ -418,20 +418,21 @@ def render_pdf(
 
 
 # DER-encoded OID for id-aa-signatureTimeStampToken (1.2.840.113549.1.9.16.2.14).
-# Presence of this byte sequence inside the PDF's /Contents CMS blob indicates a
-# PAdES-T (or higher) signature, i.e. the signer's hash was countersigned by an
-# RFC-3161 TSA. Absence means the signature will become unverifiable once our
-# self-signed cert expires, which is the exact failure mode we're guarding.
+# PDF signatures store the CMS blob hex-encoded inside /Contents<...>, so we
+# search for both the raw DER bytes (belt) and the ASCII-hex form (suspenders).
 _SIG_TS_TOKEN_OID_DER = bytes.fromhex("060B2A864886F70D010910020E")
+_SIG_TS_TOKEN_OID_HEX = _SIG_TS_TOKEN_OID_DER.hex().encode("ascii")
 
 
 def _signed_pdf_has_timestamp_token(signed_pdf: bytes) -> bool:
     """Sanity-check that the CMS blob embedded in the signed PDF carries an
-    RFC-3161 signature-timestamp-token unsigned attribute. This is a byte-level
-    check — cheap, avoids a second dependency on pyhanko, and is sufficient
-    as a fail-closed guard. Full cryptographic validation happens in readers
-    (Adobe Reader, pyhanko) and in our CI verification step."""
-    return _SIG_TS_TOKEN_OID_DER in signed_pdf
+    RFC-3161 signature-timestamp-token unsigned attribute. Cheap byte-level
+    check — PDFs hex-encode the CMS under /Contents, so we match either form."""
+    lower = signed_pdf.lower()
+    return (
+        _SIG_TS_TOKEN_OID_DER in signed_pdf
+        or _SIG_TS_TOKEN_OID_HEX in lower
+    )
 
 
 def sign_pdf_pades(
