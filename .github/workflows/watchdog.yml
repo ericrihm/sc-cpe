@@ -40,7 +40,8 @@ jobs:
           : "${HEALTH_URL:?HEALTH_URL repo var not set (e.g. https://cpe.simplycyber.io/api/health)}"
           : "${WATCHDOG_STATE_URL:?WATCHDOG_STATE_URL repo var not set}"
           : "${WATCHDOG_SECRET:?WATCHDOG_SECRET repo secret not set}"
-          : "${DISCORD_ALERT_WEBHOOK:?DISCORD_ALERT_WEBHOOK repo secret not set}"
+          # DISCORD_ALERT_WEBHOOK is optional — if unset, alerts just log to the
+          # Actions console and dedup state still advances.
 
           health=$(curl -fsS --max-time 20 "$HEALTH_URL")
           echo "health: $health"
@@ -55,6 +56,10 @@ jobs:
 
           post_discord() {
             local content="$1"
+            if [[ -z "${DISCORD_ALERT_WEBHOOK:-}" ]]; then
+              echo "[watchdog] DISCORD_ALERT_WEBHOOK unset — skipping: $content"
+              return 0
+            fi
             jq -cn --arg c "$content" '{content: $c, username: "SC-CPE Watchdog"}' \
               | curl -fsS --max-time 20 \
                   -H "Content-Type: application/json" \
