@@ -1,0 +1,30 @@
+name = "sc-cpe-web"
+compatibility_date = "2026-04-01"
+pages_build_output_dir = "."
+
+# Kept in sync with workers/poller/wrangler.toml — /api/health uses these to
+# decide when the poller is "expected to beat" (outside the window a silent
+# poller is normal, not a failure).
+[vars]
+POLL_WINDOW_TZ = "America/New_York"
+POLL_WINDOW_START_HOUR = "8"
+POLL_WINDOW_END_HOUR = "11"
+POLL_WINDOW_DAYS = "1,2,3,4,5"
+
+# Secrets (set with `wrangler pages secret put NAME --project-name sc-cpe-web`):
+#   TURNSTILE_SECRET_KEY  - Turnstile server secret
+#   WATCHDOG_SECRET       - shared secret the GH Actions watchdog uses to
+#                           read/write its alert dedup state via /api/watchdog-state
+
+[[d1_databases]]
+binding = "DB"
+database_name = "sc-cpe"
+database_id = "28218db6-6f35-4bfb-85cd-abd2881b6049"
+
+# Per-IP rate limiting for /api/recover and future enumeration-sensitive
+# endpoints. Create once:
+#   wrangler kv:namespace create sc-cpe-rate
+# then paste the id below.
+[[kv_namespaces]]
+binding = "RATE_KV"
+id = "5066e1eeba0748cc96ad6d44f3f5325f"

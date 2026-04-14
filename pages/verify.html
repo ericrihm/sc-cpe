@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SC-CPE — Verify Certificate</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<main class="narrow">
+    <h1>Verify an SC-CPE Certificate</h1>
+    <p class="lead">Paste a certificate token or open a link containing one.</p>
+
+    <form id="f">
+        <label>
+            Certificate token
+            <input name="t" required minlength="32" maxlength="128" autocomplete="off">
+        </label>
+        <button type="submit">Verify</button>
+    </form>
+
+    <section id="result" hidden>
+        <div class="card" id="panel">
+            <h2 id="status"></h2>
+            <dl>
+                <dt>Issuer</dt><dd id="issuer"></dd>
+                <dt>Recipient</dt><dd id="recipient"></dd>
+                <dt>Period</dt><dd id="period"></dd>
+                <dt>CPE Hours</dt><dd id="cpe"></dd>
+                <dt>Sessions attended</dt><dd id="sessions"></dd>
+                <dt>Issued</dt><dd id="issued"></dd>
+                <dt>PDF SHA-256</dt><dd id="pdfsha" class="muted small"></dd>
+                <dt>Signing cert SHA-256</dt><dd id="signsha" class="muted small"></dd>
+                <dt id="rev-dt" hidden>Revocation</dt><dd id="rev-dd" hidden></dd>
+            </dl>
+        </div>
+    </section>
+</main>
+<script>
+async function lookup(token) {
+    const r = await fetch(`/api/verify/${encodeURIComponent(token)}`);
+    const d = await r.json().catch(() => ({}));
+    const res = document.getElementById("result");
+    const panel = document.getElementById("panel");
+    res.hidden = false;
+    if (r.status === 404 || !d.valid && r.status !== 200) {
+        panel.className = "card bad";
+        document.getElementById("status").textContent = "No such certificate";
+        for (const id of ["issuer","recipient","period","cpe","sessions","issued","pdfsha","signsha"]) {
+            document.getElementById(id).textContent = "";
+        }
+        return;
+    }
+    panel.className = "card " + (d.state === "revoked" ? "bad" : "ok");
+    document.getElementById("status").textContent =
+        d.state === "revoked" ? "REVOKED" : "Valid certificate";
+    document.getElementById("issuer").textContent = d.issuer || "";
+    document.getElementById("recipient").textContent = d.recipient || "";
+    document.getElementById("period").textContent =
+        `${d.period_start || ""} — ${d.period_end || ""} (${d.period_yyyymm || ""})`;
+    document.getElementById("cpe").textContent = `${d.cpe_total} CPE`;
+    document.getElementById("sessions").textContent = d.sessions_count;
+    document.getElementById("issued").textContent = d.issued_at || "";
+    document.getElementById("pdfsha").textContent = d.pdf_sha256 || "(pending)";
+    document.getElementById("signsha").textContent = d.signing_cert_sha256 || "(pending)";
+    if (d.state === "revoked") {
+        document.getElementById("rev-dt").hidden = false;
+        document.getElementById("rev-dd").hidden = false;
+        document.getElementById("rev-dd").textContent =
+            `${d.revoked_at} — ${d.revocation_reason || ""}`;
+    }
+}
+
+document.getElementById("f").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const t = new FormData(e.target).get("t").trim();
+    history.replaceState(null, "", `?t=${encodeURIComponent(t)}`);
+    lookup(t);
+});
+
+const urlTok = new URLSearchParams(location.search).get("t");
+if (urlTok) {
+    document.querySelector("input[name=t]").value = urlTok;
+    lookup(urlTok);
+}
+</script>
+</body>
+</html>

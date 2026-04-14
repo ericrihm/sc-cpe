@@ -1,0 +1,29 @@
+name = "sc-cpe-poller"
+main = "src/index.js"
+compatibility_date = "2026-04-01"
+
+# Fires every minute; the worker self-gates to the ET weekday window.
+[triggers]
+crons = ["* * * * *"]
+
+[vars]
+POLL_WINDOW_TZ = "America/New_York"
+POLL_WINDOW_START_HOUR = "8"
+POLL_WINDOW_END_HOUR = "11"
+POLL_WINDOW_DAYS = "1,2,3,4,5"
+MIN_POLL_INTERVAL_MS = "2000"
+
+# Bind via: wrangler d1 create sc-cpe  -> paste database_id below
+[[d1_databases]]
+binding = "DB"
+database_name = "sc-cpe"
+database_id = "28218db6-6f35-4bfb-85cd-abd2881b6049"
+
+# Bind via: wrangler r2 bucket create sc-cpe-raw-chat
+[[r2_buckets]]
+binding = "RAW_CHAT"
+bucket_name = "sc-cpe-raw-chat"
+
+# Secrets (set with `wrangler secret put NAME`):
+#   YOUTUBE_API_KEY   - YT Data API v3 key
+#   SC_CHANNEL_ID     - Simply Cyber YouTube channel ID (UC...)

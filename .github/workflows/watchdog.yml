@@ -1,0 +1,89 @@
+name: watchdog
+
+# External liveness check. Polls /api/health every 15 minutes and alerts
+# Discord when any monitored source goes stale. Alert dedup state lives in
+# Cloudflare KV (via /api/watchdog-state) so we send one "down" message per
+# stale event and one "recovered" message when it clears — no spam.
+#
+# What counts as stale is computed server-side by /api/health, which is
+# window-aware: a silent poller outside the ET weekday 08:00-11:00 window
+# is not an incident.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: watchdog
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Probe liveness
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      HEALTH_URL: ${{ vars.HEALTH_URL }}
+      WATCHDOG_STATE_URL: ${{ vars.WATCHDOG_STATE_URL }}
+      WATCHDOG_SECRET: ${{ secrets.WATCHDOG_SECRET }}
+      DISCORD_ALERT_WEBHOOK: ${{ secrets.DISCORD_ALERT_WEBHOOK }}
+    steps:
+      - name: Check liveness and alert on transitions
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          : "${HEALTH_URL:?HEALTH_URL repo var not set (e.g. https://cpe.simplycyber.io/api/health)}"
+          : "${WATCHDOG_STATE_URL:?WATCHDOG_STATE_URL repo var not set}"
+          : "${WATCHDOG_SECRET:?WATCHDOG_SECRET repo secret not set}"
+          : "${DISCORD_ALERT_WEBHOOK:?DISCORD_ALERT_WEBHOOK repo secret not set}"
+
+          health=$(curl -fsS --max-time 20 "$HEALTH_URL")
+          echo "health: $health"
+
+          state=$(curl -fsS --max-time 20 \
+            -H "X-Watchdog-Secret: $WATCHDOG_SECRET" \
+            "$WATCHDOG_STATE_URL")
+          echo "state: $state"
+
+          # Extract {source,stale} pairs and current alert state.
+          mapfile -t pairs < <(echo "$health" | jq -r '.sources[] | "\(.source)|\(.stale)|\(.last_beat_at // "never")|\(.age_seconds // 0)"')
+
+          post_discord() {
+            local content="$1"
+            jq -cn --arg c "$content" '{content: $c, username: "SC-CPE Watchdog"}' \
+              | curl -fsS --max-time 20 \
+                  -H "Content-Type: application/json" \
+                  -X POST -d @- "$DISCORD_ALERT_WEBHOOK" >/dev/null
+          }
+
+          set_state() {
+            local source="$1" body="$2"
+            echo "$body" | curl -fsS --max-time 20 \
+              -H "X-Watchdog-Secret: $WATCHDOG_SECRET" \
+              -H "Content-Type: application/json" \
+              -X POST -d @- "$WATCHDOG_STATE_URL" >/dev/null
+          }
+
+          for pair in "${pairs[@]}"; do
+            IFS='|' read -r source stale last_beat age <<< "$pair"
+            already_alerted=$(echo "$state" | jq -r --arg s "$source" '.alerted[$s] // ""')
+
+            if [[ "$stale" == "true" && -z "$already_alerted" ]]; then
+              echo "ALERT: $source is stale (last=$last_beat age=${age}s)"
+              post_discord ":rotating_light: **SC-CPE: $source is stale** — last beat $last_beat (${age}s ago). Check Cloudflare logs."
+              set_state "$source" "$(jq -cn --arg s "$source" '{source: $s}')"
+
+            elif [[ "$stale" == "false" && -n "$already_alerted" ]]; then
+              echo "RECOVERED: $source (was alerted at $already_alerted)"
+              post_discord ":white_check_mark: **SC-CPE: $source recovered** — heartbeat resumed at $last_beat (alert opened $already_alerted)."
+              set_state "$source" "$(jq -cn --arg s "$source" '{source: $s, clear: true}')"
+
+            else
+              echo "$source: stale=$stale alerted=${already_alerted:-none} (no change)"
+            fi
+          done

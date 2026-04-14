@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SC-CPE — Register for CPE Credits</title>
+<link rel="stylesheet" href="/style.css">
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+</head>
+<body>
+<main class="narrow">
+    <h1>Simply Cyber CPE Registration</h1>
+    <p class="lead">Earn 0.5 CPE credit for each Daily Threat Briefing you attend live, weekdays. Post at least one message in the YouTube live chat during the briefing and you're counted.</p>
+
+    <form id="f">
+        <label>
+            Legal name (must match your professional certifications)
+            <input name="legal_name" required minlength="2" maxlength="100" autocomplete="name">
+        </label>
+        <label>
+            Email
+            <input name="email" type="email" required maxlength="254" autocomplete="email">
+        </label>
+        <label class="check">
+            <input type="checkbox" name="legal_name_attested" required>
+            I certify the name above is my legal name and matches the name on my professional certifications.
+        </label>
+        <label class="check">
+            <input type="checkbox" name="age_attested_13plus" required>
+            I am 13 years of age or older.
+        </label>
+        <label class="check">
+            <input type="checkbox" name="tos" required>
+            I accept the <a href="/terms.html">Terms of Service</a> and <a href="/privacy.html">Privacy Policy</a>.
+        </label>
+        <div class="cf-turnstile" data-sitekey="REPLACE_WITH_TURNSTILE_SITEKEY" data-theme="light"></div>
+        <button type="submit">Register</button>
+    </form>
+
+    <div id="err" class="err" hidden></div>
+
+    <section id="ok" hidden>
+        <h2>Almost there — one step to verify</h2>
+        <p>Post this code in the Simply Cyber Daily Threat Briefing live chat within 7 days. Any message containing this code binds your YouTube account to your registration.</p>
+        <pre id="code" class="code"></pre>
+        <p>Your code expires: <span id="expires"></span></p>
+        <p><strong>Save this dashboard URL</strong> — it's how you check your attendance and download certs. Bookmark it now:</p>
+        <p><a id="dash" href="#" class="dash"></a></p>
+    </section>
+
+    <p class="muted" style="margin-top:2rem;font-size:0.9rem;">
+        Lost your dashboard link? <a href="/recover.html">Recover it here</a>.
+    </p>
+</main>
+<script>
+document.getElementById("f").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const turnstileToken = fd.get("cf-turnstile-response");
+    if (!turnstileToken) {
+        const err = document.getElementById("err");
+        err.textContent = "please complete the challenge";
+        err.hidden = false;
+        return;
+    }
+    const body = {
+        email: fd.get("email"),
+        legal_name: fd.get("legal_name"),
+        legal_name_attested: fd.get("legal_name_attested") === "on",
+        age_attested_13plus: fd.get("age_attested_13plus") === "on",
+        tos_version: "v1",
+        turnstile_token: turnstileToken,
+    };
+    const err = document.getElementById("err");
+    err.hidden = true;
+    try {
+        const r = await fetch("/api/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+        });
+        const data = await r.json();
+        if (!r.ok) {
+            err.textContent = data.error || "error";
+            err.hidden = false;
+            return;
+        }
+        document.getElementById("f").hidden = true;
+        document.getElementById("code").textContent = "SC-CPE-" + data.verification_code;
+        document.getElementById("expires").textContent = data.expires_at;
+        const a = document.getElementById("dash");
+        a.href = data.dashboard_url;
+        a.textContent = location.origin + data.dashboard_url;
+        document.getElementById("ok").hidden = false;
+    } catch (x) {
+        err.textContent = "network error";
+        err.hidden = false;
+    }
+});
+</script>
+</body>
+</html>

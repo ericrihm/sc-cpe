@@ -1,0 +1,14 @@
+.env
+__pycache__/
+*.pyc
+*.sqlite
+*.db
+.venv/
+venv/
+node_modules/
+.wrangler/
+*.p12
+*.pem
+*.key
+.DS_Store
+outputs/handoffs/

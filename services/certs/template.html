@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CPE Certificate — {{ recipient_name }} — {{ period_display }}</title>
+<style>
+  @page {
+    size: A4 landscape;
+    margin: 2cm;
+  }
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: "Georgia", "Times New Roman", "DejaVu Serif", serif;
+    color: #1a1a1a;
+    background: #ffffff;
+  }
+  .sheet {
+    position: relative;
+    height: calc(21cm - 4cm);
+    padding: 1.2cm 1.6cm;
+    border: 3px double #0b3d5c;
+    box-sizing: border-box;
+  }
+  .sheet::before {
+    content: "";
+    position: absolute;
+    top: 6px; left: 6px; right: 6px; bottom: 6px;
+    border: 1px solid #0b3d5c;
+    pointer-events: none;
+  }
+  .eyebrow {
+    text-align: center;
+    letter-spacing: 0.5em;
+    font-size: 11pt;
+    color: #0b3d5c;
+    text-transform: uppercase;
+    margin-top: 4pt;
+  }
+  h1.title {
+    text-align: center;
+    font-size: 34pt;
+    letter-spacing: 0.12em;
+    margin: 8pt 0 0 0;
+    color: #0b3d5c;
+    font-weight: 700;
+  }
+  .issuer {
+    text-align: center;
+    font-size: 11pt;
+    color: #444;
+    margin-top: 2pt;
+    margin-bottom: 14pt;
+  }
+  .rule {
+    width: 30%;
+    margin: 8pt auto 14pt auto;
+    border: 0;
+    border-top: 1px solid #0b3d5c;
+  }
+  .awarded-to {
+    text-align: center;
+    font-size: 12pt;
+    color: #333;
+    margin-bottom: 4pt;
+  }
+  .recipient {
+    text-align: center;
+    font-family: "Apple Chancery", "Savoye LET", "URW Chancery L", "Georgia", serif;
+    font-style: italic;
+    font-size: 40pt;
+    color: #111;
+    margin: 2pt 0 10pt 0;
+    line-height: 1.1;
+  }
+  .citation {
+    text-align: center;
+    font-size: 13pt;
+    line-height: 1.55;
+    max-width: 22cm;
+    margin: 0 auto 10pt auto;
+  }
+  .credit-line {
+    text-align: center;
+    font-size: 13pt;
+    margin-top: 6pt;
+    margin-bottom: 14pt;
+  }
+  .credit-line strong {
+    color: #0b3d5c;
+    font-size: 15pt;
+  }
+  .footer {
+    position: absolute;
+    left: 1.6cm;
+    right: 1.6cm;
+    bottom: 1.1cm;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    font-size: 9pt;
+    color: #333;
+  }
+  .footer .col {
+    flex: 1 1 0;
+  }
+  .footer .col.center {
+    text-align: center;
+  }
+  .footer .col.right {
+    text-align: right;
+  }
+  .sig-block {
+    font-size: 9pt;
+    line-height: 1.4;
+  }
+  .sig-block .sig-label {
+    font-style: italic;
+    color: #0b3d5c;
+  }
+  .sig-block .fingerprint {
+    font-family: "Menlo", "DejaVu Sans Mono", monospace;
+    font-size: 7.5pt;
+    color: #555;
+    word-break: break-all;
+  }
+  .qr {
+    width: 2.4cm;
+    height: 2.4cm;
+    border: 1px solid #0b3d5c;
+    font-family: "Menlo", "DejaVu Sans Mono", monospace;
+    font-size: 6pt;
+    color: #0b3d5c;
+    padding: 3pt;
+    box-sizing: border-box;
+    text-align: center;
+    word-break: break-all;
+    display: inline-block;
+  }
+  .meta-label {
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 7.5pt;
+    margin-bottom: 2pt;
+  }
+  .meta-value {
+    font-family: "Menlo", "DejaVu Sans Mono", monospace;
+    font-size: 9pt;
+  }
+  .verify-url {
+    font-family: "Menlo", "DejaVu Sans Mono", monospace;
+    font-size: 8pt;
+    word-break: break-all;
+  }
+</style>
+</head>
+<body>
+  <div class="sheet">
+    <div class="eyebrow">Continuing Professional Education</div>
+    <h1 class="title">Certificate of Attendance</h1>
+    <div class="issuer">Issued by {{ issuer_name }}</div>
+    <hr class="rule"/>
+
+    <div class="awarded-to">This certifies that</div>
+    <div class="recipient">{{ recipient_name }}</div>
+
+    <div class="citation">
+      attended the <strong>Simply Cyber Daily Threat Briefing</strong><br/>
+      during the period {{ period_display }}
+      <br/>
+      <span style="color:#555;font-size:11pt;">
+        ({{ period_start }} &mdash; {{ period_end }})
+      </span>
+    </div>
+
+    <div class="credit-line">
+      earning <strong>{{ cpe_total }}</strong> CPE credit hour(s)
+      over <strong>{{ sessions_count }}</strong> session(s).
+    </div>
+
+    <div class="footer">
+      <div class="col">
+        <div class="meta-label">Issued</div>
+        <div class="meta-value">{{ issued_at }}</div>
+        <div class="meta-label" style="margin-top:6pt;">Certificate ID</div>
+        <div class="meta-value">{{ cert_id_display }}</div>
+      </div>
+
+      <div class="col center">
+        <div class="qr">verify<br/>{{ public_token_short }}</div>
+        <div class="verify-url" style="margin-top:4pt;">{{ verify_url }}</div>
+      </div>
+
+      <div class="col right">
+        <div class="sig-block">
+          <div class="sig-label">[signed digitally by {{ issuer_name }}]</div>
+          <div class="meta-label" style="margin-top:6pt;">Signing cert SHA-256</div>
+          <div class="fingerprint">{{ signing_cert_sha256 }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

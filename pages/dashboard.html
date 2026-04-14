@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SC-CPE — My Dashboard</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<main class="narrow">
+    <h1>My SC-CPE Dashboard</h1>
+    <div id="err" class="err" hidden></div>
+    <section id="body" hidden>
+        <div class="card">
+            <h2 id="name"></h2>
+            <p>Status: <strong id="state"></strong></p>
+            <p id="pending" hidden>
+                Post this code in the Simply Cyber live chat to verify your YouTube account:
+                <pre class="code"><span id="code"></span></pre>
+                Code expires <span id="expires"></span>.
+            </p>
+            <p id="active" hidden>
+                Verified YouTube account:
+                <strong><span id="display"></span></strong>
+                (<span id="channel" class="muted"></span>)
+            </p>
+        </div>
+
+        <div class="card">
+            <h2>Total CPE earned</h2>
+            <p class="big" id="total"></p>
+        </div>
+
+        <div class="card">
+            <h2>Attendance history</h2>
+            <table id="att-table" hidden>
+                <thead><tr><th>Date</th><th>Video</th><th>Credit</th><th>First message</th></tr></thead>
+                <tbody id="att"></tbody>
+            </table>
+            <p id="att-empty" hidden class="muted">No attendance records yet. See you at the next Daily Threat Briefing.</p>
+        </div>
+
+        <div class="card">
+            <h2>Certificates</h2>
+            <table id="cert-table" hidden>
+                <thead><tr><th>Period</th><th>CPE</th><th>Sessions</th><th>State</th><th>Verify</th></tr></thead>
+                <tbody id="certs"></tbody>
+            </table>
+            <p id="cert-empty" hidden class="muted">No certificates yet. Certs are issued monthly.</p>
+        </div>
+    </section>
+</main>
+<script>
+const token = new URLSearchParams(location.search).get("t");
+const err = document.getElementById("err");
+
+async function load() {
+    if (!token) { err.textContent = "missing token in URL"; err.hidden = false; return; }
+    const r = await fetch(`/api/me/${encodeURIComponent(token)}`);
+    if (!r.ok) {
+        err.textContent = r.status === 404 ? "dashboard not found" : "error loading dashboard";
+        err.hidden = false;
+        return;
+    }
+    const d = await r.json();
+    document.getElementById("body").hidden = false;
+    document.getElementById("name").textContent = d.user.legal_name;
+    document.getElementById("state").textContent = d.user.state;
+
+    if (d.user.state === "pending_verification") {
+        document.getElementById("pending").hidden = false;
+        document.getElementById("code").textContent = "SC-CPE-" + (d.user.verification_code || "");
+        document.getElementById("expires").textContent = d.user.code_expires_at || "";
+    } else if (d.user.state === "active") {
+        document.getElementById("active").hidden = false;
+        document.getElementById("display").textContent = d.user.yt_display_name_seen || "(unknown)";
+        document.getElementById("channel").textContent = d.user.yt_channel_id || "";
+    }
+
+    document.getElementById("total").textContent = `${d.total_cpe_earned.toFixed(1)} CPE`;
+
+    const att = document.getElementById("att");
+    if (d.attendance.length === 0) {
+        document.getElementById("att-empty").hidden = false;
+    } else {
+        document.getElementById("att-table").hidden = false;
+        for (const a of d.attendance) {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `<td>${a.scheduled_date}</td>
+                <td><a href="https://youtu.be/${a.yt_video_id}" target="_blank" rel="noopener">${escapeHtml(a.title || a.yt_video_id)}</a></td>
+                <td>${a.earned_cpe}</td>
+                <td class="muted">${a.first_msg_at}</td>`;
+            att.appendChild(tr);
+        }
+    }
+
+    const certs = document.getElementById("certs");
+    if (d.certs.length === 0) {
+        document.getElementById("cert-empty").hidden = false;
+    } else {
+        document.getElementById("cert-table").hidden = false;
+        for (const c of d.certs) {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `<td>${c.period_yyyymm}</td>
+                <td>${c.cpe_total}</td>
+                <td>${c.sessions_count}</td>
+                <td>${c.state}</td>
+                <td><a href="/verify.html?t=${c.public_token}">open</a></td>`;
+            certs.appendChild(tr);
+        }
+    }
+}
+
+function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;",
+    }[c]));
+}
+
+load();
+</script>
+</body>
+</html>
