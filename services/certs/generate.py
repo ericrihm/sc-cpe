@@ -477,8 +477,13 @@ def sign_pdf_pades(
         "signingdate": dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d%H%M%S+00'00'"),
         "reason": f"Simply Cyber CPE certificate {cert_id[:12]}",
     }
+
+    # endesive.pdf.cms.sign takes timestampurl as a kwarg; it is NOT read from
+    # udct. Putting it in the dict would be silently ignored, producing an
+    # untimestamped signature that looks fine until the signing cert expires.
+    sign_kwargs: dict[str, Any] = {}
     if tsa_url:
-        udct["timestampurl"] = tsa_url
+        sign_kwargs["timestampurl"] = tsa_url
 
     try:
         signature = endesive_cms.sign(
@@ -488,6 +493,7 @@ def sign_pdf_pades(
             cert,
             other_certs or [],
             "sha256",
+            **sign_kwargs,
         )
     except Exception as e:
         if tsa_required and tsa_url:
