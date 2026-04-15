@@ -79,17 +79,27 @@ export async function onRequestPost({ params, request, env }) {
             // pulls from the same kv-driven helper as the poller so an admin
             // grant always matches the credit a poller match would have given
             // for the active rule version.
+            //
+            // Race: two admins can both pass the EXISTS check and try to
+            // insert. Wrap in try/catch so a UNIQUE collision (poller filled
+            // the row in between, or concurrent grant) is treated as success
+            // — the credit landed exactly once, just not from us.
             const cpe = await getCpePerDay(env, ruleVersion);
-            await env.DB.prepare(`
-                INSERT INTO attendance
-                  (user_id, stream_id, earned_cpe, first_msg_id, first_msg_at,
-                   first_msg_sha256, first_msg_len, rule_version, source, created_at)
-                VALUES (?1, ?2, ?3, ?4, ?5, '', 0, ?6, 'appeal_granted', ?7)
-            `).bind(
-                appeal.user_id, appeal.claimed_stream_id, cpe,
-                `appeal:${appeal.id}`, ts, ruleVersion, ts,
-            ).run();
-            attendanceInserted = true;
+            try {
+                await env.DB.prepare(`
+                    INSERT INTO attendance
+                      (user_id, stream_id, earned_cpe, first_msg_id, first_msg_at,
+                       first_msg_sha256, first_msg_len, rule_version, source, created_at)
+                    VALUES (?1, ?2, ?3, ?4, ?5, '', 0, ?6, 'appeal_granted', ?7)
+                `).bind(
+                    appeal.user_id, appeal.claimed_stream_id, cpe,
+                    `appeal:${appeal.id}`, ts, ruleVersion, ts,
+                ).run();
+                attendanceInserted = true;
+            } catch (err) {
+                if (!/UNIQUE/i.test(String(err?.message || err))) throw err;
+                // Lost the race — credit already exists, treat as no-op.
+            }
         }
     }
 

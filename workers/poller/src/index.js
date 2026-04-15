@@ -148,6 +148,30 @@ async function pollOnePage(env, session, now) {
 }
 
 async function processCodeMatches(env, session, items, now) {
+    // Anti-race: a verification code posted in YouTube live chat is visible
+    // to every viewer. An attacker tailing chat can copy a fresh code and
+    // post it from their own channel before the legitimate user does — first
+    // poll wins, attacker's channel gets bound to the victim's account.
+    //
+    // Defence: scan the whole batch for each code first. If two distinct
+    // channels posted the same code, refuse to bind either of them and let
+    // the user re-request a fresh code via /api/me/{token}/resend-code.
+    // The code is then burned (cleared) so the attacker can't replay it on
+    // a future poll.
+    const codeFirstChannel = new Map();   // code -> first channelId seen
+    const contestedCodes = new Set();
+    for (const m of items) {
+        const text = m.snippet?.displayMessage || "";
+        const match = CODE_RE.exec(text);
+        if (!match) continue;
+        const code = match[1].toUpperCase();
+        const channelId = m.authorDetails?.channelId;
+        if (!channelId) continue;
+        const seen = codeFirstChannel.get(code);
+        if (seen && seen !== channelId) contestedCodes.add(code);
+        else if (!seen) codeFirstChannel.set(code, channelId);
+    }
+
     for (const m of items) {
         const text = m.snippet?.displayMessage || "";
         const match = CODE_RE.exec(text);
@@ -164,6 +188,21 @@ async function processCodeMatches(env, session, items, now) {
         if (user.state !== "pending_verification") continue;
         if (new Date(user.code_expires_at) < now) {
             await audit(env, "poller", user.id, "code_expired_at_use", "user", user.id, null, { code });
+            continue;
+        }
+
+        if (contestedCodes.has(code)) {
+            // Two channels in the same batch posted this code → likely a
+            // race attack. Burn the code so neither party can use it; user
+            // must re-request via the dashboard.
+            await env.DB.prepare(
+                "UPDATE users SET verification_code = NULL, code_expires_at = NULL WHERE id = ?1"
+            ).bind(user.id).run();
+            await audit(env, "poller", user.id, "code_race_detected", "user", user.id,
+                null, { code, channels: [...new Set(items
+                    .filter(x => CODE_RE.exec(x.snippet?.displayMessage || "")?.[1]?.toUpperCase() === code)
+                    .map(x => x.authorDetails?.channelId).filter(Boolean))],
+                    stream_id: session.stream_id });
             continue;
         }
 

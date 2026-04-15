@@ -1,4 +1,4 @@
-import { json, audit, clientIp, ipHash, now } from "../../../_lib.js";
+import { json, audit, clientIp, ipHash, now, isSameOrigin } from "../../../_lib.js";
 
 // POST /api/me/{token}/delete
 // Body: { "confirm": "DELETE" }  (explicit confirmation, prevents XSRF-ish
@@ -42,6 +42,14 @@ export async function onRequestPost({ params, request, env }) {
     const token = params.token;
     if (!token || token.length < 32) {
         return json({ error: "invalid_token" }, 400);
+    }
+
+    // CSRF gate: dashboard_token sits in URLs and can leak via Referer or
+    // shared bookmarks. Without an Origin check, a third-party page that
+    // knows the victim's token can POST here from a hidden iframe and
+    // tombstone the account.
+    if (!isSameOrigin(request, env)) {
+        return json({ error: "forbidden_origin" }, 403);
     }
 
     let body;
