@@ -50,6 +50,53 @@ export async function onRequestPost({ request, env }) {
     ).bind(streamId).first();
     if (!stream) return json({ error: "stream_not_found" }, 404);
 
+    // Optional chat evidence. When provided, we validate the message was
+    // actually posted inside the live window before anchoring it as the
+    // attendance row's first_msg_*. This keeps manual grants as defensible
+    // as poller-credited ones: an auditor sees a real yt_message_id + sha256
+    // of the chat text, not synthetic placeholders. Out-of-window evidence
+    // is REJECTED — we will not launder an invalid post via admin override.
+    const evidence = body?.chat_evidence;
+    let evidenceBlock = null;
+    if (evidence) {
+        const ytId = (evidence.yt_message_id || "").trim();
+        const publishedAt = (evidence.published_at || "").trim();
+        const displayMessage = (evidence.display_message || "").toString();
+        if (!ytId) return json({ error: "chat_evidence.yt_message_id required" }, 400);
+        if (!publishedAt) return json({ error: "chat_evidence.published_at required" }, 400);
+        if (!displayMessage) return json({ error: "chat_evidence.display_message required" }, 400);
+
+        const pubMs = new Date(publishedAt).getTime();
+        const startMs = new Date(stream.actual_start_at || 0).getTime();
+        if (!Number.isFinite(pubMs) || !Number.isFinite(startMs)) {
+            return json({ error: "invalid_timestamps" }, 400);
+        }
+        // Load current rule's pre_start_grace_min for the window check.
+        const rs = await env.DB.prepare(
+            "SELECT k, v FROM kv WHERE k LIKE 'rule_version.%'"
+        ).all();
+        const kv = Object.fromEntries((rs.results || []).map(r => [r.k, r.v]));
+        const rv = parseInt(kv["rule_version.current"] || "1", 10);
+        const grace = parseInt(kv[`rule_version.${rv}.pre_start_grace_min`] || "15", 10);
+        const windowOpenMs = startMs + grace * 60_000;
+        if (pubMs < windowOpenMs) {
+            return json({
+                error: "chat_evidence_outside_live_window",
+                posted_at: publishedAt,
+                window_opens_at: new Date(windowOpenMs).toISOString(),
+                detail: "The supplied message was posted before the live window opened. Admin grants cannot launder an out-of-window post.",
+            }, 409);
+        }
+
+        const sha = await sha256HexLocal(displayMessage);
+        evidenceBlock = {
+            first_msg_id: ytId,
+            first_msg_at: publishedAt,
+            first_msg_sha256: sha,
+            first_msg_len: displayMessage.length,
+        };
+    }
+
     const existing = await env.DB.prepare(
         "SELECT source, created_at FROM attendance WHERE user_id = ?1 AND stream_id = ?2"
     ).bind(userId, streamId).first();
@@ -63,24 +110,34 @@ export async function onRequestPost({ request, env }) {
 
     const ts = now();
     const cpe = await getCpePerDay(env, ruleVersion);
-    // For manual grants we anchor first_msg_at to the stream's actual_start_at
-    // rather than "now" — the user didn't post a chat message right now; the
-    // timestamp should reference the session the credit pertains to. Otherwise
-    // the dashboard surfaces a misleading "first message at 18:47Z" for a
-    // stream that ended hours earlier.
-    const firstMsgAt = stream.actual_start_at || ts;
+    // Anchor first_msg_at to evidence when present, otherwise to the
+    // stream's actual_start_at. "now" would be misleading.
+    const firstMsgAt = evidenceBlock?.first_msg_at || stream.actual_start_at || ts;
+    const firstMsgId = evidenceBlock?.first_msg_id || `admin:${resolver}:${ts}`;
+    const firstSha = evidenceBlock?.first_msg_sha256 || "";
+    const firstLen = evidenceBlock?.first_msg_len || 0;
     await env.DB.prepare(`
         INSERT INTO attendance
           (user_id, stream_id, earned_cpe, first_msg_id, first_msg_at,
            first_msg_sha256, first_msg_len, rule_version, source, created_at)
-        VALUES (?1, ?2, ?3, ?4, ?5, '', 0, ?6, 'admin_manual', ?7)
-    `).bind(userId, streamId, cpe, `admin:${resolver}:${ts}`, firstMsgAt, ruleVersion, ts).run();
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'admin_manual', ?9)
+    `).bind(userId, streamId, cpe, firstMsgId, firstMsgAt, firstSha, firstLen,
+            ruleVersion, ts).run();
 
     await audit(
         env, "admin", resolver, "attendance_granted_manual", "attendance",
         `${userId}:${streamId}`,
         null,
-        { user_id: userId, stream_id: streamId, reason, rule_version: ruleVersion, earned_cpe: cpe },
+        {
+            user_id: userId, stream_id: streamId, reason, rule_version: ruleVersion,
+            earned_cpe: cpe,
+            chat_evidence_present: !!evidenceBlock,
+            ...(evidenceBlock ? {
+                yt_message_id: evidenceBlock.first_msg_id,
+                published_at: evidenceBlock.first_msg_at,
+                msg_sha256: evidenceBlock.first_msg_sha256,
+            } : {}),
+        },
         { ip_hash: await ipHash(clientIp(request)) },
     );
 
@@ -90,6 +147,12 @@ export async function onRequestPost({ request, env }) {
         stream_id: streamId,
         source: "admin_manual",
         earned_cpe: cpe,
+        chat_evidence_present: !!evidenceBlock,
         created_at: ts,
     });
+}
+
+async function sha256HexLocal(s) {
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+    return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
 }
