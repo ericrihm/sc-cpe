@@ -5,6 +5,43 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SC-CPE — My Dashboard</title>
 <link rel="stylesheet" href="/style.css">
+<style>
+.cal-nav { display: flex; align-items: center; gap: 12px; margin: 8px 0 10px; }
+.cal-nav button { min-width: 32px; padding: 2px 8px; font-size: 18px; cursor: pointer; }
+.cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    font-size: 13px;
+}
+.cal-head { font-weight: 600; text-align: center; padding: 4px 0; color: #555; }
+.cal-cell {
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    padding: 4px 6px;
+    min-height: 46px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+.cal-cell.cal-empty { border-color: transparent; background: transparent; }
+.cal-cell.cal-today { outline: 2px solid #2563eb; }
+.cal-cell .cal-day { font-weight: 600; color: #111; }
+.cal-cell .cal-marks { font-size: 10px; color: #555; }
+.cal-cell.has-credit { background: #dcfce7; border-color: #86efac; }
+.cal-cell.has-appeal-open { background: #fef9c3; border-color: #facc15; }
+.cal-cell.has-appeal-granted { background: #dbeafe; border-color: #60a5fa; }
+.cal-cell.has-appeal-denied { background: #fee2e2; border-color: #fca5a5; }
+.cal-dot {
+    display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+    vertical-align: middle; margin: 0 2px 2px 8px;
+}
+.cal-dot.cal-credited { background: #86efac; border: 1px solid #16a34a; }
+.cal-dot.cal-appeal-open { background: #facc15; border: 1px solid #ca8a04; }
+.cal-dot.cal-appeal-granted { background: #60a5fa; border: 1px solid #2563eb; }
+.cal-dot.cal-appeal-denied { background: #fca5a5; border: 1px solid #dc2626; }
+.cal-legend { margin-top: 8px; }
+</style>
 </head>
 <body>
 <main class="narrow">
@@ -29,6 +66,32 @@
         <div class="card">
             <h2>Total CPE earned</h2>
             <p class="big" id="total"></p>
+        </div>
+
+        <div class="card" id="today-card" hidden>
+            <h2>Today's Daily Threat Briefing</h2>
+            <p id="today-title" class="muted"></p>
+            <p id="today-status"></p>
+            <p id="today-hint" class="muted" hidden>
+                Post a qualifying message (3+ characters, letters or numbers) in the
+                live chat to get credited. This page refreshes automatically.
+            </p>
+        </div>
+
+        <div class="card">
+            <h2>Attendance calendar</h2>
+            <div class="cal-nav">
+                <button type="button" id="cal-prev" aria-label="previous month">&lsaquo;</button>
+                <strong id="cal-label"></strong>
+                <button type="button" id="cal-next" aria-label="next month">&rsaquo;</button>
+            </div>
+            <div id="cal" class="cal-grid" aria-label="month calendar"></div>
+            <p class="muted cal-legend">
+                <span class="cal-dot cal-credited"></span> credited &nbsp;
+                <span class="cal-dot cal-appeal-open"></span> appeal pending &nbsp;
+                <span class="cal-dot cal-appeal-granted"></span> appeal granted &nbsp;
+                <span class="cal-dot cal-appeal-denied"></span> appeal denied
+            </p>
         </div>
 
         <div class="card">
@@ -79,6 +142,10 @@ async function load() {
 
     document.getElementById("total").textContent = `${d.total_cpe_earned.toFixed(1)} CPE`;
 
+    renderToday(d.today);
+    calData = { attendance: d.attendance || [], appeals: d.appeals || [] };
+    renderCalendar();
+
     const att = document.getElementById("att");
     if (d.attendance.length === 0) {
         document.getElementById("att-empty").hidden = false;
@@ -115,6 +182,113 @@ function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, c => ({
         "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;",
     }[c]));
+}
+
+// Near-real-time credit receipt. While a stream is live, poll /api/me every
+// 30s so a qualifying chat message flips the badge from "waiting" to
+// "credited" within one poller cycle. Stops polling once the stream
+// completes or the user is already credited.
+let refreshTimer = null;
+function renderToday(today) {
+    const card = document.getElementById("today-card");
+    if (!today) {
+        card.hidden = true;
+        if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
+        return;
+    }
+    card.hidden = false;
+    document.getElementById("today-title").textContent =
+        (today.title || "") + (today.actual_start_at
+            ? "  ·  started " + new Date(today.actual_start_at).toLocaleTimeString()
+            : "");
+    const status = document.getElementById("today-status");
+    const hint = document.getElementById("today-hint");
+    if (today.credited) {
+        status.innerHTML = "<strong style='color:#1a7f37'>&#10003; Credited</strong> &nbsp;0.5 CPE recorded for today.";
+        hint.hidden = true;
+    } else if (today.state === "live") {
+        status.innerHTML = "<strong style='color:#9a6700'>&#9203; Waiting for qualifying message</strong>";
+        hint.hidden = false;
+        if (refreshTimer) clearTimeout(refreshTimer);
+        refreshTimer = setTimeout(() => { refreshTimer = null; load(); }, 30000);
+        return;
+    } else {
+        status.innerHTML = "<strong class='muted'>Stream ended — no credit recorded</strong>";
+        hint.hidden = true;
+    }
+    if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
+}
+
+// Calendar state — user can page backward/forward. Default is the month
+// containing today so the current DTB is visible on load.
+let calCursor = new Date();
+calCursor.setDate(1);
+let calData = { attendance: [], appeals: [] };
+
+document.getElementById("cal-prev").addEventListener("click", () => {
+    calCursor.setMonth(calCursor.getMonth() - 1);
+    renderCalendar();
+});
+document.getElementById("cal-next").addEventListener("click", () => {
+    calCursor.setMonth(calCursor.getMonth() + 1);
+    renderCalendar();
+});
+
+function renderCalendar() {
+    const grid = document.getElementById("cal");
+    grid.innerHTML = "";
+    const y = calCursor.getFullYear();
+    const m = calCursor.getMonth();
+    document.getElementById("cal-label").textContent =
+        calCursor.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+
+    for (const h of ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]) {
+        const d = document.createElement("div");
+        d.className = "cal-head";
+        d.textContent = h;
+        grid.appendChild(d);
+    }
+
+    const credited = new Set();
+    for (const a of calData.attendance) if (a.scheduled_date) credited.add(a.scheduled_date);
+    const appealsByDate = new Map();
+    for (const ap of calData.appeals) {
+        if (!appealsByDate.has(ap.claimed_date)) appealsByDate.set(ap.claimed_date, []);
+        appealsByDate.get(ap.claimed_date).push(ap);
+    }
+
+    const firstDow = new Date(y, m, 1).getDay();
+    const daysInMonth = new Date(y, m + 1, 0).getDate();
+    const todayIso = new Date().toISOString().slice(0, 10);
+
+    for (let i = 0; i < firstDow; i++) {
+        const cell = document.createElement("div");
+        cell.className = "cal-cell cal-empty";
+        grid.appendChild(cell);
+    }
+    for (let day = 1; day <= daysInMonth; day++) {
+        const iso = `${y}-${String(m + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        const cell = document.createElement("div");
+        cell.className = "cal-cell";
+        if (iso === todayIso) cell.classList.add("cal-today");
+
+        const marks = [];
+        if (credited.has(iso)) { cell.classList.add("has-credit"); marks.push("&#10003;"); }
+        const appeals = appealsByDate.get(iso) || [];
+        for (const ap of appeals) {
+            if (ap.state === "open") { cell.classList.add("has-appeal-open"); marks.push("?"); }
+            else if (ap.state === "granted") { cell.classList.add("has-appeal-granted"); marks.push("&#43;"); }
+            else if (ap.state === "denied") { cell.classList.add("has-appeal-denied"); marks.push("&#10007;"); }
+        }
+
+        cell.innerHTML = `<span class="cal-day">${day}</span>
+            <span class="cal-marks">${marks.join(" ")}</span>`;
+        cell.title = [
+            credited.has(iso) ? "credited" : "",
+            ...appeals.map(ap => `appeal ${ap.state}`),
+        ].filter(Boolean).join(" · ") || iso;
+        grid.appendChild(cell);
+    }
 }
 
 load();
