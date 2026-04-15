@@ -1,11 +1,21 @@
 # SC‑CPE — Simply Cyber CPE Certificates
 
-Automatic, cryptographically verifiable CPE certificates for everyone who
-shows up to the [Simply Cyber Daily Threat Briefing](https://www.youtube.com/@simplycyber).
+**Get credit for watching the daily briefing.** Automatic, cryptographically
+verifiable continuing‑education certificates for everyone who shows up to the
+[Simply Cyber Daily Threat Briefing](https://www.youtube.com/@simplycyber).
 
-Attend the livestream → post your per‑user code in chat → receive a signed
-PDF cert each month. Every step is hash‑chained and independently auditable
-years later, without trusting the issuer.
+Works for the programs most of the community is renewing:
+
+| Program | Credit unit | Per session | This cert satisfies |
+| --- | --- | --- | --- |
+| **CompTIA** (Security+, CySA+, Network+, PenTest+, CASP+ …) | **CEU** | **0.5 CEU** | Proof of attendance for the CE portal — name, date(s), hours, provider, signature |
+| **ISC2** (CISSP, SSCP, CCSP, …) | CPE | 0.5 CPE (Group B) | Ditto — upload under "Education" |
+| **ISACA** (CISM, CISA, CRISC, …) | CPE | 0.5 CPE | Ditto — "group training / web‑based" |
+
+Attend the livestream → post your per‑user code in chat → get a signed
+PDF certificate **per session, per month, or both**. Every step is
+hash‑chained and independently auditable years later without trusting
+the issuer.
 
 > **Status:** in production on Cloudflare. Smoke green, audit chain intact,
 > five fresh heartbeats, hourly synthetic canary.
@@ -17,10 +27,28 @@ years later, without trusting the issuer.
 
 ![Sample SC‑CPE certificate of attendance](docs/assets/sample-cert.png)
 
-> Sample only — `Jane Doe`, fake stream IDs, signature fingerprint is a
-> demo value. [Download the sample PDF](docs/assets/sample-cert.pdf) to see
-> the layout at print resolution. Real certs are PAdES‑T signed with an
-> RFC‑3161 timestamp and linked to an append‑only audit chain.
+> Sample — `Jane Doe`, 12 sessions × 0.5 = **6 CEU / CPE** for the month.
+> [Download the full PDF](docs/assets/sample-cert.pdf) at print resolution.
+> Real certs are PAdES‑T signed with an RFC‑3161 timestamp and anchored to
+> an append‑only audit chain.
+
+Everything a CompTIA CE Portal submission (or ISC2 / ISACA upload) asks for
+is on the face of the document: **recipient name, issuer, activity title,
+date(s) attended, hours earned, signature, and a public verify URL + QR**.
+
+## Two ways to get your cert
+
+You pick in the dashboard — change it any time.
+
+- **Per‑session (recommended for CompTIA).** One signed PDF per briefing
+  you attended. CompTIA's CE portal logs one activity per submission, so
+  per‑session certs paste in cleanly. Request them on demand from the
+  dashboard; they're signed within 2 hours.
+- **Monthly bundled (recommended for ISC2 / ISACA).** One PDF listing
+  every session that month with a single hours total. Easier to attach
+  to an annual rollup than 20 individual certs.
+- **Both.** You'll get per‑session + monthly bundled. Useful if you
+  maintain multiple certifications.
 
 ---
 
@@ -55,20 +83,24 @@ by hand doesn't scale past a few dozen people. SC‑CPE does it end‑to‑end:
  2.  Watch the stream and post your code in YouTube live chat.
      → The poller (runs every minute, 08:00‑11:00 ET Mon–Fri) ingests
        the chat, matches your code to your user row, and credits
-       0.5 CPE for that session.
+       0.5 CEU / CPE for that session.
 
- 3.  Receive your cert.
-     → Monthly bundled cert (all sessions that month on one PDF), or
-       per‑session certs, or both — your choice in the dashboard. The
-       Python cron signs the PDF with PAdES‑T and emails it via Resend.
+ 3.  Pick per‑session, bundled, or both in the dashboard.
+     → Per‑session certs arrive within ~2h of request. Bundled certs
+       ship once a month. Both are PAdES‑T signed and emailed via Resend.
 
- 4.  Verify any cert anytime.
+ 4.  Submit to your CE portal.
+     → Upload the PDF under "Attending webinars/seminars/training" (or
+       your program's equivalent). The cert itself is the proof document.
+
+ 5.  Verify any cert anytime.
      → /verify.html?t=PUBLIC_TOKEN returns the recipient, sessions,
-       and audit chain position. Anyone with the cert can check it.
+       and audit chain position. Anyone — including your CE auditor —
+       can check it without talking to us.
 ```
 
-**0.5 CPE per 30‑minute session** · up to ~20 sessions/month · bundled or
-per‑session delivery · full reissue flow if your name or email is wrong.
+**0.5 CEU / CPE per 30‑minute session** · up to ~20 sessions/month · per‑session
+or bundled (or both) · full reissue flow if your name or email is wrong.
 
 ---
 
