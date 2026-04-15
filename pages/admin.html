@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SC-CPE Admin</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="stylesheet" href="/style.css">
+<style>
+  body { font-family: ui-sans-serif, system-ui, sans-serif; margin: 0; background: #0b0f14; color: #e5ecf2; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 24px; }
+  h1 { font-size: 18px; letter-spacing: 0.06em; text-transform: uppercase; color: #d4a73a; margin: 0 0 4px; }
+  .sub { color: #95a4b3; font-size: 12px; margin-bottom: 20px; }
+  .login { margin: 24px 0; }
+  .login input { background: #111820; color: #e5ecf2; border: 1px solid #2a3644; padding: 8px 12px; border-radius: 4px; font-family: monospace; width: 420px; max-width: 90vw; }
+  .login button { background: #0b3d5c; color: #fff; border: 0; padding: 9px 16px; border-radius: 4px; cursor: pointer; margin-left: 6px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 24px; }
+  .card { background: #111820; border: 1px solid #2a3644; border-radius: 6px; padding: 14px 16px; }
+  .k { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: #95a4b3; margin-bottom: 4px; }
+  .v { font-size: 22px; font-variant-numeric: tabular-nums; }
+  .v.small { font-size: 13px; font-family: monospace; word-break: break-all; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 24px; background: #111820; border: 1px solid #2a3644; border-radius: 6px; overflow: hidden; }
+  th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #1e2833; font-size: 13px; }
+  th { background: #0e151c; color: #95a4b3; font-weight: 600; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
+  tr:last-child td { border-bottom: 0; }
+  .ok { color: #55d38b; }
+  .stale { color: #e85a5a; font-weight: 600; }
+  .warn { color: #e0b43a; }
+  .muted { color: #6b7a8a; }
+  .section-h { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: #95a4b3; margin: 20px 0 8px; }
+  button.refresh { background: #0b3d5c; color: #fff; border: 0; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+  .err { background: #3a1818; border: 1px solid #6b2a2a; color: #ffb4b4; padding: 10px 14px; border-radius: 4px; margin: 12px 0; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>SC-CPE Admin</h1>
+  <div class="sub" id="sub">Paste ADMIN_TOKEN to continue. Not stored — lives in memory for this page load.</div>
+
+  <div id="login" class="login">
+    <input type="password" id="token" placeholder="ADMIN_TOKEN" autocomplete="off">
+    <button id="go">Load</button>
+  </div>
+
+  <div id="app" style="display:none;">
+    <button class="refresh" id="refresh">Refresh</button>
+    <span class="muted" id="ts" style="margin-left:10px;font-size:12px;"></span>
+    <div id="err"></div>
+
+    <div class="section-h">Overview (last 24h)</div>
+    <div class="grid" id="stats"></div>
+
+    <div class="section-h">Heartbeats</div>
+    <table id="hb"><thead>
+      <tr><th>Source</th><th>Status</th><th>Last beat</th><th>Age</th><th>Expected ≤</th><th>On duty</th></tr>
+    </thead><tbody></tbody></table>
+
+    <div class="section-h">Audit chain</div>
+    <div class="grid" id="chain"></div>
+  </div>
+</div>
+
+<script>
+// Admin dashboard — all data fetched from admin endpoints. Token is kept in
+// a closure, not localStorage: a reflected XSS on any adjacent page would
+// otherwise exfiltrate a working bearer.
+let TOKEN = null;
+
+const $ = s => document.querySelector(s);
+function fmtAge(s) {
+  if (s == null) return "—";
+  if (s < 90) return s + "s";
+  if (s < 5400) return Math.round(s/60) + "m";
+  if (s < 86400*2) return Math.round(s/3600) + "h";
+  return Math.round(s/86400) + "d";
+}
+function card(k, v, cls) {
+  const n = document.createElement("div");
+  n.className = "card";
+  n.innerHTML = `<div class="k">${k}</div><div class="v ${cls||''}">${v}</div>`;
+  return n;
+}
+async function fetchJson(path) {
+  const r = await fetch(path, { headers: { "Authorization": "Bearer " + TOKEN } });
+  if (r.status === 401) throw new Error("unauthorized (wrong token?)");
+  if (!r.ok) throw new Error(path + " → HTTP " + r.status);
+  return r.json();
+}
+async function load() {
+  $("#err").innerHTML = "";
+  try {
+    const [stats, hb, chain] = await Promise.all([
+      fetchJson("/api/admin/ops-stats"),
+      fetchJson("/api/admin/heartbeat-status"),
+      fetchJson("/api/admin/audit-chain-verify?limit=200"),
+    ]);
+    renderStats(stats);
+    renderHeartbeats(hb);
+    renderChain(chain, stats);
+    $("#ts").textContent = "updated " + new Date().toLocaleTimeString();
+  } catch (e) {
+    $("#err").innerHTML = `<div class="err">${e.message}</div>`;
+    if (String(e.message).includes("unauthorized")) {
+      $("#app").style.display = "none";
+      $("#login").style.display = "";
+    }
+  }
+}
+function renderStats(s) {
+  const g = $("#stats"); g.innerHTML = "";
+  g.append(
+    card("Users (active)", s.users.active),
+    card("Users pending", s.users.pending),
+    card("Certs 24h", s.last_24h.certs_issued),
+    card("Certs total", s.certs_total),
+    card("Attendance 24h", s.last_24h.attendance),
+    card("Open appeals", s.appeals_open, s.appeals_open > 0 ? "warn" : ""),
+    card("Email queued", s.email_outbox.queued),
+    card("Email failed", s.email_outbox.failed, s.email_outbox.failed > 0 ? "stale" : ""),
+  );
+}
+function renderHeartbeats(d) {
+  const tb = $("#hb tbody"); tb.innerHTML = "";
+  for (const s of d.sources) {
+    const tr = document.createElement("tr");
+    const cls = s.stale ? "stale" : "ok";
+    const status = s.stale ? "STALE" : (s.last_status || "—");
+    tr.innerHTML = `
+      <td>${s.source}</td>
+      <td class="${cls}">${status}</td>
+      <td class="muted">${s.last_beat_at || "never"}</td>
+      <td>${fmtAge(s.age_seconds)}</td>
+      <td class="muted">${s.expected_s ? (2 * s.expected_s) + "s" : "—"}</td>
+      <td class="muted">${s.on_duty ? "yes" : "no"}</td>`;
+    tb.appendChild(tr);
+  }
+}
+function renderChain(c, s) {
+  const g = $("#chain"); g.innerHTML = "";
+  g.append(
+    card("Chain OK", c.ok ? "YES" : "NO", c.ok ? "ok" : "stale"),
+    card("Rows checked", c.rows_checked),
+    card("Unique index", c.unique_index_on_prev_hash ? "present" : "MISSING",
+         c.unique_index_on_prev_hash ? "ok" : "stale"),
+    card("Tip id", `<span class="v small">${s.audit_tip?.id || "—"}</span>`),
+    card("Tip ts", `<span class="v small">${s.audit_tip?.ts || "—"}</span>`),
+  );
+  if (c.first_break) {
+    const n = document.createElement("div");
+    n.className = "err";
+    n.textContent = `Chain break at ${c.first_break.id} (${c.first_break.ts}): expected ${c.first_break.expected_prev_hash}, got ${c.first_break.actual_prev_hash}`;
+    g.appendChild(n);
+  }
+}
+$("#go").onclick = () => {
+  TOKEN = $("#token").value.trim();
+  if (!TOKEN) return;
+  $("#token").value = "";
+  $("#login").style.display = "none";
+  $("#app").style.display = "";
+  load();
+};
+$("#refresh").onclick = load;
+$("#token").addEventListener("keydown", e => { if (e.key === "Enter") $("#go").click(); });
+</script>
+</body>
+</html>
