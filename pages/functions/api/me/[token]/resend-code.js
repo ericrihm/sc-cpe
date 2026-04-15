@@ -1,0 +1,122 @@
+import {
+    ulid, randomCode, json, now, audit, clientIp, ipHash,
+    queueEmail, escapeHtml, emailShell,
+} from "../../../_lib.js";
+
+// POST /api/me/{dashboard_token}/resend-code
+//
+// User self-service for "I lost my verification code" or "my code expired".
+// Generates a fresh 6-char code, extends expiry by 7 days, and queues an
+// email to the address on file. The endpoint is reachable only via the
+// dashboard URL (the user's token), and rate-limited to 3/hour per dashboard
+// token to keep someone with a leaked URL from spraying email.
+//
+// Refuses if the user is already 'active' (verified) — there's nothing to
+// re-send. Refuses on deleted users.
+
+const MAX_PER_HOUR = 3;
+const SITE_BASE = "https://sc-cpe-web.pages.dev";
+
+function bodies({ legalName, code, expiresAt, dashboardUrl }) {
+    const subject = `Simply Cyber CPE — your new verification code: ${code}`;
+    const text =
+        `Hi ${legalName},\n\n` +
+        `You requested a fresh verification code. Paste this into a live chat\n` +
+        `message during the Daily Threat Briefing on YouTube within 7 days:\n\n` +
+        `    ${code}\n\n` +
+        `The code expires ${expiresAt}.\n\n` +
+        `Your dashboard:\n  ${dashboardUrl}\n\n` +
+        `If you did not request a new code, you can ignore this email.\n\n` +
+        `— Simply Cyber\n`;
+    const bodyHtml = `
+<p>Hi ${escapeHtml(legalName)},</p>
+<p>You requested a fresh verification code. Paste this into a live chat
+message during the Daily Threat Briefing on YouTube within 7 days:</p>
+<p style="font-family:Menlo,monospace;font-size:22pt;text-align:center;
+   background:#f4f6f8;padding:14px;border-radius:6px;letter-spacing:0.08em;">
+   ${escapeHtml(code)}
+</p>
+<p>The code expires <strong>${escapeHtml(expiresAt)}</strong>.</p>
+<p>Your dashboard:<br/>
+<a href="${dashboardUrl}">${dashboardUrl}</a></p>
+<p style="color:#666;font-size:12px;">If you did not request a new code,
+you can ignore this email — your account is unchanged.</p>`;
+    return {
+        subject,
+        text,
+        html: emailShell({
+            title: "New verification code",
+            preheader: `Your new code: ${code}`,
+            bodyHtml,
+        }),
+    };
+}
+
+export async function onRequestPost({ params, request, env }) {
+    const token = params.token;
+    if (!token || token.length < 32) return json({ error: "invalid_token" }, 400);
+
+    const ip = clientIp(request);
+    const ipH = await ipHash(ip);
+
+    const user = await env.DB.prepare(`
+        SELECT id, email, legal_name, state, dashboard_token
+          FROM users WHERE dashboard_token = ?1 AND deleted_at IS NULL
+    `).bind(token).first();
+    if (!user) return json({ error: "not_found" }, 404);
+    if (user.state === "active") {
+        return json({ error: "already_verified" }, 409);
+    }
+
+    // Rate limit per dashboard_token, not per IP — the token is the credential
+    // here and the legitimate user could roam between IPs.
+    if (env.RATE_KV) {
+        const hourBucket = new Date().toISOString().slice(0, 13);
+        const key = `resend_code:${user.id}:${hourBucket}`;
+        const current = parseInt(await env.RATE_KV.get(key), 10) || 0;
+        if (current >= MAX_PER_HOUR) {
+            return json({ error: "rate_limited", retry_in: "1h" }, 429);
+        }
+        await env.RATE_KV.put(key, String(current + 1), { expirationTtl: 3700 });
+    }
+
+    const code = await uniqueCode(env);
+    const expiresAt = new Date(Date.now() + 7 * 864e5).toISOString();
+
+    await env.DB.prepare(`
+        UPDATE users SET verification_code = ?1, code_expires_at = ?2 WHERE id = ?3
+    `).bind(code, expiresAt, user.id).run();
+
+    const dashboardUrl = `${SITE_BASE}/dashboard.html?t=${user.dashboard_token}`;
+    const b = bodies({
+        legalName: user.legal_name || "there",
+        code, expiresAt, dashboardUrl,
+    });
+
+    await queueEmail(env, {
+        userId: user.id,
+        template: "register",
+        to: user.email,
+        subject: b.subject,
+        html: b.html,
+        text: b.text,
+        idempotencyKey: `resend_code:${user.id}:${code}`,
+    });
+
+    await audit(env, "user", user.id, "verification_code_resent", "user", user.id,
+        null, { code_expires_at: expiresAt },
+        { ip_hash: ipH });
+
+    return json({ ok: true, code_expires_at: expiresAt });
+}
+
+async function uniqueCode(env) {
+    for (let i = 0; i < 6; i++) {
+        const c = randomCode();
+        const clash = await env.DB.prepare(
+            "SELECT 1 FROM users WHERE verification_code = ?1"
+        ).bind(c).first();
+        if (!clash) return c;
+    }
+    throw new Error("code_generation_retries_exhausted");
+}

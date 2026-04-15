@@ -134,6 +134,20 @@ export function isValidName(s) {
     return /[\p{L}]/u.test(s);
 }
 
+// CPE-per-attended-day. The poller reads this from the kv table at every
+// tick; manual grants (admin/attendance.js, appeals/[id]/resolve.js) used
+// to hardcode 0.5 and would silently drift if the rule was retuned. Both
+// paths now share this helper so admin grants and poller grants always
+// produce the same earned_cpe for the active rule version.
+export async function getCpePerDay(env, ruleVersion) {
+    const v = parseInt(ruleVersion, 10) || 1;
+    const row = await env.DB.prepare(
+        "SELECT v FROM kv WHERE k = ?1"
+    ).bind(`rule_version.${v}.cpe_per_day`).first();
+    const parsed = parseFloat(row?.v);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0.5;
+}
+
 export function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, c => (
         { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]

@@ -1,4 +1,4 @@
-import { ulid, json, audit, clientIp, ipHash, isAdmin, now } from "../../../../_lib.js";
+import { ulid, json, audit, clientIp, ipHash, isAdmin, now, getCpePerDay } from "../../../../_lib.js";
 
 // POST /api/admin/appeals/{id}/resolve
 // Auth: Authorization: Bearer <ADMIN_TOKEN>
@@ -75,18 +75,18 @@ export async function onRequestPost({ params, request, env }) {
 
         if (!existing) {
             // source='appeal_granted' differentiates from poller rows so an
-            // integrity audit can account for every manual credit.
-            // first_msg_* are synthetic here — the message wasn't captured
-            // by the poller, which is the entire reason the user appealed.
-            // Using "appeal:<appealId>" as first_msg_id keeps the NOT NULL
-            // constraint satisfied without faking a real YouTube id.
+            // integrity audit can account for every manual credit. earned_cpe
+            // pulls from the same kv-driven helper as the poller so an admin
+            // grant always matches the credit a poller match would have given
+            // for the active rule version.
+            const cpe = await getCpePerDay(env, ruleVersion);
             await env.DB.prepare(`
                 INSERT INTO attendance
                   (user_id, stream_id, earned_cpe, first_msg_id, first_msg_at,
                    first_msg_sha256, first_msg_len, rule_version, source, created_at)
-                VALUES (?1, ?2, 0.5, ?3, ?4, '', 0, ?5, 'appeal_granted', ?6)
+                VALUES (?1, ?2, ?3, ?4, ?5, '', 0, ?6, 'appeal_granted', ?7)
             `).bind(
-                appeal.user_id, appeal.claimed_stream_id,
+                appeal.user_id, appeal.claimed_stream_id, cpe,
                 `appeal:${appeal.id}`, ts, ruleVersion, ts,
             ).run();
             attendanceInserted = true;
