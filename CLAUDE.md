@@ -137,12 +137,21 @@ ADMIN_TOKEN="$(tr -d '\n' < ~/.cloudflare/sc-cpe-admin-token)" \
 ## Known gaps (as of 2026-04-15)
 
 - Pages auto-deploy from GitHub is unwired (dashboard action, not code).
-- **4 secrets exposed out-of-band** (chat/screenshots, NOT git history) —
-  CF API tokens `cfat_cjNGGSBM...`/`cfut_AxNjVmVf...`, `WATCHDOG_SECRET`,
-  `PDF_SIGNING_KEY_PASSWORD`. Verified clean against full git history with
-  gitleaks 8.21.2 + `git log -S` regex on 2026-04-15 — repo is publication-
-  safe. Rotation still warranted for the out-of-band exposure;
-  `PDF_SIGNING_KEY_PASSWORD` highest priority since it backs cert validity.
+- **Out-of-band leaked secrets** (chat/screenshots, NOT git history) —
+  verified clean against full git history with gitleaks 8.21.2 +
+  `git log -S` regex on 2026-04-15. Rotation status:
+    - `PDF_SIGNING_KEY_PASSWORD` — **rotated 2026-04-15**. Re-wrapped existing
+      p12 with a new password (keypair + cert fingerprint `e85b7593…`
+      unchanged, so no verify-portal trust update needed). New password at
+      `~/.cloudflare/sc-cpe-pdf-signing-pw`. Verified via
+      `cert-sign-pending` workflow_dispatch → `signing_material_loaded`.
+    - `WATCHDOG_SECRET` — **rotated 2026-04-15**. Updated both GH Actions
+      secret and CF Pages production env; Pages redeployed to pick up.
+      New value at `~/.cloudflare/sc-cpe-watchdog-secret`. Verified via
+      200 response from `/api/watchdog-state`.
+    - CF API tokens `cfat_cjNGGSBM...`/`cfut_AxNjVmVf...` — **still to
+      rotate** via Cloudflare dashboard (revoke + reissue + update
+      `~/.cloudflare/signalplane.env`).
 - `signalplane.co` has DKIM (Resend) + SPF but **no DMARC record**.
   Recommend `v=DMARC1; p=none; rua=mailto:...` for observability; not a
   blocker since DKIM-aligned Resend delivers fine today.
