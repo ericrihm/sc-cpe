@@ -98,17 +98,31 @@ CREATE TABLE certs (
     revocation_reason     TEXT,
     revoked_at            TEXT,
     supersedes_cert_id    TEXT,
+    cert_kind             TEXT NOT NULL DEFAULT 'bundled',
+    stream_id             TEXT,
     generated_at          TEXT,
     delivered_at          TEXT,
     first_viewed_at       TEXT,
     created_at            TEXT NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(id),
     FOREIGN KEY (supersedes_cert_id) REFERENCES certs(id),
+    FOREIGN KEY (stream_id) REFERENCES streams(id),
     CHECK (state IN ('pending','generated','delivered','viewed_by_auditor','revoked','regenerated')),
     CHECK (length(public_token) >= 32)
 );
-CREATE UNIQUE INDEX certs_user_period_unique ON certs(user_id, period_yyyymm) WHERE state != 'revoked';
+-- cert_kind domain ('bundled' | 'per_session') enforced by app code; SQLite
+-- can't ADD CONSTRAINT CHECK on ALTER so migration 003 leaves it off.
+CREATE UNIQUE INDEX certs_user_period_bundled_unique
+    ON certs(user_id, period_yyyymm)
+    WHERE cert_kind = 'bundled' AND state != 'revoked';
+CREATE UNIQUE INDEX certs_user_stream_unique
+    ON certs(user_id, stream_id)
+    WHERE cert_kind = 'per_session'
+      AND stream_id IS NOT NULL
+      AND state != 'revoked';
 CREATE INDEX certs_user_idx ON certs(user_id);
+CREATE INDEX certs_kind_idx ON certs(cert_kind);
+CREATE INDEX certs_pending_idx ON certs(state) WHERE state = 'pending';
 
 -- User-submitted claims for missed attendance. Admin resolves manually in MVP.
 CREATE TABLE appeals (

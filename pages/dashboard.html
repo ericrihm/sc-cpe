@@ -97,10 +97,27 @@
             </p>
         </div>
 
+        <div class="card" id="prefs-card" hidden>
+            <h2>Certificate delivery</h2>
+            <p class="muted" style="font-size:12px;">
+                Most auditors (including (ISC)²) accept the bundled monthly
+                certificate. Pick individual per-session certs if your
+                employer's CPE auditor requires per-activity documentation.
+                You can also request a one-off per-session cert on any
+                attendance row below.
+            </p>
+            <div id="prefs-radios" style="display:flex;flex-direction:column;gap:6px;margin-top:8px;">
+                <label><input type="radio" name="cert_style" value="bundled"> One monthly bundle <span class="muted" style="font-size:11px;">(recommended)</span></label>
+                <label><input type="radio" name="cert_style" value="per_session"> Individual cert for every attended session</label>
+                <label><input type="radio" name="cert_style" value="both"> Both (bundle + per-session)</label>
+            </div>
+            <p id="prefs-msg" class="muted" style="font-size:11px;margin-top:6px;" hidden></p>
+        </div>
+
         <div class="card">
             <h2>Attendance history</h2>
             <table id="att-table" hidden>
-                <thead><tr><th>Date</th><th>Video</th><th>Credit</th><th>First message</th></tr></thead>
+                <thead><tr><th>Date</th><th>Video</th><th>Credit</th><th>First message</th><th>Session cert</th></tr></thead>
                 <tbody id="att"></tbody>
             </table>
             <p id="att-empty" hidden class="muted">No attendance records yet. See you at the next Daily Threat Briefing.</p>
@@ -139,6 +156,14 @@ async function load() {
     document.getElementById("name").textContent = d.user.legal_name;
     document.getElementById("state").textContent = d.user.state;
 
+    if (d.user.state === "active") {
+        const prefsCard = document.getElementById("prefs-card");
+        prefsCard.hidden = false;
+        const style = (d.user.email_prefs && d.user.email_prefs.cert_style) || "bundled";
+        const radio = document.querySelector(`input[name="cert_style"][value="${style}"]`);
+        if (radio) radio.checked = true;
+    }
+
     if (d.user.state === "pending_verification") {
         document.getElementById("pending").hidden = false;
         renderCodeStatus(d.user.code_state, d.user.code_expires_at);
@@ -162,12 +187,38 @@ async function load() {
         document.getElementById("att-table").hidden = false;
         for (const a of d.attendance) {
             const tr = document.createElement("tr");
+            const btn = a.per_session_cert_exists
+                ? `<span class="muted" style="font-size:11px;">issued</span>`
+                : `<button type="button" class="ps-btn" data-stream="${a.stream_id}"
+                     style="font-size:11px;padding:2px 6px;">Request</button>`;
             tr.innerHTML = `<td>${a.scheduled_date}</td>
                 <td><a href="https://youtu.be/${a.yt_video_id}" target="_blank" rel="noopener">${escapeHtml(a.title || a.yt_video_id)}</a></td>
                 <td>${a.earned_cpe}</td>
-                <td class="muted">${a.first_msg_at}</td>`;
+                <td class="muted">${a.first_msg_at}</td>
+                <td class="ps-cell">${btn}</td>`;
             att.appendChild(tr);
         }
+        att.addEventListener("click", async (e) => {
+            const btn = e.target.closest(".ps-btn");
+            if (!btn || btn.disabled) return;
+            btn.disabled = true;
+            const stream = btn.dataset.stream;
+            btn.textContent = "sending…";
+            try {
+                const r = await fetch(
+                    `/api/me/${encodeURIComponent(token)}/cert-per-session/${encodeURIComponent(stream)}`,
+                    { method: "POST", headers: { "Content-Type": "application/json" } },
+                );
+                const j = await r.json().catch(() => ({}));
+                if (!r.ok) throw new Error(j.error || "HTTP " + r.status);
+                btn.parentElement.innerHTML =
+                    `<span class="muted" style="font-size:11px;">${j.existing ? "already issued" : "queued"}</span>`;
+            } catch (err) {
+                btn.disabled = false;
+                btn.textContent = "retry";
+                btn.title = String(err.message || err);
+            }
+        });
     }
 
     const certs = document.getElementById("certs");
@@ -242,6 +293,25 @@ function renderCodeStatus(codeState, codeExpiresAt) {
         btn.hidden = false;
     }
 }
+
+document.getElementById("prefs-radios").addEventListener("change", async (e) => {
+    const radio = e.target.closest('input[name="cert_style"]');
+    if (!radio) return;
+    const msg = document.getElementById("prefs-msg");
+    msg.hidden = false;
+    msg.textContent = "saving…";
+    try {
+        const r = await fetch(`/api/me/${encodeURIComponent(token)}/prefs`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ cert_style: radio.value }),
+        });
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        msg.textContent = "saved — next monthly run will respect this.";
+    } catch (err) {
+        msg.textContent = "failed: " + err.message;
+    }
+});
 
 document.getElementById("resend-btn").addEventListener("click", async () => {
     const btn = document.getElementById("resend-btn");
