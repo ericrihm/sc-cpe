@@ -286,7 +286,7 @@ class Config:
             p12_b64=require_env("PDF_SIGNING_KEY_P12_BASE64"),
             p12_password=require_env("PDF_SIGNING_KEY_PASSWORD"),
             resend_api_key=require_env("RESEND_API_KEY"),
-            from_email=os.environ.get("FROM_EMAIL", "Simply Cyber CPE <certs@signalplane.io>"),
+            from_email=os.environ.get("FROM_EMAIL", "Simply Cyber CPE <certs@signalplane.co>"),
             issuer_name=os.environ.get("ISSUER_NAME", "Simply Cyber LLC"),
             verify_base_url=os.environ.get(
                 "VERIFY_BASE_URL", "https://cpe.simplycyber.io/verify.html"
