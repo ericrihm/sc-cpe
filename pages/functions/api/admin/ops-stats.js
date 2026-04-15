@@ -31,6 +31,16 @@ export async function onRequestGet({ request, env }) {
         env.DB.prepare("SELECT id, ts, prev_hash FROM audit_log ORDER BY ts DESC, id DESC LIMIT 1").first(),
     ]);
 
+    const fixtureStreams = await env.DB.prepare(
+        "SELECT COUNT(*) AS n FROM streams WHERE id LIKE '01KTEST%' OR yt_video_id LIKE 'TEST%'",
+    ).first();
+    const fixtureAttendance = await env.DB.prepare(
+        "SELECT COUNT(*) AS n FROM attendance WHERE first_msg_sha256 = 'deadbeef' OR first_msg_id LIKE 'TESTMSG%'",
+    ).first();
+    const fixtureUsers = await env.DB.prepare(
+        "SELECT COUNT(*) AS n FROM users WHERE deleted_at IS NULL AND (email LIKE '%@example.com' OR email LIKE '%@example.org' OR email LIKE '%@test.invalid')",
+    ).first();
+
     return json({
         ok: true,
         now: new Date().toISOString(),
@@ -53,5 +63,10 @@ export async function onRequestGet({ request, env }) {
         audit_tip: auditTip
             ? { id: auditTip.id, ts: auditTip.ts, prev_hash: auditTip.prev_hash }
             : null,
+        fixture_pollution: {
+            streams: fixtureStreams?.n ?? 0,
+            attendance: fixtureAttendance?.n ?? 0,
+            users: fixtureUsers?.n ?? 0,
+        },
     });
 }

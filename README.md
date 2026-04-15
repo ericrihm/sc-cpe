@@ -104,6 +104,12 @@ by hand doesn't scale past a few dozen people. SC‑CPE does it end‑to‑end:
 **0.5 CEU / CPE per 30‑minute session** · up to ~20 sessions/month · per‑session
 or bundled (or both) · full reissue flow if your name or email is wrong.
 
+Your YouTube channel auto‑links the first time the poller matches your code in
+a live briefing chat. If credits are granted manually (admin reconciliation —
+e.g. the poller missed a briefing), the channel stays unlinked until your next
+auto‑matched post. The dashboard shows this state honestly rather than implying
+you haven't posted yet.
+
 ---
 
 ## Why this cert is authentic
