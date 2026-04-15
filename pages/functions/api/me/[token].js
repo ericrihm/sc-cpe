@@ -26,7 +26,35 @@ export async function onRequestGet({ params, env }) {
         FROM certs WHERE user_id = ?1 ORDER BY period_yyyymm DESC
     `).bind(user.id).all();
 
+    // Appeals in any state — the dashboard calendar marks the claimed_date
+    // with a badge so the user sees their open/granted/denied claims
+    // alongside credited days.
+    const appeals = await env.DB.prepare(`
+        SELECT id, claimed_date, state, created_at, resolved_at
+          FROM appeals WHERE user_id = ?1
+       ORDER BY created_at DESC
+    `).bind(user.id).all();
+
     const totalCpe = (attendance.results || []).reduce((s, r) => s + r.earned_cpe, 0);
+
+    // Near-real-time "credited today" signal. Poller writes attendance the
+    // moment a qualifying message is seen; this join lets the dashboard show
+    // a green check within one poller tick instead of waiting for month-end.
+    // today = the most recent stream row (the poller only runs one per day,
+    // so "most recent non-complete" is the live one and "most recent complete"
+    // is today's that already ended — both cases the user cares about).
+    const liveToday = await env.DB.prepare(`
+        SELECT s.id AS stream_id, s.yt_video_id, s.title, s.state,
+               s.scheduled_date, s.actual_start_at, s.actual_end_at,
+               CASE WHEN EXISTS (
+                   SELECT 1 FROM attendance a
+                    WHERE a.user_id = ?1 AND a.stream_id = s.id
+               ) THEN 1 ELSE 0 END AS credited
+          FROM streams s
+         WHERE s.state IN ('live','complete')
+      ORDER BY COALESCE(s.actual_start_at, s.created_at) DESC
+         LIMIT 1
+    `).bind(user.id).first();
 
     return json({
         user: {
@@ -42,6 +70,17 @@ export async function onRequestGet({ params, env }) {
         },
         attendance: attendance.results || [],
         certs: certs.results || [],
+        appeals: appeals.results || [],
         total_cpe_earned: totalCpe,
+        today: liveToday ? {
+            stream_id: liveToday.stream_id,
+            yt_video_id: liveToday.yt_video_id,
+            title: liveToday.title,
+            state: liveToday.state,
+            scheduled_date: liveToday.scheduled_date,
+            actual_start_at: liveToday.actual_start_at,
+            actual_end_at: liveToday.actual_end_at,
+            credited: !!liveToday.credited,
+        } : null,
     });
 }

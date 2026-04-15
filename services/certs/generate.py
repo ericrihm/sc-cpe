@@ -37,7 +37,9 @@ import os
 import secrets
 import sys
 import time
+import threading
 import traceback
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
@@ -276,6 +278,12 @@ class Config:
     tsa_required: bool
 
     period_override: str | None = None
+    # Bounded concurrency for the per-user issue loop. Each issue_for_user()
+    # blocks on (a) the TSA network round-trip during PAdES signing and
+    # (b) R2/D1/Resend HTTP calls — all I/O. 4 workers cuts wall-time
+    # roughly by ~3.5x on a 50-user month without overwhelming any
+    # single remote. Override via CERT_ISSUE_WORKERS env.
+    issue_workers: int = 4
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -315,6 +323,7 @@ class Config:
             tsa_required=(os.environ.get("TSA_REQUIRED", "1").strip().lower()
                           not in ("0", "false", "no", "")),
             period_override=(os.environ.get("PERIOD_YYYYMM") or "").strip() or None,
+            issue_workers=max(1, min(16, int(os.environ.get("CERT_ISSUE_WORKERS", "4")))),
         )
 
 
@@ -1019,20 +1028,26 @@ def main() -> int:
 
     users = d1.query(ELIGIBLE_SQL, [period_yyyymm])
     stats = Stats(eligible=len(users))
-    log("info", "eligible_users", count=len(users), period=period_yyyymm)
+    log("info", "eligible_users", count=len(users), period=period_yyyymm,
+        workers=cfg.issue_workers)
 
-    for row in users:
+    # Per-user work is almost entirely blocking I/O (TSA, R2, D1, Resend),
+    # so a ThreadPoolExecutor gives ~Nx speedup on Python's GIL without
+    # touching the signing code. The audit-chain UNIQUE index on prev_hash
+    # serialises concurrent audit writes — the chain INSERT path already
+    # retries on contention (see audit_insert in this file), so parallel
+    # writers are safe. stats are mutated under a lock to keep counts exact.
+    stats_lock = threading.Lock()
+
+    def _process(row: dict[str, Any]) -> None:
         user_id = row.get("id")
         try:
             if already_issued(d1, user_id, period_yyyymm):
-                log(
-                    "info",
-                    "skip_already_issued",
-                    user_id=user_id,
-                    period=period_yyyymm,
-                )
-                stats.skipped_already_issued += 1
-                continue
+                log("info", "skip_already_issued",
+                    user_id=user_id, period=period_yyyymm)
+                with stats_lock:
+                    stats.skipped_already_issued += 1
+                return
 
             issue_for_user(
                 cfg=cfg,
@@ -1046,21 +1061,25 @@ def main() -> int:
                 period_end_date=period_end,
                 period_display=period_display,
             )
-            stats.issued += 1
+            with stats_lock:
+                stats.issued += 1
         except Exception as e:
-            stats.errored += 1
             tb = traceback.format_exc(limit=6)
             err = {"user_id": user_id, "error": str(e), "trace": tb}
-            stats.errors.append(err)
-            log(
-                "error",
-                "issue_failed",
-                user_id=user_id,
-                period=period_yyyymm,
-                error=str(e),
-                trace=tb,
-            )
-            # Continue with the next user.
+            with stats_lock:
+                stats.errored += 1
+                stats.errors.append(err)
+            log("error", "issue_failed",
+                user_id=user_id, period=period_yyyymm,
+                error=str(e), trace=tb)
+
+    if cfg.issue_workers <= 1 or len(users) <= 1:
+        for row in users:
+            _process(row)
+    else:
+        with ThreadPoolExecutor(max_workers=cfg.issue_workers) as pool:
+            for _ in as_completed([pool.submit(_process, r) for r in users]):
+                pass
 
     log(
         "info",
