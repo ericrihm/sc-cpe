@@ -15,7 +15,8 @@ export async function onRequestGet({ params, env, request }) {
 
     const user = await env.DB.prepare(`
         SELECT id, email, legal_name, yt_channel_id, yt_display_name_seen,
-               verification_code, code_expires_at, state, created_at, verified_at
+               verification_code, code_expires_at, state, email_prefs,
+               created_at, verified_at
         FROM users WHERE dashboard_token = ?1 AND deleted_at IS NULL
     `).bind(token).first();
 
@@ -31,9 +32,20 @@ export async function onRequestGet({ params, env, request }) {
 
     const certs = await env.DB.prepare(`
         SELECT id, public_token, period_yyyymm, cpe_total, sessions_count,
-               state, generated_at, delivered_at
-        FROM certs WHERE user_id = ?1 ORDER BY period_yyyymm DESC
+               state, cert_kind, stream_id, supersedes_cert_id,
+               generated_at, delivered_at
+        FROM certs WHERE user_id = ?1 AND state != 'regenerated'
+        ORDER BY period_yyyymm DESC, created_at DESC
     `).bind(user.id).all();
+
+    // Set of stream_ids the user already has a per_session cert for (any
+    // non-terminal state). Drives the dashboard's per-row button: show
+    // "Request cert for this session" only when none exists.
+    const perSessionExisting = new Set(
+        (certs.results || [])
+            .filter(c => c.cert_kind === "per_session" && c.stream_id)
+            .map(c => c.stream_id),
+    );
 
     // Appeals in any state — the dashboard calendar marks the claimed_date
     // with a badge so the user sees their open/granted/denied claims
@@ -77,6 +89,16 @@ export async function onRequestGet({ params, env, request }) {
             ? "active" : "expired";
     }
 
+    let emailPrefs = { monthly_cert: true, cert_style: "bundled" };
+    try {
+        emailPrefs = { ...emailPrefs, ...(JSON.parse(user.email_prefs || "{}") || {}) };
+    } catch { /* fall through to defaults */ }
+
+    const attendanceWithFlags = (attendance.results || []).map(a => ({
+        ...a,
+        per_session_cert_exists: perSessionExisting.has(a.stream_id),
+    }));
+
     return json({
         user: {
             legal_name: user.legal_name,
@@ -86,10 +108,11 @@ export async function onRequestGet({ params, env, request }) {
             state: user.state,
             code_state: codeState,
             code_expires_at: user.code_expires_at,
+            email_prefs: emailPrefs,
             created_at: user.created_at,
             verified_at: user.verified_at,
         },
-        attendance: attendance.results || [],
+        attendance: attendanceWithFlags,
         certs: certs.results || [],
         appeals: appeals.results || [],
         total_cpe_earned: totalCpe,

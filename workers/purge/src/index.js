@@ -41,8 +41,120 @@ export default {
                 });
             }
         }
+
+        // Monthly cert nudge — fires on the 8th UTC, a week after the
+        // monthly-certs cron so users have had time to open the PDF. Enqueues
+        // one reminder email per prior-month bundled cert that has no feedback
+        // yet; idempotency key prevents duplicates across the 8th's crons.
+        if (new Date(now).getUTCDate() === 8) {
+            try {
+                const nudged = await runCertNudges(env, now);
+                await heartbeat(env, "cert_nudge", "ok", { at: now, ...nudged });
+            } catch (err) {
+                await heartbeat(env, "cert_nudge", "error", {
+                    at: now, msg: String(err && err.message || err),
+                });
+            }
+        }
     },
 };
+
+// Prior month as YYYYMM string. Runs on the 8th, so "this month minus one".
+function priorPeriodYyyymm(nowIso) {
+    const d = new Date(nowIso);
+    const y = d.getUTCFullYear();
+    const m = d.getUTCMonth(); // 0-11; "prior month" = this index
+    const py = m === 0 ? y - 1 : y;
+    const pm = m === 0 ? 12 : m;
+    return `${py}${String(pm).padStart(2, "0")}`;
+}
+
+async function runCertNudges(env, nowIso) {
+    if (!env.DASHBOARD_BASE_URL && !env.VERIFY_BASE_URL) {
+        return { skipped: "missing_base_url" };
+    }
+    const period = priorPeriodYyyymm(nowIso);
+
+    // Bundled certs only (per_session recipients already get one email per
+    // session — nudging them again would be noise). LEFT JOIN cert_feedback
+    // excludes certs the user has already rated.
+    const rows = (await env.DB.prepare(`
+        SELECT c.id AS cert_id, c.public_token, c.period_yyyymm,
+               u.id AS user_id, u.email, u.legal_name, u.dashboard_token,
+               u.email_prefs
+          FROM certs c
+          JOIN users u ON u.id = c.user_id
+     LEFT JOIN cert_feedback f ON f.cert_id = c.id
+         WHERE c.period_yyyymm = ?1
+           AND c.cert_kind = 'bundled'
+           AND c.state = 'generated'
+           AND u.deleted_at IS NULL
+           AND f.cert_id IS NULL
+    `).bind(period).all()).results || [];
+
+    let queued = 0, skipped = 0;
+    const verifyBase = (env.VERIFY_BASE_URL || "").replace(/\/$/, "");
+    const dashBase = (env.DASHBOARD_BASE_URL || "").replace(/\/$/, "");
+
+    for (const r of rows) {
+        try {
+            const prefs = JSON.parse(r.email_prefs || "{}") || {};
+            if (prefs.monthly_cert === false) { skipped++; continue; }
+
+            const verifyUrl = `${verifyBase}/${r.public_token}`;
+            const dashUrl = dashBase ? `${dashBase}/${r.dashboard_token}` : "";
+            const subject = `Your ${period} CPE cert — a quick check?`;
+            const text =
+                `Hi ${r.legal_name || "there"},\n\n` +
+                `Your ${period} Simply Cyber DTB CPE certificate was issued ` +
+                `last week. Please take a moment to open it and confirm the ` +
+                `details are correct:\n\n` +
+                `  ${verifyUrl}\n\n` +
+                (dashUrl ? `Dashboard: ${dashUrl}\n\n` : "") +
+                `If anything looks wrong (typo in your name, wrong CPE count, ` +
+                `etc.) just reply here or use the feedback button on the ` +
+                `verify page and we'll re-issue.\n\n` +
+                `— Simply Cyber CPE\n`;
+            const html =
+                `<p>Hi ${escapeHtml(r.legal_name || "there")},</p>` +
+                `<p>Your ${escapeHtml(period)} Simply Cyber DTB CPE ` +
+                `certificate was issued last week. Please take a moment to ` +
+                `open it and confirm the details are correct:</p>` +
+                `<p><a href="${verifyUrl}">${verifyUrl}</a></p>` +
+                (dashUrl ? `<p>Dashboard: <a href="${dashUrl}">${dashUrl}</a></p>` : "") +
+                `<p>If anything looks wrong (typo in your name, wrong CPE ` +
+                `count, etc.) just reply here or use the feedback button on ` +
+                `the verify page and we'll re-issue.</p>` +
+                `<p>— Simply Cyber CPE</p>`;
+
+            await env.DB.prepare(`
+                INSERT INTO email_outbox
+                  (id, user_id, template, to_email, subject, payload_json,
+                   idempotency_key, state, attempts, created_at)
+                VALUES (?1, ?2, 'cert_nudge', ?3, ?4, ?5, ?6, 'queued', 0, ?7)
+            `).bind(
+                ulid(), r.user_id, r.email, subject,
+                JSON.stringify({ html_body: html, text_body: text }),
+                `cert_nudge:${r.cert_id}`, nowIso,
+            ).run();
+            queued++;
+        } catch (err) {
+            // UNIQUE(idempotency_key) re-fires are expected on 8th re-runs.
+            if (/UNIQUE/i.test(String(err?.message || err))) {
+                skipped++;
+            } else {
+                throw err;
+            }
+        }
+    }
+    return { period, queued, skipped, candidates: rows.length };
+}
+
+function escapeHtml(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+}
 
 // Weekly rollup — one email Monday morning (UTC) covering the prior 7 days.
 // Kept intentionally terse: counts only, no row-by-row event lists. Its job
