@@ -38,17 +38,27 @@
 </main>
 <script>
 async function lookup(token) {
-    const r = await fetch(`/api/verify/${encodeURIComponent(token)}`);
-    const d = await r.json().catch(() => ({}));
     const res = document.getElementById("result");
     const panel = document.getElementById("panel");
     res.hidden = false;
+    panel.className = "card";
+    document.getElementById("status").textContent = "Looking up…";
+    for (const id of ["issuer","recipient","period","cpe","sessions","issued","pdfsha","signsha"]) {
+        document.getElementById(id).textContent = "";
+    }
+    let r, d;
+    try {
+        r = await fetch(`/api/verify/${encodeURIComponent(token)}`);
+        d = await r.json().catch(() => ({}));
+    } catch {
+        panel.className = "card bad";
+        document.getElementById("status").textContent = "Network error — please try again";
+        return;
+    }
     if (r.status === 404 || !d.valid && r.status !== 200) {
         panel.className = "card bad";
-        document.getElementById("status").textContent = "No such certificate";
-        for (const id of ["issuer","recipient","period","cpe","sessions","issued","pdfsha","signsha"]) {
-            document.getElementById(id).textContent = "";
-        }
+        document.getElementById("status").textContent =
+            r.status === 404 ? "No such certificate" : `Lookup failed (${r.status})`;
         return;
     }
     panel.className = "card " + (d.state === "revoked" ? "bad" : "ok");

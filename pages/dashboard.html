@@ -52,9 +52,12 @@
             <h2 id="name"></h2>
             <p>Status: <strong id="state"></strong></p>
             <p id="pending" hidden>
-                Post this code in the Simply Cyber live chat to verify your YouTube account:
-                <pre class="code"><span id="code"></span></pre>
-                Code expires <span id="expires"></span>.
+                We emailed you a verification code. Post it in the
+                Simply Cyber Daily Threat Briefing live chat to bind your
+                YouTube account.<br/>
+                <span id="code-status"></span>
+                <button type="button" id="resend-btn" hidden style="margin-top:8px;">Re-send code by email</button>
+                <span id="resend-msg" class="muted" hidden></span>
             </p>
             <p id="active" hidden>
                 Verified YouTube account:
@@ -121,7 +124,9 @@ async function load() {
     if (!token) { err.textContent = "missing token in URL"; err.hidden = false; return; }
     const r = await fetch(`/api/me/${encodeURIComponent(token)}`);
     if (!r.ok) {
-        err.textContent = r.status === 404 ? "dashboard not found" : "error loading dashboard";
+        err.textContent = r.status === 404
+            ? "dashboard not found — check the link in your email"
+            : `error loading dashboard (${r.status})`;
         err.hidden = false;
         return;
     }
@@ -132,15 +137,15 @@ async function load() {
 
     if (d.user.state === "pending_verification") {
         document.getElementById("pending").hidden = false;
-        document.getElementById("code").textContent = "SC-CPE-" + (d.user.verification_code || "");
-        document.getElementById("expires").textContent = d.user.code_expires_at || "";
+        renderCodeStatus(d.user.code_state, d.user.code_expires_at);
     } else if (d.user.state === "active") {
         document.getElementById("active").hidden = false;
         document.getElementById("display").textContent = d.user.yt_display_name_seen || "(unknown)";
         document.getElementById("channel").textContent = d.user.yt_channel_id || "";
     }
 
-    document.getElementById("total").textContent = `${d.total_cpe_earned.toFixed(1)} CPE`;
+    const cpe = Number(d.total_cpe_earned ?? 0);
+    document.getElementById("total").textContent = `${cpe.toFixed(1)} CPE`;
 
     renderToday(d.today);
     calData = { attendance: d.attendance || [], appeals: d.appeals || [] };
@@ -177,6 +182,60 @@ async function load() {
         }
     }
 }
+
+function renderCodeStatus(codeState, codeExpiresAt) {
+    const status = document.getElementById("code-status");
+    const btn = document.getElementById("resend-btn");
+    const friendly = codeExpiresAt
+        ? new Date(codeExpiresAt).toLocaleString(undefined, {
+            year: "numeric", month: "short", day: "numeric",
+            hour: "2-digit", minute: "2-digit",
+          })
+        : "";
+    if (codeState === "active") {
+        status.innerHTML = `Your code expires <strong>${friendly}</strong>. Lost it?`;
+        btn.hidden = false;
+    } else if (codeState === "expired") {
+        status.innerHTML = `<strong style="color:#b91c1c">Your code expired ${friendly}.</strong>
+            Request a fresh one — the new code is delivered by email.`;
+        btn.hidden = false;
+    } else {
+        status.textContent = "No active code on file. Request one below.";
+        btn.hidden = false;
+    }
+}
+
+document.getElementById("resend-btn").addEventListener("click", async () => {
+    const btn = document.getElementById("resend-btn");
+    const msg = document.getElementById("resend-msg");
+    btn.disabled = true;
+    msg.hidden = true;
+    try {
+        const r = await fetch(`/api/me/${encodeURIComponent(token)}/resend-code`,
+            { method: "POST" });
+        const d = await r.json().catch(() => ({}));
+        if (r.ok) {
+            msg.textContent = "New code sent. Check your email.";
+            msg.style.color = "#15803d";
+        } else if (r.status === 429) {
+            msg.textContent = "Too many requests — try again in an hour.";
+            msg.style.color = "#b91c1c";
+        } else if (r.status === 409) {
+            msg.textContent = "Already verified — no code needed.";
+            msg.style.color = "#15803d";
+        } else {
+            msg.textContent = `Couldn't send code (${r.status}).`;
+            msg.style.color = "#b91c1c";
+        }
+        msg.hidden = false;
+    } catch {
+        msg.textContent = "Network error — try again.";
+        msg.style.color = "#b91c1c";
+        msg.hidden = false;
+    } finally {
+        btn.disabled = false;
+    }
+});
 
 function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, c => ({

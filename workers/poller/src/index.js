@@ -204,6 +204,15 @@ async function processAttendance(env, session, items, now) {
 
     const rule = await loadRule(env);
     const startMs = new Date(session.actual_start_at).getTime();
+    if (!Number.isFinite(startMs)) {
+        // No usable start timestamp — without it the grace window collapses
+        // to NaN and `< NaN` is always false, which would silently credit
+        // every chat message regardless of timing. Fail closed instead.
+        console.warn("processAttendance:bad_actual_start_at", {
+            stream_id: session.stream_id, actual_start_at: session.actual_start_at,
+        });
+        return;
+    }
     const windowOpenMs = startMs + rule.pre_start_grace_min * 60_000;
 
     const channelIds = [...new Set(

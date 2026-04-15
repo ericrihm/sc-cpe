@@ -1,4 +1,4 @@
-import { json, audit, clientIp, ipHash, isAdmin, now } from "../../_lib.js";
+import { json, audit, clientIp, ipHash, isAdmin, now, getCpePerDay } from "../../_lib.js";
 
 // POST /api/admin/attendance
 // Auth: Authorization: Bearer <ADMIN_TOKEN>
@@ -62,18 +62,19 @@ export async function onRequestPost({ request, env }) {
     }
 
     const ts = now();
+    const cpe = await getCpePerDay(env, ruleVersion);
     await env.DB.prepare(`
         INSERT INTO attendance
           (user_id, stream_id, earned_cpe, first_msg_id, first_msg_at,
            first_msg_sha256, first_msg_len, rule_version, source, created_at)
-        VALUES (?1, ?2, 0.5, ?3, ?4, '', 0, ?5, 'admin_manual', ?6)
-    `).bind(userId, streamId, `admin:${resolver}:${ts}`, ts, ruleVersion, ts).run();
+        VALUES (?1, ?2, ?3, ?4, ?5, '', 0, ?6, 'admin_manual', ?7)
+    `).bind(userId, streamId, cpe, `admin:${resolver}:${ts}`, ts, ruleVersion, ts).run();
 
     await audit(
         env, "admin", resolver, "attendance_granted_manual", "attendance",
         `${userId}:${streamId}`,
         null,
-        { user_id: userId, stream_id: streamId, reason, rule_version: ruleVersion },
+        { user_id: userId, stream_id: streamId, reason, rule_version: ruleVersion, earned_cpe: cpe },
         { ip_hash: await ipHash(clientIp(request)) },
     );
 
@@ -82,6 +83,7 @@ export async function onRequestPost({ request, env }) {
         user_id: userId,
         stream_id: streamId,
         source: "admin_manual",
+        earned_cpe: cpe,
         created_at: ts,
     });
 }

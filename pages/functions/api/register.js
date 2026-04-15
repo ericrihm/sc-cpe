@@ -70,9 +70,14 @@ export async function onRequestPost({ request, env }) {
     ).bind(email).first();
 
     if (existing && existing.state === "active") {
+        // Do NOT return the dashboard_token here. The dashboard URL is the
+        // only credential — leaking it on a 409 lets anyone who knows a
+        // registered email harvest the active token (Turnstile is the only
+        // gate). Direct the caller through /recover.html instead, which is
+        // rate-limited and emails the link to the address on file.
         return json({
             error: "already_registered",
-            dashboard_url: `/dashboard.html?t=${existing.dashboard_token}`,
+            recover_url: "/recover.html",
         }, 409);
     }
 

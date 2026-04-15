@@ -1,7 +1,46 @@
 import {
     ulid, json, now, audit, clientIp, ipHash,
-    isValidEmail, verifyTurnstile,
+    isValidEmail, verifyTurnstile, escapeHtml, emailShell,
 } from "../_lib.js";
+
+const SITE_BASE = "https://sc-cpe-web.pages.dev";
+
+function recoveryEmailBodies({ legalName, dashboardUrl }) {
+    const subject = "Your Simply Cyber CPE dashboard link";
+    const text = (
+        `Hi ${legalName},\n\n` +
+        `You (or someone using your email) requested your Simply Cyber CPE\n` +
+        `dashboard link. Bookmark it — this URL is your account credential.\n\n` +
+        `  ${dashboardUrl}\n\n` +
+        `If you did not request this, you can ignore the email.\n\n` +
+        `— Simply Cyber\n`
+    );
+    const bodyHtml = `
+<p>Hi ${escapeHtml(legalName)},</p>
+<p>You (or someone using your email) requested your Simply Cyber CPE dashboard link.
+Bookmark it — this URL is your account credential.</p>
+<p>
+  <a href="${dashboardUrl}"
+     style="display:inline-block;background:#0b3d5c;color:#fff;
+            padding:10px 16px;border-radius:4px;text-decoration:none;">
+     Open my dashboard
+  </a>
+</p>
+<p style="word-break:break-all;font-family:Menlo,monospace;font-size:12px;color:#555;">
+  ${dashboardUrl}
+</p>
+<p style="color:#666;font-size:12px;">If you did not request this, you can ignore
+this email — no further action is taken.</p>`;
+    return {
+        subject,
+        text,
+        html: emailShell({
+            title: "Dashboard recovery",
+            preheader: "Your Simply Cyber CPE dashboard link",
+            bodyHtml,
+        }),
+    };
+}
 
 // Dashboard-URL recovery. The dashboard token is the user's sole credential,
 // so this endpoint must not leak which emails are registered — every valid
@@ -50,7 +89,7 @@ export async function onRequestPost({ request, env }) {
     }
 
     const user = await env.DB.prepare(
-        "SELECT id, email, dashboard_token FROM users " +
+        "SELECT id, email, legal_name, dashboard_token FROM users " +
         "WHERE lower(email) = ?1 AND state = 'active' AND deleted_at IS NULL",
     ).bind(email).first();
 
@@ -62,24 +101,30 @@ export async function onRequestPost({ request, env }) {
 
     const emailId = ulid();
     const idempotencyKey = `recover:${user.id}:${hourBucket}`;
-    const dashboardUrl = `/dashboard.html?t=${user.dashboard_token}`;
-    const payload = {
-        kind: "recover_dashboard",
-        user_id: user.id,
-        dashboard_url: dashboardUrl,
-        requested_at: now(),
-    };
+    const dashboardUrl = `${SITE_BASE}/dashboard.html?t=${user.dashboard_token}`;
+    const bodies = recoveryEmailBodies({
+        legalName: user.legal_name || "there",
+        dashboardUrl,
+    });
+    // Pre-render html_body/text_body into payload_json so the email-sender
+    // drainer can dispatch the row without re-rendering. Earlier this row
+    // carried only metadata, which the drainer rejected as payload_missing_body
+    // and burned through retries until it landed in 'failed' permanently.
+    const payload = JSON.stringify({
+        html_body: bodies.html,
+        text_body: bodies.text,
+    });
 
     try {
         await env.DB.prepare(`
             INSERT INTO email_outbox
               (id, user_id, template, to_email, subject,
                payload_json, idempotency_key, state, attempts, created_at)
-            VALUES (?1, ?2, 'recover_dashboard', ?3, ?4, ?5, ?6, 'queued', 0, ?7)
+            VALUES (?1, ?2, 'recover', ?3, ?4, ?5, ?6, 'queued', 0, ?7)
         `).bind(
             emailId, user.id, user.email,
-            "Your Simply Cyber CPE dashboard link",
-            JSON.stringify(payload),
+            bodies.subject,
+            payload,
             idempotencyKey,
             now(),
         ).run();
