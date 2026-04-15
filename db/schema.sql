@@ -196,3 +196,20 @@ CREATE TABLE kv (
     expires_at            TEXT,
     updated_at            TEXT NOT NULL
 );
+
+-- Cert-correctness feedback. See db/migrations/002_cert_feedback.sql for rationale.
+CREATE TABLE cert_feedback (
+    id              TEXT PRIMARY KEY,
+    user_id         TEXT NOT NULL,
+    cert_id         TEXT NOT NULL,
+    rating          TEXT NOT NULL,
+    note            TEXT,
+    created_at      TEXT NOT NULL,
+    updated_at      TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (cert_id) REFERENCES certs(id),
+    CHECK (rating IN ('ok','typo','wrong')),
+    CHECK (note IS NULL OR length(note) <= 500)
+);
+CREATE UNIQUE INDEX cert_feedback_unique ON cert_feedback(user_id, cert_id);
+CREATE INDEX cert_feedback_rating_idx ON cert_feedback(rating) WHERE rating != 'ok';
