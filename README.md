@@ -32,10 +32,14 @@ running.
 | `POST /api/register` | none (Turnstile) | Sign-up |
 | `GET /api/me/{token}` | dashboard-token | User view |
 | `POST /api/me/{token}/cert-feedback` | dashboard-token + CSRF | Report typo/wrong |
+| `POST /api/me/{token}/prefs` | dashboard-token + CSRF | Set `cert_style` (bundled/per_session/both), monthly nudge opt-out |
+| `POST /api/me/{token}/cert-per-session/{stream_id}` | dashboard-token + CSRF | Request single-session cert (idempotent) |
 | `GET /api/health` | none | External watchdog poll |
 | `GET /api/admin/heartbeat-status` | bearer | Per-source staleness |
 | `GET /api/admin/audit-chain-verify` | bearer | Full chain walk |
 | `GET /api/admin/ops-stats` | bearer | Dashboard counts |
+| `GET /api/admin/cert-feedback` | bearer | Non-ok cert-feedback inbox |
+| `POST /api/admin/cert/{id}/reissue` | bearer | Queue regenerated cert (supersedes chain) |
 | `POST /api/admin/canary-beat` | bearer | Hourly smoke heartbeat |
 
 Pages:
@@ -90,8 +94,14 @@ does this automatically and pings Discord on failure.
 - **Daily digest**: purge worker 09:00 UTC, security events + stale heartbeats.
 - **Weekly digest**: purge worker, Mondays 09:00 UTC, registration/cert/appeal
   rollup.
+- **Monthly cert nudge**: purge worker on UTC day 8, one reminder per prior-
+  month bundled cert without feedback (respects `email_prefs.monthly_cert`).
 - **Hourly canary** (`.github/workflows/smoke.yml`): runs smoke suite against
   prod, writes `canary` heartbeat on success.
+- **Pending-cert pickup** (`.github/workflows/cert-sign-pending.yml`): every
+  2h, signs rows in `state='pending'` (on-demand per-session + admin reissues).
+- **Admin on-demand trigger**: `POST https://sc-cpe-purge.ericrihm.workers.dev/?only=<block>`
+  (bearer-gated). `only` ∈ `purge|security_alerts|weekly_digest|cert_nudge|all`.
 
 ## Repo layout
 

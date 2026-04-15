@@ -29,7 +29,10 @@ db/
   schema.sql          authoritative schema (keep in sync with migrations)
   migrations/         append-only numbered migrations
 scripts/              smoke, schema check, audit verifier, tests
-.github/workflows/    CI: ci.yml (tests+gitleaks), smoke.yml (hourly), watchdog.yml
+.github/workflows/    CI: ci.yml (tests+gitleaks), smoke.yml (hourly),
+                      watchdog.yml, monthly-certs.yml (bundled sweep),
+                      cert-sign-pending.yml (2h pending-cert pickup),
+                      schema-drift.yml (weekly D1 vs schema.sql)
 .githooks/pre-push    runs scripts/test.sh before push
 ```
 
@@ -64,6 +67,14 @@ scripts/              smoke, schema check, audit verifier, tests
    cron, add its expected cadence to `pages/functions/_heartbeat.js`
    AND the mirrored copy in `workers/purge/src/index.js`.
 
+7. **`cert_kind` is app-enforced domain** (`bundled`|`per_session`). SQLite
+   partial unique indexes gate duplicates per-scope: bundled one per
+   (user, period), per_session one per (user, stream). Reissue flow creates
+   a new pending row with `supersedes_cert_id` set; Python cron flips the
+   old row to `state='regenerated'` on successful delivery and logs action
+   `cert_regenerated`. Never UPDATE a generated cert in place — always
+   supersede.
+
 ## Testing
 
 ```
@@ -89,6 +100,21 @@ cd workers/poller && wrangler deploy
 cd workers/email-sender && wrangler deploy
 ```
 
+Python cron (`services/certs/generate.py`) runs via GitHub Actions, not
+wrangler. Two modes:
+- default: monthly bundled sweep over `ELIGIBLE_SQL` + per_session fan-out
+  for users with `email_prefs.cert_style in ('per_session','both')`.
+- `--pending-only` / `PENDING_ONLY=1`: drains `certs WHERE state='pending'`
+  — fills rows inserted by the per-session endpoint or admin reissue.
+  Never use the bundled path to fulfil these; it will INSERT a duplicate.
+
+The purge worker exposes a bearer-gated on-demand trigger:
+`POST https://sc-cpe-purge.ericrihm.workers.dev/?only=<block>` where
+`<block>` ∈ `purge|security_alerts|weekly_digest|cert_nudge|all`. Use it
+to verify cron paths without waiting for 09:00 UTC. `workers_dev=true` in
+`workers/purge/wrangler.toml` is deliberate — it's how the fetch handler
+is reachable.
+
 After deploy, always run smoke:
 
 ```
@@ -111,9 +137,17 @@ ADMIN_TOKEN="$(tr -d '\n' < ~/.cloudflare/sc-cpe-admin-token)" \
 ## Known gaps (as of 2026-04-15)
 
 - Pages auto-deploy from GitHub is unwired (dashboard action, not code).
-- 4 secrets leaked to chat in prior session still need rotation:
-  CF API tokens `cfat_cjNGGSBM...`/`cfut_AxNjVmVf...`, `WATCHDOG_SECRET`,
-  `PDF_SIGNING_KEY_PASSWORD`. Rotate before any serious traffic.
+- **4 leaked secrets not yet rotated** — CF API tokens
+  `cfat_cjNGGSBM...`/`cfut_AxNjVmVf...`, `WATCHDOG_SECRET`,
+  `PDF_SIGNING_KEY_PASSWORD`. `PDF_SIGNING_KEY_PASSWORD` backs every
+  cert's legal validity — top priority before real traffic.
+- `signalplane.co` has DKIM (Resend) + SPF but **no DMARC record**.
+  Recommend `v=DMARC1; p=none; rua=mailto:...` for observability; not a
+  blocker since DKIM-aligned Resend delivers fine today.
+- No E2E test of the pending-pickup path in prod — the 2h cron fires
+  Cron-style, no live per-session or reissue request has been exercised
+  yet. First real invocation will reveal any JS-insert / Python-UPDATE
+  shape mismatch.
 - Weekly digest is Mon-only on UTC day boundary — may drift vs. US weekday
   expectation around DST; not an issue until it is.
 
