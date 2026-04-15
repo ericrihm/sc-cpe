@@ -137,17 +137,15 @@ ADMIN_TOKEN="$(tr -d '\n' < ~/.cloudflare/sc-cpe-admin-token)" \
 ## Known gaps (as of 2026-04-15)
 
 - Pages auto-deploy from GitHub is unwired (dashboard action, not code).
-- **4 leaked secrets not yet rotated** — CF API tokens
-  `cfat_cjNGGSBM...`/`cfut_AxNjVmVf...`, `WATCHDOG_SECRET`,
-  `PDF_SIGNING_KEY_PASSWORD`. `PDF_SIGNING_KEY_PASSWORD` backs every
-  cert's legal validity — top priority before real traffic.
+- **4 secrets exposed out-of-band** (chat/screenshots, NOT git history) —
+  CF API tokens `cfat_cjNGGSBM...`/`cfut_AxNjVmVf...`, `WATCHDOG_SECRET`,
+  `PDF_SIGNING_KEY_PASSWORD`. Verified clean against full git history with
+  gitleaks 8.21.2 + `git log -S` regex on 2026-04-15 — repo is publication-
+  safe. Rotation still warranted for the out-of-band exposure;
+  `PDF_SIGNING_KEY_PASSWORD` highest priority since it backs cert validity.
 - `signalplane.co` has DKIM (Resend) + SPF but **no DMARC record**.
   Recommend `v=DMARC1; p=none; rua=mailto:...` for observability; not a
   blocker since DKIM-aligned Resend delivers fine today.
-- No E2E test of the pending-pickup path in prod — the 2h cron fires
-  Cron-style, no live per-session or reissue request has been exercised
-  yet. First real invocation will reveal any JS-insert / Python-UPDATE
-  shape mismatch.
 - Weekly digest is Mon-only on UTC day boundary — may drift vs. US weekday
   expectation around DST; not an issue until it is.
 

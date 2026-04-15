@@ -95,5 +95,11 @@ th, td { text-align: left; padding: .5rem .6rem; border-bottom: 1px solid var(--
 th { color: var(--muted); font-weight: 500; }
 dl { display: grid; grid-template-columns: max-content 1fr; gap: .4rem 1rem; margin: 0; }
 dt { color: var(--muted); }
-dd { margin: 0; }
+dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+dd.small { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; line-height: 1.35; }
+@media (max-width: 480px) {
+    dl { grid-template-columns: 1fr; gap: .1rem 0; }
+    dl dt { margin-top: .6rem; }
+    dl dt:first-child { margin-top: 0; }
+}
 a { color: var(--accent); }
