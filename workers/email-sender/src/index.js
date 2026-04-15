@@ -76,8 +76,13 @@ async function heartbeat(env, status, detail) {
 
 async function drain(env) {
     if (!env.RESEND_API_KEY) {
-        console.warn("RESEND_API_KEY unset — drainer no-op");
-        return { attempted: 0, sent: 0, failed: 0, skipped: "no_resend_key" };
+        // Silent success hid a real outage: queued recover/register emails
+        // sat forever while heartbeat reported "ok". Surface via an error
+        // heartbeat so watchdog / stale-heartbeat digest catches it.
+        throw new Error("RESEND_API_KEY_unset");
+    }
+    if (!env.FROM_EMAIL) {
+        throw new Error("FROM_EMAIL_unset");
     }
 
     // Rescue stuck 'sending' rows: anything in that state > STUCK_SENDING_MIN
