@@ -41,6 +41,62 @@
 .cal-dot.cal-appeal-granted { background: #60a5fa; border: 1px solid #2563eb; }
 .cal-dot.cal-appeal-denied { background: #fca5a5; border: 1px solid #dc2626; }
 .cal-legend { margin-top: 8px; }
+
+/* Certificates list — replaces the old table on all viewports. Cards
+   read well on phones and still look clean on desktop. */
+.cert-list { display: flex; flex-direction: column; gap: 10px; }
+.cert-row {
+    border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px 14px;
+    background: #fff;
+}
+.cert-row.is-superseded { background: #fafafa; border-style: dashed; }
+.cert-row-top {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: 8px; flex-wrap: wrap;
+}
+.cert-period { font-weight: 600; font-size: 15px; color: #111; }
+.cert-meta { font-size: 12px; color: #555; margin-top: 2px; }
+.cert-actions {
+    display: flex; gap: 8px; align-items: center; margin-top: 10px;
+    flex-wrap: wrap;
+}
+.cert-verify {
+    display: inline-block; padding: 5px 10px; font-size: 13px;
+    border: 1px solid #2563eb; border-radius: 4px; color: #2563eb;
+    text-decoration: none; background: #fff;
+}
+.cert-verify:hover { background: #eff6ff; }
+.pill {
+    display: inline-block; padding: 2px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 600; line-height: 16px;
+}
+.pill-green { background: #dcfce7; color: #166534; }
+.pill-grey  { background: #f3f4f6; color: #374151; }
+.pill-red   { background: #fee2e2; color: #991b1b; }
+.pill-amber { background: #fef3c7; color: #92400e; }
+.fb-details { font-size: 12px; }
+.fb-details > summary {
+    cursor: pointer; color: #555; list-style: none;
+    padding: 4px 8px; border: 1px solid #e5e7eb; border-radius: 4px;
+}
+.fb-details > summary:hover { background: #f9fafb; }
+.fb-details[open] > summary { color: #111; border-color: #cbd5e1; }
+.fb-picker {
+    display: flex; gap: 6px; margin-top: 8px;
+}
+.fb-picker button {
+    font-size: 12px; padding: 4px 10px; border-radius: 4px;
+    border: 1px solid #d1d5db; background: #fff; cursor: pointer;
+}
+.fb-picker button:hover { background: #f9fafb; }
+.fb-picker button[data-r="ok"]:hover    { border-color: #16a34a; color: #166534; }
+.fb-picker button[data-r="typo"]:hover  { border-color: #d97706; color: #92400e; }
+.fb-picker button[data-r="wrong"]:hover { border-color: #dc2626; color: #991b1b; }
+.cert-history-toggle {
+    font-size: 12px; color: #555; cursor: pointer;
+    margin-top: 4px; background: none; border: none; padding: 4px 0;
+}
+.cert-history-toggle:hover { color: #111; text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -134,14 +190,11 @@
 
         <div class="card">
             <h2>Certificates</h2>
-            <table id="cert-table" hidden>
-                <thead><tr><th>Period</th><th>CPE</th><th>Sessions</th><th>State</th><th>Verify</th><th>Correct?</th></tr></thead>
-                <tbody id="certs"></tbody>
-            </table>
+            <div id="certs" class="cert-list" hidden></div>
             <p id="cert-empty" hidden class="muted">No certificates yet. Certs are issued monthly.</p>
             <p class="muted" style="font-size:11px;margin-top:10px;">
-                The "Correct?" column is how we catch typos and miscounts — your feedback goes
-                straight to the admin digest.
+                If a name or session count looks wrong, tap <strong>Report an issue</strong>
+                on the cert — feedback goes straight to the admin digest so we can reissue.
             </p>
         </div>
     </section>
@@ -250,55 +303,135 @@ async function load() {
         });
     }
 
-    const certs = document.getElementById("certs");
-    if (d.certs.length === 0) {
-        document.getElementById("cert-empty").hidden = false;
-    } else {
-        document.getElementById("cert-table").hidden = false;
-        for (const c of d.certs) {
-            const tr = document.createElement("tr");
-            tr.innerHTML = `<td>${c.period_yyyymm}</td>
-                <td>${c.cpe_total}</td>
-                <td>${c.sessions_count}</td>
-                <td>${c.state}</td>
-                <td><a href="/verify.html?t=${c.public_token}">open</a></td>
-                <td class="fb-cell" data-cert="${c.id}">
-                    <button type="button" class="fb-btn" data-r="ok">✓</button>
-                    <button type="button" class="fb-btn" data-r="typo">typo</button>
-                    <button type="button" class="fb-btn" data-r="wrong">wrong</button>
-                    <span class="fb-msg muted" style="display:none;font-size:11px;margin-left:6px;"></span>
-                </td>`;
-            certs.appendChild(tr);
-        }
-        // Single delegated click handler — POSTs feedback with the CSRF
-        // Origin header the server requires (browsers set it automatically
-        // on same-origin fetch).
-        document.getElementById("certs").addEventListener("click", async (e) => {
-            const btn = e.target.closest(".fb-btn");
-            if (!btn) return;
-            const cell = btn.closest(".fb-cell");
-            const certId = cell.dataset.cert;
-            const rating = btn.dataset.r;
-            let note = null;
-            if (rating !== "ok") {
-                note = prompt(`What's ${rating}? (optional, max 500 chars)`) || null;
-            }
-            const msg = cell.querySelector(".fb-msg");
-            msg.style.display = "inline";
-            msg.textContent = "sending…";
-            try {
-                const r = await fetch(`/api/me/${encodeURIComponent(token)}/cert-feedback`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ cert_id: certId, rating, note }),
-                });
-                if (!r.ok) throw new Error("HTTP " + r.status);
-                msg.textContent = rating === "ok" ? "thanks!" : "logged — we'll follow up";
-            } catch (err) {
-                msg.textContent = "failed: " + err.message;
-            }
-        });
+    renderCerts(d.certs || []);
+}
+
+function formatPeriod(yyyymm) {
+    // "202603" → "March 2026". Falls back to the raw value if malformed.
+    if (!/^\d{6}$/.test(yyyymm)) return yyyymm;
+    const year = Number(yyyymm.slice(0, 4));
+    const mo = Number(yyyymm.slice(4, 6)) - 1;
+    const months = ["January","February","March","April","May","June",
+                    "July","August","September","October","November","December"];
+    if (mo < 0 || mo > 11) return yyyymm;
+    return `${months[mo]} ${year}`;
+}
+
+function certStatePill(c, isSuperseded) {
+    // Maps DB states to user-facing labels. A "revoked" cert that was
+    // replaced by a newer active cert is framed as "Replaced" (neutral)
+    // rather than "Revoked" (alarming) — only genuinely-revoked-with-no-
+    // successor deserves the red treatment.
+    if (isSuperseded) return { cls: "pill-grey", label: "Replaced", title: "Superseded by a newer cert for this period." };
+    switch (c.state) {
+        case "delivered": return { cls: "pill-green", label: "Delivered" };
+        case "viewed_by_auditor": return { cls: "pill-green", label: "Viewed by auditor" };
+        case "generated": return { cls: "pill-amber", label: "Signed — not yet delivered" };
+        case "pending": return { cls: "pill-amber", label: "Signing…" };
+        case "revoked": return { cls: "pill-red", label: "Revoked" };
+        default: return { cls: "pill-grey", label: c.state };
     }
+}
+
+function certKindLabel(k) {
+    return k === "per_session" ? "per-session" : "monthly bundle";
+}
+
+function renderCerts(items) {
+    const host = document.getElementById("certs");
+    host.innerHTML = "";
+    if (items.length === 0) {
+        document.getElementById("cert-empty").hidden = false;
+        return;
+    }
+    host.hidden = false;
+
+    // Group by period+kind so replaced/older certs collapse under the
+    // current one. Without this, a reissued month looks like 3 broken
+    // rows + 1 good row, which reads as "something is wrong."
+    const groups = new Map();
+    for (const c of items) {
+        const k = `${c.period_yyyymm}:${c.cert_kind}`;
+        if (!groups.has(k)) groups.set(k, []);
+        groups.get(k).push(c);
+    }
+    const primaryStates = new Set(["delivered", "viewed_by_auditor", "generated", "pending"]);
+    for (const list of groups.values()) {
+        const primary = list.find(c => primaryStates.has(c.state)) || list[0];
+        const history = list.filter(c => c !== primary);
+        host.appendChild(certCard(primary, false));
+        if (history.length) {
+            const wrap = document.createElement("div");
+            const btn = document.createElement("button");
+            btn.type = "button"; btn.className = "cert-history-toggle";
+            btn.textContent = `Show ${history.length} earlier version${history.length > 1 ? "s" : ""}`;
+            const box = document.createElement("div");
+            box.hidden = true;
+            btn.addEventListener("click", () => {
+                box.hidden = !box.hidden;
+                btn.textContent = box.hidden
+                    ? `Show ${history.length} earlier version${history.length > 1 ? "s" : ""}`
+                    : `Hide earlier versions`;
+            });
+            for (const h of history) box.appendChild(certCard(h, true));
+            wrap.appendChild(btn); wrap.appendChild(box);
+            host.appendChild(wrap);
+        }
+    }
+}
+
+function certCard(c, isSuperseded) {
+    const row = document.createElement("div");
+    row.className = "cert-row" + (isSuperseded ? " is-superseded" : "");
+    const pill = certStatePill(c, isSuperseded);
+    const period = formatPeriod(c.period_yyyymm);
+    const cpe = Number(c.cpe_total).toFixed(1);
+    const s = c.sessions_count === 1 ? "session" : "sessions";
+    row.innerHTML = `
+        <div class="cert-row-top">
+            <div>
+                <div class="cert-period">${escapeHtml(period)}</div>
+                <div class="cert-meta">${cpe} CPE · ${c.sessions_count} ${s} · ${certKindLabel(c.cert_kind)}</div>
+            </div>
+            <span class="pill ${pill.cls}"${pill.title ? ` title="${escapeHtml(pill.title)}"` : ""}>${escapeHtml(pill.label)}</span>
+        </div>
+        <div class="cert-actions">
+            <a class="cert-verify" href="/verify.html?t=${encodeURIComponent(c.public_token)}" target="_blank" rel="noopener">Open certificate ↗</a>
+            <details class="fb-details" data-cert="${c.id}">
+                <summary>Report an issue</summary>
+                <div class="fb-picker">
+                    <button type="button" class="fb-btn" data-r="ok" title="Everything looks right">Looks good</button>
+                    <button type="button" class="fb-btn" data-r="typo" title="Name or metadata typo">Typo</button>
+                    <button type="button" class="fb-btn" data-r="wrong" title="Wrong data / missing sessions">Wrong</button>
+                </div>
+                <span class="fb-msg muted" style="display:none;font-size:11px;"></span>
+            </details>
+        </div>
+    `;
+    row.querySelector(".fb-picker").addEventListener("click", async (e) => {
+        const btn = e.target.closest(".fb-btn");
+        if (!btn) return;
+        const rating = btn.dataset.r;
+        let note = null;
+        if (rating !== "ok") {
+            note = prompt(`What's ${rating}? (optional, max 500 chars)`) || null;
+        }
+        const msg = row.querySelector(".fb-msg");
+        msg.style.display = "inline";
+        msg.textContent = "sending…";
+        try {
+            const r = await fetch(`/api/me/${encodeURIComponent(token)}/cert-feedback`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ cert_id: c.id, rating, note }),
+            });
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            msg.textContent = rating === "ok" ? "thanks!" : "logged — we'll follow up";
+        } catch (err) {
+            msg.textContent = "failed: " + err.message;
+        }
+    });
+    return row;
 }
 
 function renderCodeStatus(codeState, codeExpiresAt) {
