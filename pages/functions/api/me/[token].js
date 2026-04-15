@@ -58,6 +58,25 @@ export async function onRequestGet({ params, env, request }) {
 
     const totalCpe = (attendance.results || []).reduce((s, r) => s + r.earned_cpe, 0);
 
+    // Out-of-window code post notifications — last 48h. The poller writes
+    // an audit row with action='code_posted_outside_window' when it sees
+    // a user's verification code in chat before the live window opens.
+    // Surfacing these on the dashboard tells the user why they didn't get
+    // credit without exposing the internal time-gate logic.
+    const cutoff = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
+    const outsideWindow = await env.DB.prepare(`
+        SELECT after_json, ts FROM audit_log
+         WHERE action = 'code_posted_outside_window'
+           AND entity_type = 'user' AND entity_id = ?1
+           AND ts > ?2
+         ORDER BY ts DESC LIMIT 5
+    `).bind(user.id, cutoff).all();
+    const codeWindowWarnings = (outsideWindow.results || []).map(r => {
+        let d = {};
+        try { d = JSON.parse(r.after_json || "{}"); } catch {}
+        return { posted_at: d.posted_at, window_open_at: d.window_open_at, seen_at: r.ts };
+    });
+
     // Near-real-time "credited today" signal. Poller writes attendance the
     // moment a qualifying message is seen; this join lets the dashboard show
     // a green check within one poller tick instead of waiting for month-end.
@@ -116,6 +135,7 @@ export async function onRequestGet({ params, env, request }) {
         certs: certs.results || [],
         appeals: appeals.results || [],
         total_cpe_earned: totalCpe,
+        code_window_warnings: codeWindowWarnings,
         today: liveToday ? {
             stream_id: liveToday.stream_id,
             yt_video_id: liveToday.yt_video_id,

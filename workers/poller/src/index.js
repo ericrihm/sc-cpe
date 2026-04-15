@@ -121,6 +121,9 @@ async function discoverLiveStream(env) {
     };
 }
 
+const FINALIZE_ERROR_STRIKES = 3;
+const FINALIZE_ELAPSED_MIN = 90;
+
 async function pollOnePage(env, session, now) {
     const key = env.YOUTUBE_API_KEY;
     const params = new URLSearchParams({
@@ -136,11 +139,44 @@ async function pollOnePage(env, session, now) {
         data = await ytGet(`${YT}/liveChatMessages?${params}`);
     } catch (err) {
         const msg = String(err && err.message || err);
-        if (msg.includes(" 403") || msg.includes(" 404")) {
-            await finalizeStream(env, session, now, "chat_ended_or_forbidden");
+        const is403or404 = msg.includes(" 403") || msg.includes(" 404");
+        if (!is403or404) throw err;
+
+        // Quota exhaustion must never finalize — legit live stream would be
+        // dropped mid-flight. Heartbeat carries the signal via the scheduled()
+        // error path; rethrow so watchdog sees it.
+        if (/quotaExceeded/i.test(msg)) throw err;
+
+        const strikes = (session.consecutive_fetch_errors || 0) + 1;
+        const elapsedMin = (now.getTime() - new Date(session.actual_start_at).getTime()) / 60_000;
+
+        let confirmedEnded = false;
+        try {
+            const v = await ytGet(`${YT}/videos?part=liveStreamingDetails&id=${session.video_id}&key=${key}`);
+            const end = v?.items?.[0]?.liveStreamingDetails?.actualEndTime;
+            if (end) confirmedEnded = true;
+        } catch { /* treat as inconclusive */ }
+
+        if (confirmedEnded || strikes >= FINALIZE_ERROR_STRIKES || elapsedMin >= FINALIZE_ELAPSED_MIN) {
+            const reason = confirmedEnded
+                ? "actual_end_time_confirmed"
+                : strikes >= FINALIZE_ERROR_STRIKES
+                    ? "fetch_errors_exhausted"
+                    : "max_elapsed_exceeded";
+            await finalizeStream(env, session, now, reason);
             return;
         }
-        throw err;
+
+        const minInterval = parseInt(env.MIN_POLL_INTERVAL_MS, 10);
+        const updated = {
+            ...session,
+            consecutive_fetch_errors: strikes,
+            next_poll_at: new Date(now.getTime() + Math.max(minInterval, 5000)).toISOString(),
+        };
+        await kvSet(env, `session.${session.date}`, updated);
+        await audit(env, "poller", null, "poll_fetch_error", "stream", session.stream_id,
+            null, { strikes, elapsed_min: Math.round(elapsedMin), msg: msg.slice(0, 200) });
+        return;
     }
 
     const items = data.items || [];
@@ -158,6 +194,7 @@ async function pollOnePage(env, session, now) {
         ...session,
         page_token: data.nextPageToken || null,
         next_poll_at: new Date(now.getTime() + interval).toISOString(),
+        consecutive_fetch_errors: 0,
     };
 
     if (!data.nextPageToken) {
@@ -179,6 +216,11 @@ async function processCodeMatches(env, session, items, now) {
     // The code is then burned (cleared) so the attacker can't replay it on
     // a future poll.
     const contestedCodes = detectContestedCodes(items);
+    const rule = await loadRule(env);
+    const startMs = new Date(session.actual_start_at).getTime();
+    const windowOpenMs = Number.isFinite(startMs)
+        ? startMs - rule.pre_start_grace_min * 60_000
+        : null;
 
     for (const m of items) {
         const text = m.snippet?.displayMessage || "";
@@ -196,6 +238,22 @@ async function processCodeMatches(env, session, items, now) {
         if (user.state !== "pending_verification") continue;
         if (new Date(user.code_expires_at) < now) {
             await audit(env, "poller", user.id, "code_expired_at_use", "user", user.id, null, { code });
+            continue;
+        }
+
+        // Time-gate: reject codes posted outside the live window. Without
+        // this a user could drop their code in pre-stream chat hours before
+        // the briefing starts and earn a cert that claims "attended live"
+        // for a session they didn't actually watch. We do NOT burn the code
+        // here — legit user can retry during the live window.
+        const pubMs = new Date(m.snippet?.publishedAt || 0).getTime();
+        if (windowOpenMs !== null && Number.isFinite(pubMs) && pubMs < windowOpenMs) {
+            await audit(env, "poller", user.id, "code_posted_outside_window", "user",
+                user.id, null, {
+                    code, stream_id: session.stream_id,
+                    posted_at: m.snippet?.publishedAt,
+                    window_open_at: new Date(windowOpenMs).toISOString(),
+                });
             continue;
         }
 
@@ -373,12 +431,30 @@ async function upsertStream(env, discovered, now) {
 }
 
 async function finalizeStream(env, session, now, reason) {
+    // A stream that completes with no messages scanned is always suspicious:
+    // either the poller mis-finalized (see FINALIZE_ERROR_STRIKES guard) or
+    // YouTube returned empty pages for a stream we know started. Flag it so
+    // an operator can verify rather than silently letting attendance go to
+    // zero for the day.
+    const row = await env.DB.prepare(
+        "SELECT messages_scanned FROM streams WHERE id = ?1"
+    ).bind(session.stream_id).first();
+    const zeroMessages = !row || (row.messages_scanned || 0) === 0;
+    const finalState = zeroMessages ? "flagged" : "complete";
+
     await env.DB.prepare(
-        "UPDATE streams SET state = 'complete', actual_end_at = ?1, flag_reason = ?2 WHERE id = ?3"
-    ).bind(now.toISOString(), reason, session.stream_id).run();
-    await kvSet(env, `session.${session.date}`, { ...session, state: "complete" });
+        "UPDATE streams SET state = ?1, actual_end_at = ?2, flag_reason = ?3 WHERE id = ?4"
+    ).bind(finalState, now.toISOString(), reason, session.stream_id).run();
+    await kvSet(env, `session.${session.date}`, { ...session, state: finalState });
     await audit(env, "poller", null, "stream_completed", "stream", session.stream_id,
-        null, { reason, ended_at: now.toISOString() });
+        null, { reason, ended_at: now.toISOString(), state: finalState,
+                messages_scanned: row?.messages_scanned ?? 0 });
+    if (zeroMessages) {
+        await audit(env, "poller", null, "stream_zero_messages_anomaly", "stream",
+            session.stream_id, null,
+            { reason, elapsed_min: Math.round(
+                (now.getTime() - new Date(session.actual_start_at).getTime()) / 60_000) });
+    }
 }
 
 async function ytGet(url) {
