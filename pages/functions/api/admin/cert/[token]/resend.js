@@ -1,4 +1,7 @@
-import { json, audit, clientIp, ipHash, isAdmin, queueEmail, now } from "../../../../_lib.js";
+import {
+    json, audit, clientIp, ipHash, isAdmin, queueEmail, now,
+    escapeHtml, emailShell,
+} from "../../../../_lib.js";
 
 // POST /api/admin/cert/{public_token}/resend
 // Auth: Authorization: Bearer <ADMIN_TOKEN>
@@ -18,12 +21,6 @@ import { json, audit, clientIp, ipHash, isAdmin, queueEmail, now } from "../../.
 
 const SITE_BASE = "https://sc-cpe-web.pages.dev";
 
-function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, c => (
-        { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
-    ));
-}
-
 function buildBodies({ recipientName, periodDisplay, cpeTotal, sessionsCount, downloadUrl, verifyUrl, issuerName }) {
     const cpeStr = Number.isInteger(cpeTotal) ? `${cpeTotal}` : `${cpeTotal.toFixed(1)}`;
     const subject = `Your ${periodDisplay} Simply Cyber CPE certificate (re-issued link)`;
@@ -36,8 +33,7 @@ function buildBodies({ recipientName, periodDisplay, cpeTotal, sessionsCount, do
         `Anyone (including auditors) can verify this certificate at:\n  ${verifyUrl}\n\n` +
         `If you previously received a download link that returned an "X-Amz-Expires" ` +
         `error, the link above replaces it.\n\n— ${issuerName}\n`;
-    const html = `<!doctype html>
-<html><body style="font-family:Helvetica,Arial,sans-serif;color:#111;line-height:1.45;">
+    const bodyHtml = `
 <p>Hi ${escapeHtml(recipientName)},</p>
 <p>Your <strong>${escapeHtml(periodDisplay)}</strong> Simply Cyber CPE certificate is ready.</p>
 <ul>
@@ -55,9 +51,12 @@ function buildBodies({ recipientName, periodDisplay, cpeTotal, sessionsCount, do
 <p>Anyone (including auditors) can verify this certificate:<br/>
 <a href="${verifyUrl}">${verifyUrl}</a></p>
 <p style="color:#666;font-size:12px;">If you previously received a link that returned an
-<code>X-Amz-Expires</code> error, the link above replaces it.</p>
-<p>— ${escapeHtml(issuerName)}</p>
-</body></html>`;
+<code>X-Amz-Expires</code> error, the link above replaces it.</p>`;
+    const html = emailShell({
+        title: `${periodDisplay} certificate`,
+        preheader: `Your ${periodDisplay} Simply Cyber CPE certificate is ready.`,
+        bodyHtml,
+    });
     return { subject, html, text };
 }
 

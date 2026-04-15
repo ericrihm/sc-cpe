@@ -1,6 +1,7 @@
 import {
     ulid, randomCode, randomToken, json, now, audit, clientIp, ipHash,
     isValidEmail, isValidName, verifyTurnstile, queueEmail,
+    escapeHtml, emailShell,
 } from "../_lib.js";
 
 const SITE_BASE = "https://sc-cpe-web.pages.dev";
@@ -22,8 +23,7 @@ function welcomeEmailBodies({ legalName, code, dashboardToken, expiresAt }) {
         `the account stays inactive unless the code is used.\n\n` +
         `— Simply Cyber\n`
     );
-    const html = `<!doctype html>
-<html><body style="font-family:Helvetica,Arial,sans-serif;color:#111;line-height:1.5;max-width:560px;margin:0 auto;padding:24px;">
+    const bodyHtml = `
 <p>Hi ${escapeHtml(legalName)},</p>
 <p>Welcome to <strong>Simply Cyber CPE</strong>. To finish activating your account,
 paste this code into a live chat message during the Daily Threat Briefing on YouTube:</p>
@@ -36,16 +36,13 @@ registration. The code expires <strong>${escapeHtml(expiresAt)}</strong>.</p>
 <p>Your dashboard (bookmark this — it is your access URL):<br/>
 <a href="${dashUrl}">${dashUrl}</a></p>
 <p style="color:#666;font-size:12px;">If you did not register for SC-CPE you can ignore
-this email — the account stays inactive unless the code is used in chat.</p>
-<p>— Simply Cyber</p>
-</body></html>`;
+this email — the account stays inactive unless the code is used in chat.</p>`;
+    const html = emailShell({
+        title: "Verification code",
+        preheader: `Your verification code: ${code}`,
+        bodyHtml,
+    });
     return { subject, html, text };
-}
-
-function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, c => (
-        { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
-    ));
 }
 
 export async function onRequestPost({ request, env }) {
