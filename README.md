@@ -117,7 +117,9 @@ of evidence that survive long after the session ended:
    (`actual_start_at` ± configured grace). Posting your code in the
    pre‑stream chat or the next day's replay does *not* earn credit, and
    the attempt is written to the audit log — so the "attended live"
-   claim on the cert is structurally defensible.
+   claim on the cert is structurally defensible. Rejected messages
+   surface back on your dashboard with the exact timestamp we saw and
+   the window that was open, so you always know why credit didn't land.
 2. **Hash‑chained audit log.** Every state transition from registration
    through cert delivery is recorded in an append‑only, SHA‑256 chained
    table. A `UNIQUE INDEX` on `prev_hash` makes forks structurally
