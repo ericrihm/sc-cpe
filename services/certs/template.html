@@ -38,13 +38,21 @@
     width: 100%;
     height: calc(210mm - 16mm);
     box-sizing: border-box;
-    padding: 14mm 18mm 12mm 18mm;
+    padding: 12mm 16mm;
     border: 3px double var(--navy);
     background:
       /* faint subliminal watermark — large pale issuer initials */
       radial-gradient(ellipse at center, rgba(11,61,92,0.025) 0%, rgba(11,61,92,0) 70%),
       #ffffff;
+    display: flex;
+    flex-direction: column;
   }
+  /* Body fills remaining vertical space between header and footer so the
+     citation never collides with the absolutely-positioned signature
+     column. Footer is in normal flow at the bottom of the flex column. */
+  .header { flex: 0 0 auto; }
+  .body   { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; }
+  .footer { flex: 0 0 auto; margin-top: 8mm; }
   /* Inner gold hairline + outer corner flourishes */
   .sheet::before {
     content: "";
@@ -94,7 +102,7 @@
     align-items: center;
     justify-content: center;
     gap: 10pt;
-    margin: 12pt auto 14pt auto;
+    margin: 8pt auto 10pt auto;
     color: var(--gold);
   }
   .ornament .line {
@@ -124,15 +132,18 @@
     font-family: "Apple Chancery", "Savoye LET", "URW Chancery L",
                  "Snell Roundhand", "Edwardian Script ITC", "Georgia", serif;
     font-style: italic;
-    font-size: 56pt;
+    font-size: 44pt;
     color: var(--ink);
-    margin: 6pt 0 4pt 0;
-    line-height: 1.05;
+    margin: 4pt 0 2pt 0;
+    line-height: 1.15;
     letter-spacing: 0.01em;
+    /* descenders on the cursive (g, p, y, R-tail) need real space below
+       the baseline or they collide with the rule + citation. */
+    padding-bottom: 6pt;
   }
   .recipient-rule {
-    width: 70%;
-    margin: 0 auto 12pt auto;
+    width: 60%;
+    margin: 0 auto 10pt auto;
     border: 0;
     border-top: 1px solid var(--hairline);
   }
@@ -176,18 +187,18 @@
   }
 
   /* Footer — three columns. The center column owns the QR; left and right
-     columns hold metadata and the digital-signature attestation. */
+     columns hold metadata and the digital-signature attestation. Lives
+     in normal flow at the bottom of the flex column so the citation
+     above it can never collide with the signature script. */
   .footer {
-    position: absolute;
-    left: 18mm;
-    right: 18mm;
-    bottom: 12mm;
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
     gap: 10mm;
     font-size: 9pt;
     color: var(--muted);
+    border-top: 1px solid var(--hairline);
+    padding-top: 6mm;
   }
   .footer .col { flex: 1 1 0; min-width: 0; }
   .footer .col.center { text-align: center; }
@@ -243,10 +254,11 @@
     font-family: "Apple Chancery", "Snell Roundhand",
                  "Edwardian Script ITC", "URW Chancery L", "Georgia", serif;
     font-style: italic;
-    font-size: 18pt;
+    font-size: 14pt;
     color: var(--navy);
-    line-height: 1;
-    margin-bottom: 2pt;
+    line-height: 1.05;
+    margin-bottom: 1pt;
+    padding-bottom: 2pt;
   }
   .sig-rule {
     border: 0;
@@ -281,29 +293,33 @@
     <span class="corner bl"></span>
     <span class="corner br"></span>
 
-    <div class="eyebrow">Continuing Professional Education</div>
-    <h1 class="title">Certificate of Attendance</h1>
-    <div class="issuer">Issued by {{ issuer_name }}</div>
+    <div class="header">
+      <div class="eyebrow">Continuing Professional Education</div>
+      <h1 class="title">Certificate of Attendance</h1>
+      <div class="issuer">Issued by {{ issuer_name }}</div>
 
-    <div class="ornament">
-      <span class="line"></span>
-      <span class="dot"></span>
-      <span class="line"></span>
+      <div class="ornament">
+        <span class="line"></span>
+        <span class="dot"></span>
+        <span class="line"></span>
+      </div>
     </div>
 
-    <p class="awarded-to">This certifies that</p>
-    <div class="recipient">{{ recipient_name }}</div>
-    <hr class="recipient-rule"/>
+    <div class="body">
+      <p class="awarded-to">This certifies that</p>
+      <div class="recipient">{{ recipient_name }}</div>
+      <hr class="recipient-rule"/>
 
-    <div class="citation">
-      attended the <span class="program">Simply Cyber Daily Threat Briefing</span>
-      during the period of <strong>{{ period_display }}</strong>
-      <span class="period">{{ period_start }} &nbsp;&mdash;&nbsp; {{ period_end }}</span>
-    </div>
+      <div class="citation">
+        attended the <span class="program">Simply Cyber Daily Threat Briefing</span>
+        during the period of <strong>{{ period_display }}</strong>
+        <span class="period">{{ period_start }} &nbsp;&mdash;&nbsp; {{ period_end }}</span>
+      </div>
 
-    <div class="credit-line">
-      earning <span class="pill">{{ cpe_total }} CPE</span>
-      across <span class="pill">{{ sessions_count }} session{% if sessions_count != 1 %}s{% endif %}</span>
+      <div class="credit-line">
+        earning <span class="pill">{{ cpe_total }} CPE</span>
+        across <span class="pill">{{ sessions_count }} session{% if sessions_count != 1 %}s{% endif %}</span>
+      </div>
     </div>
 
     <div class="footer">
