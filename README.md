@@ -83,7 +83,9 @@ by hand doesn't scale past a few dozen people. SC‑CPE does it end‑to‑end:
  2.  Watch the stream and post your code in YouTube live chat.
      → The poller (runs every minute, 08:00‑11:00 ET Mon–Fri) ingests
        the chat, matches your code to your user row, and credits
-       0.5 CEU / CPE for that session.
+       0.5 CEU / CPE for that session. The code must be posted *during*
+       the live window — pre‑stream chat and replays don't count, and
+       the dashboard tells you if you posted too early.
 
  3.  Pick per‑session, bundled, or both in the dashboard.
      → Per‑session certs arrive within ~2h of request. Bundled certs
@@ -101,6 +103,40 @@ by hand doesn't scale past a few dozen people. SC‑CPE does it end‑to‑end:
 
 **0.5 CEU / CPE per 30‑minute session** · up to ~20 sessions/month · per‑session
 or bundled (or both) · full reissue flow if your name or email is wrong.
+
+---
+
+## Why this cert is authentic
+
+Anyone can print a PDF that says "attended." What separates SC‑CPE from a
+fill‑in template is that every cert is anchored to four independent pieces
+of evidence that survive long after the session ended:
+
+1. **Time‑gated attendance.** The poller only credits messages whose
+   YouTube `publishedAt` timestamp falls inside the live window
+   (`actual_start_at` ± configured grace). Posting your code in the
+   pre‑stream chat or the next day's replay does *not* earn credit, and
+   the attempt is written to the audit log — so the "attended live"
+   claim on the cert is structurally defensible.
+2. **Hash‑chained audit log.** Every state transition from registration
+   through cert delivery is recorded in an append‑only, SHA‑256 chained
+   table. A `UNIQUE INDEX` on `prev_hash` makes forks structurally
+   impossible. `scripts/verify_audit_chain.py` replays the whole chain
+   against the live database.
+3. **PAdES‑T signature + RFC‑3161 timestamp.** Certs are signed with a
+   dedicated CA‑rooted code‑signing key and bound to a trusted timestamp
+   authority, so the signature outlives the signing key's validity
+   period. The signing cert's SHA‑256 fingerprint is stamped on the face
+   of the PDF.
+4. **Public verify URL + QR.** Each cert carries a `/verify.html?t=…`
+   link auditors can open directly — no SC‑CPE login required — which
+   recomputes the PDF hash, shows the audit‑chain position, and returns
+   the session evidence (first message id, first message SHA‑256,
+   rule version).
+
+The underlying attendance row records `first_msg_id` and `first_msg_sha256`
+— retrievable via the verify URL — so an auditor can cross‑reference the
+cert against YouTube's own liveChatMessages record.
 
 ---
 

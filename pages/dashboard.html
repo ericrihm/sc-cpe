@@ -48,6 +48,15 @@
     <h1>My SC-CPE Dashboard</h1>
     <div id="err" class="err" hidden></div>
     <section id="body" hidden>
+        <div id="window-warn-card" class="card" hidden style="border-left:4px solid #f59e0b;background:#fef3c7;">
+            <h2 style="margin-top:0;">Code posted outside the live window</h2>
+            <p id="window-warn-body" style="margin:0;"></p>
+            <p class="muted" style="font-size:11px;margin:8px 0 0;">
+                Post your code during the live briefing to earn CPE. Codes
+                posted in pre-stream chat or the previous day's replay don't
+                count — the cert claims "attended live."
+            </p>
+        </div>
         <div class="card">
             <h2 id="name"></h2>
             <p>Status: <strong id="state"></strong></p>
@@ -184,6 +193,17 @@ async function load() {
 
     const cpe = Number(d.total_cpe_earned ?? 0);
     document.getElementById("total").textContent = `${cpe.toFixed(1)} CPE`;
+
+    const warnings = d.code_window_warnings || [];
+    if (warnings.length) {
+        const latest = warnings[0];
+        const when = latest.posted_at
+            ? new Date(latest.posted_at).toLocaleString()
+            : "recently";
+        document.getElementById("window-warn-body").textContent =
+            `We saw your verification code at ${when}, but it was posted before the live window opened — no credit was applied.`;
+        document.getElementById("window-warn-card").hidden = false;
+    }
 
     calData = { attendance: d.attendance || [], appeals: d.appeals || [] };
     renderToday(d.today);
