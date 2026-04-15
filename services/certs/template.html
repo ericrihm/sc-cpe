@@ -2,200 +2,336 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>CPE Certificate — {{ recipient_name }} — {{ period_display }}</title>
+<title>CPE Certificate &mdash; {{ recipient_name }} &mdash; {{ period_display }}</title>
 <style>
+  /* A4 landscape gives a 297mm x 210mm page. Hairline 8mm margins keep the
+     printed sheet large; the inner double-rule frame takes care of visual
+     padding so we don't waste real estate on @page margins. */
   @page {
     size: A4 landscape;
-    margin: 2cm;
+    margin: 8mm;
   }
   html, body {
     margin: 0;
     padding: 0;
-    font-family: "Georgia", "Times New Roman", "DejaVu Serif", serif;
     color: #1a1a1a;
     background: #ffffff;
+    font-family: "Georgia", "Times New Roman", "DejaVu Serif", serif;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
+
+  /* Color tokens. Navy is the primary brand line; gold is reserved for
+     accent strokes and the recipient ornament so the eye lands there. */
+  :root {
+    --navy: #0b3d5c;
+    --navy-soft: #1f5a7a;
+    --gold: #b8860b;
+    --gold-soft: #d4a73a;
+    --ink: #1a1a1a;
+    --muted: #555;
+    --hairline: #c8d3da;
+  }
+
   .sheet {
     position: relative;
-    height: calc(21cm - 4cm);
-    padding: 1.2cm 1.6cm;
-    border: 3px double #0b3d5c;
+    width: 100%;
+    height: calc(210mm - 16mm);
     box-sizing: border-box;
+    padding: 14mm 18mm 12mm 18mm;
+    border: 3px double var(--navy);
+    background:
+      /* faint subliminal watermark — large pale issuer initials */
+      radial-gradient(ellipse at center, rgba(11,61,92,0.025) 0%, rgba(11,61,92,0) 70%),
+      #ffffff;
   }
+  /* Inner gold hairline + outer corner flourishes */
   .sheet::before {
     content: "";
     position: absolute;
     top: 6px; left: 6px; right: 6px; bottom: 6px;
-    border: 1px solid #0b3d5c;
+    border: 1px solid var(--gold);
     pointer-events: none;
   }
+  .corner {
+    position: absolute;
+    width: 22mm; height: 22mm;
+    border: 0 solid var(--gold);
+    pointer-events: none;
+  }
+  .corner.tl { top: 4mm;    left: 4mm;    border-top-width:    2px; border-left-width:  2px; }
+  .corner.tr { top: 4mm;    right: 4mm;   border-top-width:    2px; border-right-width: 2px; }
+  .corner.bl { bottom: 4mm; left: 4mm;    border-bottom-width: 2px; border-left-width:  2px; }
+  .corner.br { bottom: 4mm; right: 4mm;   border-bottom-width: 2px; border-right-width: 2px; }
+
+  /* Header band */
   .eyebrow {
     text-align: center;
-    letter-spacing: 0.5em;
-    font-size: 11pt;
-    color: #0b3d5c;
+    letter-spacing: 0.55em;
+    font-size: 9.5pt;
+    color: var(--navy-soft);
     text-transform: uppercase;
-    margin-top: 4pt;
+    margin: 0 0 4pt 0;
   }
   h1.title {
     text-align: center;
-    font-size: 34pt;
-    letter-spacing: 0.12em;
-    margin: 8pt 0 0 0;
-    color: #0b3d5c;
+    font-size: 38pt;
+    letter-spacing: 0.10em;
+    margin: 0;
+    color: var(--navy);
     font-weight: 700;
+    line-height: 1.0;
   }
   .issuer {
     text-align: center;
     font-size: 11pt;
-    color: #444;
-    margin-top: 2pt;
-    margin-bottom: 14pt;
+    color: var(--muted);
+    margin: 4pt 0 0 0;
+    font-style: italic;
   }
-  .rule {
-    width: 30%;
-    margin: 8pt auto 14pt auto;
-    border: 0;
-    border-top: 1px solid #0b3d5c;
+  .ornament {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10pt;
+    margin: 12pt auto 14pt auto;
+    color: var(--gold);
   }
+  .ornament .line {
+    flex: 0 0 60mm;
+    height: 1px;
+    background: linear-gradient(to right,
+      rgba(184,134,11,0) 0%,
+      rgba(184,134,11,0.9) 50%,
+      rgba(184,134,11,0) 100%);
+  }
+  .ornament .dot {
+    width: 6pt; height: 6pt;
+    background: var(--gold);
+    transform: rotate(45deg);
+  }
+
+  /* Body */
   .awarded-to {
     text-align: center;
-    font-size: 12pt;
-    color: #333;
-    margin-bottom: 4pt;
+    font-size: 12.5pt;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+    margin: 0;
   }
   .recipient {
     text-align: center;
-    font-family: "Apple Chancery", "Savoye LET", "URW Chancery L", "Georgia", serif;
+    font-family: "Apple Chancery", "Savoye LET", "URW Chancery L",
+                 "Snell Roundhand", "Edwardian Script ITC", "Georgia", serif;
     font-style: italic;
-    font-size: 40pt;
-    color: #111;
-    margin: 2pt 0 10pt 0;
-    line-height: 1.1;
+    font-size: 56pt;
+    color: var(--ink);
+    margin: 6pt 0 4pt 0;
+    line-height: 1.05;
+    letter-spacing: 0.01em;
   }
+  .recipient-rule {
+    width: 70%;
+    margin: 0 auto 12pt auto;
+    border: 0;
+    border-top: 1px solid var(--hairline);
+  }
+
   .citation {
     text-align: center;
     font-size: 13pt;
     line-height: 1.55;
     max-width: 22cm;
-    margin: 0 auto 10pt auto;
+    margin: 0 auto 6pt auto;
   }
+  .citation .program {
+    color: var(--navy);
+    font-weight: 700;
+  }
+  .citation .period {
+    display: block;
+    margin-top: 4pt;
+    color: var(--muted);
+    font-size: 10.5pt;
+    letter-spacing: 0.04em;
+  }
+
   .credit-line {
     text-align: center;
+    font-size: 14pt;
+    margin: 14pt 0 0 0;
+    color: var(--ink);
+  }
+  .credit-line .pill {
+    display: inline-block;
+    padding: 4pt 12pt;
+    margin: 0 3pt;
+    background: rgba(11,61,92,0.06);
+    border: 1px solid var(--navy);
+    border-radius: 12pt;
+    color: var(--navy);
+    font-weight: 700;
     font-size: 13pt;
-    margin-top: 6pt;
-    margin-bottom: 14pt;
+    letter-spacing: 0.02em;
   }
-  .credit-line strong {
-    color: #0b3d5c;
-    font-size: 15pt;
-  }
+
+  /* Footer — three columns. The center column owns the QR; left and right
+     columns hold metadata and the digital-signature attestation. */
   .footer {
     position: absolute;
-    left: 1.6cm;
-    right: 1.6cm;
-    bottom: 1.1cm;
+    left: 18mm;
+    right: 18mm;
+    bottom: 12mm;
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
+    gap: 10mm;
     font-size: 9pt;
-    color: #333;
+    color: var(--muted);
   }
-  .footer .col {
-    flex: 1 1 0;
-  }
-  .footer .col.center {
-    text-align: center;
-  }
-  .footer .col.right {
-    text-align: right;
-  }
-  .sig-block {
-    font-size: 9pt;
-    line-height: 1.4;
-  }
-  .sig-block .sig-label {
-    font-style: italic;
-    color: #0b3d5c;
-  }
-  .sig-block .fingerprint {
-    font-family: "Menlo", "DejaVu Sans Mono", monospace;
-    font-size: 7.5pt;
-    color: #555;
-    word-break: break-all;
-  }
-  .qr {
-    width: 2.4cm;
-    height: 2.4cm;
-    padding: 2pt;
-    box-sizing: border-box;
-    display: inline-block;
-    background: #fff;
-    border: 1px solid #0b3d5c;
-  }
-  .qr img {
-    width: 100%;
-    height: 100%;
-    display: block;
-  }
+  .footer .col { flex: 1 1 0; min-width: 0; }
+  .footer .col.center { text-align: center; }
+  .footer .col.right  { text-align: right; }
+
   .meta-label {
-    color: #666;
+    color: var(--navy-soft);
     text-transform: uppercase;
-    letter-spacing: 0.1em;
-    font-size: 7.5pt;
+    letter-spacing: 0.12em;
+    font-size: 7pt;
     margin-bottom: 2pt;
   }
   .meta-value {
     font-family: "Menlo", "DejaVu Sans Mono", monospace;
     font-size: 9pt;
+    color: var(--ink);
+  }
+  .meta-block + .meta-block { margin-top: 6pt; }
+
+  .qr-wrap {
+    display: inline-block;
+    text-align: center;
+  }
+  .qr {
+    width: 28mm;
+    height: 28mm;
+    padding: 2pt;
+    box-sizing: border-box;
+    background: #fff;
+    border: 1px solid var(--navy);
+    display: block;
+    margin: 0 auto;
+  }
+  .qr img { width: 100%; height: 100%; display: block; }
+  .qr-caption {
+    font-size: 8pt;
+    color: var(--navy-soft);
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    margin-top: 4pt;
   }
   .verify-url {
     font-family: "Menlo", "DejaVu Sans Mono", monospace;
-    font-size: 8pt;
+    font-size: 7pt;
+    color: var(--muted);
     word-break: break-all;
+    margin-top: 2pt;
+    line-height: 1.2;
+  }
+
+  .sig-block { font-size: 9pt; line-height: 1.4; }
+  .sig-script {
+    font-family: "Apple Chancery", "Snell Roundhand",
+                 "Edwardian Script ITC", "URW Chancery L", "Georgia", serif;
+    font-style: italic;
+    font-size: 18pt;
+    color: var(--navy);
+    line-height: 1;
+    margin-bottom: 2pt;
+  }
+  .sig-rule {
+    border: 0;
+    border-top: 1px solid var(--navy);
+    margin: 0 0 3pt 0;
+    width: 100%;
+  }
+  .sig-name {
+    color: var(--ink);
+    font-size: 10pt;
+    font-weight: 700;
+  }
+  .sig-attestation {
+    color: var(--muted);
+    font-style: italic;
+    font-size: 8pt;
+    margin-top: 1pt;
+  }
+  .fingerprint {
+    font-family: "Menlo", "DejaVu Sans Mono", monospace;
+    font-size: 6.5pt;
+    color: var(--muted);
+    word-break: break-all;
+    line-height: 1.3;
   }
 </style>
 </head>
 <body>
   <div class="sheet">
+    <span class="corner tl"></span>
+    <span class="corner tr"></span>
+    <span class="corner bl"></span>
+    <span class="corner br"></span>
+
     <div class="eyebrow">Continuing Professional Education</div>
     <h1 class="title">Certificate of Attendance</h1>
     <div class="issuer">Issued by {{ issuer_name }}</div>
-    <hr class="rule"/>
 
-    <div class="awarded-to">This certifies that</div>
+    <div class="ornament">
+      <span class="line"></span>
+      <span class="dot"></span>
+      <span class="line"></span>
+    </div>
+
+    <p class="awarded-to">This certifies that</p>
     <div class="recipient">{{ recipient_name }}</div>
+    <hr class="recipient-rule"/>
 
     <div class="citation">
-      attended the <strong>Simply Cyber Daily Threat Briefing</strong><br/>
-      during the period {{ period_display }}
-      <br/>
-      <span style="color:#555;font-size:11pt;">
-        ({{ period_start }} &mdash; {{ period_end }})
-      </span>
+      attended the <span class="program">Simply Cyber Daily Threat Briefing</span>
+      during the period of <strong>{{ period_display }}</strong>
+      <span class="period">{{ period_start }} &nbsp;&mdash;&nbsp; {{ period_end }}</span>
     </div>
 
     <div class="credit-line">
-      earning <strong>{{ cpe_total }}</strong> CPE credit hour(s)
-      over <strong>{{ sessions_count }}</strong> session(s).
+      earning <span class="pill">{{ cpe_total }} CPE</span>
+      across <span class="pill">{{ sessions_count }} session{% if sessions_count != 1 %}s{% endif %}</span>
     </div>
 
     <div class="footer">
       <div class="col">
-        <div class="meta-label">Issued</div>
-        <div class="meta-value">{{ issued_at }}</div>
-        <div class="meta-label" style="margin-top:6pt;">Certificate ID</div>
-        <div class="meta-value">{{ cert_id_display }}</div>
+        <div class="meta-block">
+          <div class="meta-label">Issued</div>
+          <div class="meta-value">{{ issued_at }}</div>
+        </div>
+        <div class="meta-block">
+          <div class="meta-label">Certificate ID</div>
+          <div class="meta-value">{{ cert_id_display }}</div>
+        </div>
       </div>
 
       <div class="col center">
-        <div class="qr"><img src="{{ verify_qr_data_uri }}" alt="verify QR code"/></div>
-        <div class="verify-url" style="margin-top:4pt;">{{ verify_url }}</div>
+        <div class="qr-wrap">
+          <div class="qr"><img src="{{ verify_qr_data_uri }}" alt="verify QR code"/></div>
+          <div class="qr-caption">Scan to verify</div>
+          <div class="verify-url">{{ verify_url }}</div>
+        </div>
       </div>
 
       <div class="col right">
         <div class="sig-block">
-          <div class="sig-label">[signed digitally by {{ issuer_name }}]</div>
+          <div class="sig-script">{{ issuer_name }}</div>
+          <hr class="sig-rule"/>
+          <div class="sig-name">{{ issuer_name }}</div>
+          <div class="sig-attestation">Digitally signed (PAdES) &middot; verify via QR</div>
           <div class="meta-label" style="margin-top:6pt;">Signing cert SHA-256</div>
           <div class="fingerprint">{{ signing_cert_sha256 }}</div>
         </div>
