@@ -1,0 +1,49 @@
+name: schema-drift
+
+# Weekly schema-drift check. Catches out-of-band `wrangler d1 execute`
+# migrations that didn't land in db/schema.sql. Runs Mondays 10:00 UTC
+# (after the weekly digest at 09:00 UTC, so operators see both in one
+# morning pass). Manual dispatch available for ad-hoc runs.
+#
+# Required repo secrets:
+#   CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN (D1 read), D1_DATABASE_ID
+
+on:
+  schedule:
+    - cron: "0 10 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    name: D1 schema drift
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+      DISCORD_ALERT_WEBHOOK: ${{ secrets.DISCORD_ALERT_WEBHOOK }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run schema check
+        run: |
+          : "${CLOUDFLARE_ACCOUNT_ID:?set secret}"
+          : "${CLOUDFLARE_API_TOKEN:?set secret}"
+          : "${D1_DATABASE_ID:?set secret}"
+          bash scripts/check_schema.sh --http
+      - name: Alert Discord on drift
+        if: failure()
+        run: |
+          if [[ -z "${DISCORD_ALERT_WEBHOOK:-}" ]]; then
+            echo "DISCORD_ALERT_WEBHOOK not set — skipping"
+            exit 0
+          fi
+          payload=$(jq -cn \
+            --arg c ":warning: **SC-CPE: schema drift detected** — live D1 differs from db/schema.sql. See Actions run ${{ github.run_id }}." \
+            '{content: $c, username: "SC-CPE Schema"}')
+          curl -fsS --max-time 20 \
+            -H "Content-Type: application/json" \
+            -X POST -d "$payload" "$DISCORD_ALERT_WEBHOOK" >/dev/null

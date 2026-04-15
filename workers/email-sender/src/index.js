@@ -26,7 +26,7 @@ const MAX_ATTEMPTS = 5;         // after which we mark 'failed' permanently
 
 export default {
     async scheduled(event, env, ctx) {
-        ctx.waitUntil(drain(env));
+        ctx.waitUntil(tick(env));
     },
     // Optional manual poke for local testing: curl -X POST .../drain
     async fetch(request, env) {
@@ -40,13 +40,39 @@ export default {
         if (!env.ADMIN_TOKEN || auth !== `Bearer ${env.ADMIN_TOKEN}`) {
             return new Response("unauthorized", { status: 401 });
         }
-        const summary = await drain(env);
+        const summary = await tick(env);
         return new Response(JSON.stringify(summary), {
             status: 200,
             headers: { "Content-Type": "application/json" },
         });
     },
 };
+
+async function tick(env) {
+    let summary;
+    try {
+        summary = await drain(env);
+        await heartbeat(env, "ok", summary);
+    } catch (err) {
+        const msg = String(err?.message || err).slice(0, 500);
+        await heartbeat(env, "error", { error: msg }).catch(() => {});
+        throw err;
+    }
+    return summary;
+}
+
+async function heartbeat(env, status, detail) {
+    if (!env.DB) return;
+    const iso = new Date().toISOString();
+    await env.DB.prepare(`
+        INSERT INTO heartbeats (source, last_beat_at, last_status, detail_json)
+        VALUES ('email_sender', ?1, ?2, ?3)
+        ON CONFLICT(source) DO UPDATE SET
+            last_beat_at = excluded.last_beat_at,
+            last_status = excluded.last_status,
+            detail_json = excluded.detail_json
+    `).bind(iso, status, JSON.stringify(detail ?? {})).run();
+}
 
 async function drain(env) {
     if (!env.RESEND_API_KEY) {
