@@ -17,6 +17,9 @@ database_id = "28218db6-6f35-4bfb-85cd-abd2881b6049"
 binding = "RAW_CHAT"
 bucket_name = "sc-cpe-raw-chat"
 
+[vars]
+SITE_BASE = "https://sc-cpe-web.pages.dev"
+
 # Secrets (set with `wrangler secret put NAME`):
 #   RESEND_API_KEY     - for the daily security-alerts digest
 #   FROM_EMAIL         - e.g. certs@signalplane.co

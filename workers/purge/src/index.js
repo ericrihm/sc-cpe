@@ -70,8 +70,8 @@ function priorPeriodYyyymm(nowIso) {
 }
 
 async function runCertNudges(env, nowIso) {
-    if (!env.DASHBOARD_BASE_URL && !env.VERIFY_BASE_URL) {
-        return { skipped: "missing_base_url" };
+    if (!env.SITE_BASE) {
+        return { skipped: "missing_site_base" };
     }
     const period = priorPeriodYyyymm(nowIso);
 
@@ -93,16 +93,15 @@ async function runCertNudges(env, nowIso) {
     `).bind(period).all()).results || [];
 
     let queued = 0, skipped = 0;
-    const verifyBase = (env.VERIFY_BASE_URL || "").replace(/\/$/, "");
-    const dashBase = (env.DASHBOARD_BASE_URL || "").replace(/\/$/, "");
+    const siteBase = env.SITE_BASE.replace(/\/$/, "");
 
     for (const r of rows) {
         try {
             const prefs = JSON.parse(r.email_prefs || "{}") || {};
             if (prefs.monthly_cert === false) { skipped++; continue; }
 
-            const verifyUrl = `${verifyBase}/${r.public_token}`;
-            const dashUrl = dashBase ? `${dashBase}/${r.dashboard_token}` : "";
+            const verifyUrl = `${siteBase}/verify.html?t=${r.public_token}`;
+            const dashUrl = `${siteBase}/dashboard.html?t=${r.dashboard_token}`;
             const subject = `Your ${period} CPE cert — a quick check?`;
             const text =
                 `Hi ${r.legal_name || "there"},\n\n` +
@@ -110,7 +109,7 @@ async function runCertNudges(env, nowIso) {
                 `last week. Please take a moment to open it and confirm the ` +
                 `details are correct:\n\n` +
                 `  ${verifyUrl}\n\n` +
-                (dashUrl ? `Dashboard: ${dashUrl}\n\n` : "") +
+                `Dashboard: ${dashUrl}\n\n` +
                 `If anything looks wrong (typo in your name, wrong CPE count, ` +
                 `etc.) just reply here or use the feedback button on the ` +
                 `verify page and we'll re-issue.\n\n` +
@@ -121,7 +120,7 @@ async function runCertNudges(env, nowIso) {
                 `certificate was issued last week. Please take a moment to ` +
                 `open it and confirm the details are correct:</p>` +
                 `<p><a href="${verifyUrl}">${verifyUrl}</a></p>` +
-                (dashUrl ? `<p>Dashboard: <a href="${dashUrl}">${dashUrl}</a></p>` : "") +
+                `<p>Dashboard: <a href="${dashUrl}">${dashUrl}</a></p>` +
                 `<p>If anything looks wrong (typo in your name, wrong CPE ` +
                 `count, etc.) just reply here or use the feedback button on ` +
                 `the verify page and we'll re-issue.</p>` +
