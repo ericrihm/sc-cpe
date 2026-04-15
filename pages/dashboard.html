@@ -62,7 +62,7 @@
             <p id="active" hidden>
                 Verified YouTube account:
                 <strong><span id="display"></span></strong>
-                (<span id="channel" class="muted"></span>)
+                <span id="channel-wrap" hidden>(<span id="channel" class="muted"></span>)</span>
             </p>
         </div>
 
@@ -169,15 +169,24 @@ async function load() {
         renderCodeStatus(d.user.code_state, d.user.code_expires_at);
     } else if (d.user.state === "active") {
         document.getElementById("active").hidden = false;
-        document.getElementById("display").textContent = d.user.yt_display_name_seen || "(unknown)";
-        document.getElementById("channel").textContent = d.user.yt_channel_id || "";
+        const channelId = d.user.yt_channel_id || "";
+        const displayName = d.user.yt_display_name_seen
+            || (channelId ? "" : "not yet linked — post your code in chat to link");
+        document.getElementById("display").textContent = displayName;
+        const channelWrap = document.getElementById("channel-wrap");
+        if (channelId) {
+            document.getElementById("channel").textContent = channelId;
+            channelWrap.hidden = false;
+        } else {
+            channelWrap.hidden = true;
+        }
     }
 
     const cpe = Number(d.total_cpe_earned ?? 0);
     document.getElementById("total").textContent = `${cpe.toFixed(1)} CPE`;
 
-    renderToday(d.today);
     calData = { attendance: d.attendance || [], appeals: d.appeals || [] };
+    renderToday(d.today);
     renderCalendar();
 
     const att = document.getElementById("att");
@@ -371,7 +380,7 @@ function renderToday(today) {
     const status = document.getElementById("today-status");
     const hint = document.getElementById("today-hint");
     if (today.credited) {
-        status.innerHTML = "<strong style='color:#1a7f37'>&#10003; Credited</strong> &nbsp;0.5 CPE recorded for today.";
+        status.innerHTML = "<strong style='color:#1a7f37'>&#10003; Credited</strong> &nbsp;0.5 CPE recorded for this session.";
         hint.hidden = true;
     } else if (today.state === "live") {
         status.innerHTML = "<strong style='color:#9a6700'>&#9203; Waiting for qualifying message</strong>";
@@ -380,7 +389,21 @@ function renderToday(today) {
         refreshTimer = setTimeout(() => { refreshTimer = null; load(); }, 30000);
         return;
     } else {
-        status.innerHTML = "<strong class='muted'>Stream ended — no credit recorded</strong>";
+        const credits = (calData.attendance || []).length;
+        const lastCredit = credits
+            ? [...calData.attendance].sort((a, b) =>
+                (b.session_date || "").localeCompare(a.session_date || ""))[0]
+            : null;
+        const priorLine = credits
+            ? ` You have <strong>${credits}</strong> prior session${credits === 1 ? "" : "s"} credited` +
+              (lastCredit ? ` (most recent ${lastCredit.session_date}).` : ".")
+            : "";
+        status.innerHTML =
+            "<strong style='color:#9a6700'>This session ended without credit.</strong> " +
+            "We didn't see your code in the chat for this briefing." + priorLine +
+            " <br><span class='muted' style='font-size:12px;'>" +
+            "If you believe you posted a qualifying message, open an appeal from the attendance calendar." +
+            "</span>";
         hint.hidden = true;
     }
     if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
