@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Pre-push hook: block pushes when node tests are failing. Install with
+# `scripts/install_hooks.sh` which points core.hooksPath at .githooks.
+#
+# Why here and not a GitHub Action alone: CI catches everything eventually,
+# but a pre-push runs in ~1s against the pure-logic suite and blocks the
+# round-trip for tests that never needed a browser or D1 connection.
+# Skip with `git push --no-verify` when rebasing/pushing docs.
+
+set -e
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+if [[ ! -f scripts/test.sh ]]; then
+    echo "pre-push: scripts/test.sh not found, skipping" >&2
+    exit 0
+fi
+
+echo "pre-push: running scripts/test.sh..."
+if ! bash scripts/test.sh > /tmp/sc-cpe-prepush.log 2>&1; then
+    echo "pre-push: tests FAILED. Last 40 lines:"
+    tail -40 /tmp/sc-cpe-prepush.log
+    echo
+    echo "pre-push: full log at /tmp/sc-cpe-prepush.log"
+    echo "pre-push: bypass with 'git push --no-verify' if you know what you're doing."
+    exit 1
+fi
+echo "pre-push: tests passed."

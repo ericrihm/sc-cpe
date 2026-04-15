@@ -1,0 +1,64 @@
+name: smoke
+
+# Runs the hardening smoke suite (scripts/smoke_hardening.sh) against
+# production once per hour, and on every push to main as a post-deploy
+# sanity check. This is the "synthetic canary" — it exercises the real
+# admin auth / CSRF / rate-limit paths end-to-end and alerts if the site
+# has silently regressed between livestreams.
+#
+# The smoke script is read-only except for one audit-log row per invocation
+# (admin users search). That's intentional — the audit entry doubles as
+# the canary heartbeat ("admin search from GH-Actions ran at T").
+
+on:
+  schedule:
+    - cron: "0 * * * *"  # hourly on the hour
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: smoke
+  cancel-in-progress: false  # let hourly runs complete independently
+
+jobs:
+  smoke:
+    name: Hardening smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      ORIGIN: ${{ vars.SMOKE_ORIGIN }}  # e.g. https://cpe.simplycyber.io
+      ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+      DISCORD_ALERT_WEBHOOK: ${{ secrets.DISCORD_ALERT_WEBHOOK }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run smoke suite
+        id: smoke
+        run: |
+          : "${ORIGIN:?SMOKE_ORIGIN repo var not set}"
+          : "${ADMIN_TOKEN:?ADMIN_TOKEN repo secret not set}"
+          bash scripts/smoke_hardening.sh
+      - name: Write canary heartbeat
+        # Only reached if smoke passed — the heartbeat means "last green run".
+        run: |
+          curl -fsS --max-time 20 -X POST \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            -H "X-Canary-Sha: ${{ github.sha }}" \
+            "$ORIGIN/api/admin/canary-beat" >/dev/null
+          echo "canary heartbeat written"
+      - name: Alert Discord on failure
+        if: failure()
+        run: |
+          if [[ -z "${DISCORD_ALERT_WEBHOOK:-}" ]]; then
+            echo "DISCORD_ALERT_WEBHOOK not set — skipping"
+            exit 0
+          fi
+          payload=$(jq -cn \
+            --arg c ":rotating_light: **SC-CPE: hourly smoke FAILED** on ${{ github.sha }} against $ORIGIN. See Actions run ${{ github.run_id }}." \
+            '{content: $c, username: "SC-CPE Smoke"}')
+          curl -fsS --max-time 20 \
+            -H "Content-Type: application/json" \
+            -X POST -d "$payload" "$DISCORD_ALERT_WEBHOOK" >/dev/null
