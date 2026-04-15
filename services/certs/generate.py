@@ -904,6 +904,10 @@ def issue_for_user(
         issuer_name=cfg.issuer_name,
     )
 
+    # Pre-render html_body/text_body into payload_json so the email-sender
+    # drainer can dispatch the row without re-rendering. The cron also tries
+    # an inline send below; if that fails we leave the row in 'queued' so the
+    # drainer's retry path picks it up instead of dropping the email.
     payload_json = json.dumps(
         {
             "cert_id": cert_id,
@@ -913,6 +917,8 @@ def issue_for_user(
             "sessions_count": sessions_count,
             "verify_url": verify_url,
             "download_url": download_url,
+            "html_body": html_body,
+            "text_body": text_body,
         }
     )
 
@@ -957,14 +963,19 @@ def issue_for_user(
         err_msg = str(e)[:500]
         log("warn", "email_send_failed", cert_id=cert_id, email_id=email_id, error=err_msg)
         try:
+            # Roll the row back to 'queued' (not 'failed') so the email-sender
+            # drainer can retry from the pre-rendered payload. attempts was
+            # incremented above, so the drainer's MAX_ATTEMPTS cap still
+            # applies — but a single transient Resend hiccup no longer drops
+            # the email permanently.
             d1.execute(
-                "UPDATE email_outbox SET state = 'failed', last_error = ? WHERE id = ?",
+                "UPDATE email_outbox SET state = 'queued', last_error = ? WHERE id = ?",
                 [err_msg, email_id],
             )
         except Exception as inner:  # pragma: no cover
             log("error", "email_outbox_update_failed", error=str(inner))
         # Do NOT re-raise; the cert is in R2 and in D1 as 'generated', the
-        # watchdog/retry job can pick up the queued email.
+        # drainer will own delivery from here.
 
     # 13. Audit log (hash-chained)
     audit_id = insert_chained_audit(

@@ -56,6 +56,18 @@ export async function onRequestGet({ params, env }) {
          LIMIT 1
     `).bind(user.id).first();
 
+    // Surface the code lifecycle without the value itself. The verification
+    // code is delivered via email exactly once at registration; if the user
+    // lost it they should hit /api/me/[token]/resend-code rather than read
+    // it off the dashboard. This way a casually-shared dashboard URL can't
+    // be used to hijack the YouTube-channel binding by posting the code in
+    // chat from someone else's account.
+    let codeState = "none";
+    if (user.verification_code && user.code_expires_at) {
+        codeState = new Date(user.code_expires_at).getTime() > Date.now()
+            ? "active" : "expired";
+    }
+
     return json({
         user: {
             legal_name: user.legal_name,
@@ -63,7 +75,7 @@ export async function onRequestGet({ params, env }) {
             yt_channel_id: user.yt_channel_id,
             yt_display_name_seen: user.yt_display_name_seen,
             state: user.state,
-            verification_code: user.verification_code,
+            code_state: codeState,
             code_expires_at: user.code_expires_at,
             created_at: user.created_at,
             verified_at: user.verified_at,
