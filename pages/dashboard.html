@@ -277,12 +277,9 @@ async function load() {
             channelWrap.hidden = false;
             hint.hidden = true;
         } else {
-            // Active but no channel on file — most commonly an admin-created
-            // account. Don't say "not yet linked" because it contradicts the
-            // "Status: active" line above; explain honestly instead.
             line.innerHTML = `Account <span class="pill pill-green" style="margin-left:4px;">Active</span>`;
             channelWrap.hidden = true;
-            hint.textContent = "No YouTube channel on file. Post your verification code during a live briefing to attach one and earn credits automatically.";
+            hint.innerHTML = "YouTube channel not yet linked. Auto-linking happens the first time the poller matches your SC-CPE code in a live briefing chat. Admin-reconciled credits (e.g. when the poller missed a briefing) don&rsquo;t link a channel — post your code during the next live briefing and we&rsquo;ll attach it automatically. Your existing credits are unaffected either way.";
             hint.hidden = false;
         }
 
