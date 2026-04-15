@@ -12,7 +12,9 @@ this script:
   4. PAdES-signs the PDF via endesive using a PKCS#12 bundle.
   5. Uploads the signed PDF to R2 (bucket sc-cpe-certs, key certs/<uid>/<cid>.pdf).
   6. HEADs the uploaded object to verify it exists at the expected size.
-  7. Generates a 30-day presigned download URL.
+  7. Builds a durable download URL (cpe.simplycyber.io/api/download/{token})
+     that the Pages Function resolves against R2 on demand. Replaces the
+     old 30-day presigned URL, which S3 rejects as >604800s.
   8. Inserts a row into certs (state='generated').
   9. Queues a row into email_outbox (idempotency_key=cert_id) and sends via Resend.
  10. On successful send: marks email_outbox.state='sent' and certs.state='delivered'.
@@ -267,8 +269,10 @@ class Config:
 
     issuer_name: str
     verify_base_url: str
+    download_base_url: str
 
     tsa_url: str
+    tsa_urls_fallback: list[str]
     tsa_required: bool
 
     period_override: str | None = None
@@ -291,7 +295,23 @@ class Config:
             verify_base_url=os.environ.get(
                 "VERIFY_BASE_URL", "https://cpe.simplycyber.io/verify.html"
             ),
+            # Durable download endpoint (Pages function streams from R2 binding).
+            # Email links point here so they never expire — S3 presigned URLs
+            # cap at 604800s / 7 days which is too short for monthly certs.
+            download_base_url=os.environ.get(
+                "DOWNLOAD_BASE_URL", "https://cpe.simplycyber.io/api/download"
+            ),
             tsa_url=os.environ.get("TSA_URL", "https://freetsa.org/tsr"),
+            # Comma-separated list of RFC-3161 fallback TSAs. Tried in order
+            # if the primary fails or returns no token. DigiCert and SSL.com
+            # are free, public RFC-3161 TSAs without rate limits for low
+            # volume; adjust if either changes their policy.
+            tsa_urls_fallback=[
+                u.strip() for u in os.environ.get(
+                    "TSA_URLS_FALLBACK",
+                    "http://timestamp.digicert.com,http://ts.ssl.com",
+                ).split(",") if u.strip()
+            ],
             tsa_required=(os.environ.get("TSA_REQUIRED", "1").strip().lower()
                           not in ("0", "false", "no", "")),
             period_override=(os.environ.get("PERIOD_YYYYMM") or "").strip() or None,
@@ -374,6 +394,17 @@ def load_signing_material(cfg: Config) -> SigningMaterial:
 # ---------------------------------------------------------------------------
 
 
+def _qr_svg_data_uri(url: str) -> str:
+    """Render `url` as a QR code and return a `data:image/svg+xml;base64,...`
+    URI suitable for an <img src=...>. High error-correction so the QR still
+    scans if the printed cert is lightly scuffed."""
+    import io
+    import segno
+    buf = io.BytesIO()
+    segno.make(url, error="h").save(buf, kind="svg", scale=1, border=0)
+    return "data:image/svg+xml;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
+
+
 def render_pdf(
     jinja_env: Environment,
     *,
@@ -397,6 +428,11 @@ def render_pdf(
     else:
         cpe_total_str = f"{float(cpe_total):.1f}"
 
+    # Inline SVG QR code pointing at the verify URL. Embedded as a data URI
+    # so WeasyPrint rasterises it without an external fetch. SVG beats PNG
+    # because the QR stays crisp at any print scale.
+    qr_svg = _qr_svg_data_uri(verify_url)
+
     html_str = template.render(
         issuer_name=issuer_name,
         recipient_name=recipient_name,
@@ -408,6 +444,7 @@ def render_pdf(
         cert_id_display=cert_id[:12],
         public_token_short=public_token[:16],
         verify_url=verify_url,
+        verify_qr_data_uri=qr_svg,
         issued_at=issued_at,
         signing_cert_sha256=signing_cert_sha256,
     )
@@ -442,6 +479,7 @@ def sign_pdf_pades(
     issuer_name: str,
     cert_id: str,
     tsa_url: str,
+    tsa_urls_fallback: list[str] | None = None,
     tsa_required: bool,
 ) -> bytes:
     """PAdES-sign the PDF with endesive, countersigned by an RFC-3161 TSA.
@@ -483,44 +521,56 @@ def sign_pdf_pades(
         "aligned": 32768,
     }
 
-    # endesive.pdf.cms.sign takes timestampurl as a kwarg; it is NOT read from
-    # udct. Putting it in the dict would be silently ignored, producing an
-    # untimestamped signature that looks fine until the signing cert expires.
-    sign_kwargs: dict[str, Any] = {}
-    if tsa_url:
-        sign_kwargs["timestampurl"] = tsa_url
+    # Cascade through TSAs: primary first, then fallbacks in order. Any one
+    # returning a valid timestamp token is sufficient. A single TSA outage
+    # (freetsa.org has been down for days at a time historically) would
+    # otherwise block every cert issuance.
+    candidates = [u for u in ([tsa_url] + list(tsa_urls_fallback or [])) if u]
+    last_err: Exception | None = None
+    used_tsa: str | None = None
+    signed_pdf: bytes | None = None
+    for candidate in candidates:
+        try:
+            signature = endesive_cms.sign(
+                unsigned_pdf,
+                udct,
+                priv_key,
+                cert,
+                other_certs or [],
+                "sha256",
+                timestampurl=candidate,
+            )
+            candidate_pdf = unsigned_pdf + signature
+            if _signed_pdf_has_timestamp_token(candidate_pdf):
+                signed_pdf = candidate_pdf
+                used_tsa = candidate
+                break
+            last_err = RuntimeError(
+                f"TSA {candidate} returned no signature-timestamp-token"
+            )
+            log("warn", "tsa_no_token", tsa_url=candidate, cert_id=cert_id)
+        except Exception as e:
+            last_err = e
+            log("warn", "tsa_failed", tsa_url=candidate, error=str(e)[:200], cert_id=cert_id)
 
-    try:
-        signature = endesive_cms.sign(
-            unsigned_pdf,
-            udct,
-            priv_key,
-            cert,
-            other_certs or [],
-            "sha256",
-            **sign_kwargs,
-        )
-    except Exception as e:
-        if tsa_required and tsa_url:
+    if signed_pdf is None:
+        if tsa_required:
             raise RuntimeError(
-                f"PAdES signing failed (TSA={tsa_url}): {e}. "
+                f"All TSAs failed ({candidates}); last error: {last_err}. "
                 f"Refusing to ship untimestamped cert."
-            ) from e
-        raise
-
-    signed_pdf = unsigned_pdf + signature
+            ) from last_err
+        # tsa_required=False → fall back to unstamped signing (dev/test only)
+        signature = endesive_cms.sign(
+            unsigned_pdf, udct, priv_key, cert, other_certs or [], "sha256",
+        )
+        signed_pdf = unsigned_pdf + signature
 
     has_ts = _signed_pdf_has_timestamp_token(signed_pdf)
-    if tsa_required and not has_ts:
-        raise RuntimeError(
-            f"Signed PDF lacks RFC-3161 signature-timestamp-token (TSA={tsa_url}). "
-            f"Refusing to ship: cert would become unverifiable when signing cert expires."
-        )
     log(
         "info",
         "pdf_pades_level",
         cert_id=cert_id,
-        tsa_url=tsa_url or None,
+        tsa_url=used_tsa,
         pades_level=("PAdES-T" if has_ts else "PAdES-B"),
     )
     return signed_pdf
@@ -559,14 +609,6 @@ def upload_and_verify(
             f"R2 HEAD mismatch for s3://{bucket}/{key}: "
             f"expected {len(body)} bytes, got {remote_size}"
         )
-
-
-def presign_download(s3, bucket: str, key: str, *, seconds: int = 30 * 24 * 3600) -> str:
-    return s3.generate_presigned_url(
-        "get_object",
-        Params={"Bucket": bucket, "Key": key},
-        ExpiresIn=seconds,
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -632,7 +674,7 @@ def build_email_bodies(
         f"Your {period_display} Simply Cyber CPE certificate is ready.\n\n"
         f"  CPE credit hours: {cpe_str}\n"
         f"  Sessions attended: {sessions_count}\n\n"
-        f"Download your signed PDF (link valid for 30 days):\n  {download_url}\n\n"
+        f"Download your signed PDF:\n  {download_url}\n\n"
         f"Anyone (including auditors) can verify this certificate at:\n  {verify_url}\n\n"
         f"The signed PDF is PAdES-signed; most PDF readers will show the "
         f"embedded digital signature and the certifying authority "
@@ -756,6 +798,7 @@ def issue_for_user(
         issuer_name=cfg.issuer_name,
         cert_id=cert_id,
         tsa_url=cfg.tsa_url,
+        tsa_urls_fallback=cfg.tsa_urls_fallback,
         tsa_required=cfg.tsa_required,
     )
     signed_sha = sha256_bytes(signed_pdf)
@@ -773,8 +816,12 @@ def issue_for_user(
     )
     log("info", "r2_uploaded", cert_id=cert_id, bucket=cfg.cert_r2_bucket, key=r2_key)
 
-    # 9. Presigned URL for the email link
-    download_url = presign_download(s3, cfg.cert_r2_bucket, r2_key, seconds=30 * 24 * 3600)
+    # 9. Durable download URL (Pages /api/download/{token} streams from R2).
+    # We intentionally do NOT presign an R2 URL here — S3 presigned URLs
+    # cap at 7 days, and we need the link in the cert email to remain
+    # reachable indefinitely. The Pages endpoint checks revocation state
+    # and audit-logs each download.
+    download_url = f"{cfg.download_base_url.rstrip('/')}/{public_token}"
 
     # 10. INSERT certs row (state='generated')
     d1.execute(

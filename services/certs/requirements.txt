@@ -9,3 +9,6 @@ python-dateutil==2.9.0
 # endesive's PyPDF2_annotate imports `attr` (the attrs package) at signature-
 # annotation time but doesn't declare it in its own deps — pin explicitly.
 attrs==24.2.0
+# Pure-python QR generator. segno has no C deps and emits SVG directly,
+# which WeasyPrint rasterises crisply at any size (beats PNG for print).
+segno==1.6.1

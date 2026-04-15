@@ -134,6 +134,52 @@ export function isValidName(s) {
     return /[\p{L}]/u.test(s);
 }
 
+// Insert a row into email_outbox. The email-sender Worker (polls every
+// 2 min) is responsible for actually dispatching via Resend. `template`
+// is a tag for analytics; payload_json must carry html_body and/or
+// text_body — the drainer does not re-render. `idempotencyKey` must be
+// stable for the logical event (e.g. "register:<userId>:<code>") so a
+// producer retry on the same event doesn't duplicate the email.
+export async function queueEmail(env, { userId, template, to, subject, html, text, idempotencyKey }) {
+    const payload = JSON.stringify({ html_body: html, text_body: text });
+    try {
+        await env.DB.prepare(`
+            INSERT INTO email_outbox
+              (id, user_id, template, to_email, subject, payload_json,
+               idempotency_key, state, attempts, created_at)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'queued', 0, ?8)
+        `).bind(
+            ulid(), userId ?? null, template, to, subject, payload,
+            idempotencyKey, now(),
+        ).run();
+        return { queued: true };
+    } catch (err) {
+        // UNIQUE(idempotency_key) means a retry hits this path; treat as
+        // success so callers don't error on legitimate re-registers.
+        const msg = String(err?.message || err);
+        if (/UNIQUE/i.test(msg)) return { queued: false, duplicate: true };
+        throw err;
+    }
+}
+
+// Constant-time bearer-token check for admin endpoints. env.ADMIN_TOKEN
+// is set via `wrangler pages secret put ADMIN_TOKEN`. Returns true if the
+// Authorization header matches.
+export async function isAdmin(env, request) {
+    const expected = env.ADMIN_TOKEN;
+    if (!expected) return false;
+    const h = request.headers.get("Authorization") || "";
+    const m = /^Bearer\s+(.+)$/i.exec(h);
+    if (!m) return false;
+    const given = m[1];
+    if (given.length !== expected.length) return false;
+    const a = new TextEncoder().encode(given);
+    const b = new TextEncoder().encode(expected);
+    let diff = 0;
+    for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+    return diff === 0;
+}
+
 export async function verifyTurnstile(env, token, ip) {
     if (!env.TURNSTILE_SECRET_KEY) {
         // Dev/local: allow if secret isn't configured, but log it.
