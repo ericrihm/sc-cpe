@@ -16,3 +16,8 @@ database_id = "28218db6-6f35-4bfb-85cd-abd2881b6049"
 [[r2_buckets]]
 binding = "RAW_CHAT"
 bucket_name = "sc-cpe-raw-chat"
+
+# Secrets (set with `wrangler secret put NAME`):
+#   RESEND_API_KEY     - for the daily security-alerts digest
+#   FROM_EMAIL         - e.g. certs@signalplane.co
+#   ADMIN_ALERT_EMAIL  - where the digest is delivered

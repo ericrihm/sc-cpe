@@ -14,8 +14,94 @@ export default {
             });
             throw err;
         }
+
+        // Piggyback a daily security-alert sweep on the purge cron. Scans the
+        // audit log for adversarial-signal events since the last alert and
+        // emails ADMIN_ALERT_EMAIL if any are found. Isolated from purge so a
+        // failure here doesn't fail the purge (and vice versa).
+        try {
+            const alerted = await runSecurityAlerts(env, now);
+            await heartbeat(env, "security_alerts", "ok", { at: now, ...alerted });
+        } catch (err) {
+            await heartbeat(env, "security_alerts", "error", {
+                at: now, msg: String(err && err.message || err),
+            });
+        }
     },
 };
+
+// Actions we want the admin to see the morning after. Keep this list tight —
+// every entry becomes a daily email. Noisy signals (rate-limit hits, expired
+// codes) stay out; only facts that suggest a real attempt to subvert the flow.
+const ALERT_ACTIONS = [
+    "code_race_detected",
+    "code_channel_conflict",
+    "appeal_granted",  // admin action — useful to see in a daily digest
+];
+
+async function runSecurityAlerts(env, nowIso) {
+    if (!env.RESEND_API_KEY || !env.FROM_EMAIL || !env.ADMIN_ALERT_EMAIL) {
+        return { skipped: "missing_secrets" };
+    }
+
+    // Use the heartbeats row as our "since" cursor. detail_json.cursor_ts is
+    // the ISO timestamp of the newest audit row included in the previous
+    // alert. On first run (no row), look back 24h.
+    const prev = await env.DB.prepare(
+        "SELECT detail_json FROM heartbeats WHERE source = 'security_alerts'"
+    ).first();
+    let since;
+    try { since = JSON.parse(prev?.detail_json || "{}").cursor_ts; } catch { since = null; }
+    if (!since) since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+
+    const placeholders = ALERT_ACTIONS.map((_, i) => `?${i + 2}`).join(",");
+    const rs = await env.DB.prepare(`
+        SELECT id, ts, actor_type, actor_id, action, entity_id, after_json
+        FROM audit_log
+        WHERE ts > ?1 AND action IN (${placeholders})
+        ORDER BY ts ASC
+        LIMIT 200
+    `).bind(since, ...ALERT_ACTIONS).all();
+
+    const rows = rs.results || [];
+    if (rows.length === 0) return { scanned_since: since, events: 0 };
+
+    const subject = `[SC-CPE] ${rows.length} security event(s) since ${since.slice(0, 16)}`;
+    const lines = rows.map(r =>
+        `${r.ts}  ${r.action.padEnd(24)}  entity=${r.entity_id}  after=${(r.after_json || "").slice(0, 200)}`
+    );
+    const text =
+        `SC-CPE daily security digest\n` +
+        `Scanned audit_log since: ${since}\n` +
+        `Events: ${rows.length}\n\n` +
+        lines.join("\n") +
+        `\n\nRun /api/admin/audit-chain-verify to confirm chain integrity.\n`;
+
+    const resp = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+            "Authorization": `Bearer ${env.RESEND_API_KEY}`,
+            "Content-Type": "application/json",
+            // Idempotency-keyed on the window + tip id so a retried cron won't
+            // double-send the same digest.
+            "Idempotency-Key": `sec-alert:${since}:${rows[rows.length - 1].id}`,
+        },
+        body: JSON.stringify({
+            from: env.FROM_EMAIL,
+            to: [env.ADMIN_ALERT_EMAIL],
+            subject,
+            text,
+        }),
+    });
+    if (resp.status >= 400) {
+        const body = (await resp.text()).slice(0, 500);
+        throw new Error(`resend_${resp.status}: ${body}`);
+    }
+
+    // Advance cursor only after a successful send so a failed email gets
+    // retried on the next run instead of being silently lost.
+    return { scanned_since: since, events: rows.length, cursor_ts: rows[rows.length - 1].ts };
+}
 
 async function purgeExpired(env, now) {
     const rs = await env.DB.prepare(`

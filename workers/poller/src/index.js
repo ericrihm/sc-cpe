@@ -5,6 +5,26 @@
 const YT = "https://www.googleapis.com/youtube/v3";
 const CODE_RE = /SC-CPE-([0-9A-HJKMNP-TV-Z]{8})/i;
 
+// Exported for tests: given a YouTube liveChatMessages batch, return the set
+// of codes that appeared from two or more distinct channels. Pure function,
+// no I/O — so the race-detection invariant can be asserted without a runtime.
+export function detectContestedCodes(items) {
+    const firstChannel = new Map();
+    const contested = new Set();
+    for (const m of items) {
+        const text = m?.snippet?.displayMessage || "";
+        const match = CODE_RE.exec(text);
+        if (!match) continue;
+        const code = match[1].toUpperCase();
+        const channelId = m?.authorDetails?.channelId;
+        if (!channelId) continue;
+        const seen = firstChannel.get(code);
+        if (seen && seen !== channelId) contested.add(code);
+        else if (!seen) firstChannel.set(code, channelId);
+    }
+    return contested;
+}
+
 export default {
     async scheduled(event, env, ctx) {
         const now = new Date();
@@ -158,19 +178,7 @@ async function processCodeMatches(env, session, items, now) {
     // the user re-request a fresh code via /api/me/{token}/resend-code.
     // The code is then burned (cleared) so the attacker can't replay it on
     // a future poll.
-    const codeFirstChannel = new Map();   // code -> first channelId seen
-    const contestedCodes = new Set();
-    for (const m of items) {
-        const text = m.snippet?.displayMessage || "";
-        const match = CODE_RE.exec(text);
-        if (!match) continue;
-        const code = match[1].toUpperCase();
-        const channelId = m.authorDetails?.channelId;
-        if (!channelId) continue;
-        const seen = codeFirstChannel.get(code);
-        if (seen && seen !== channelId) contestedCodes.add(code);
-        else if (!seen) codeFirstChannel.set(code, channelId);
-    }
+    const contestedCodes = detectContestedCodes(items);
 
     for (const m of items) {
         const text = m.snippet?.displayMessage || "";
