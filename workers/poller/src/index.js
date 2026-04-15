@@ -342,7 +342,25 @@ async function processAttendance(env, session, items, now) {
 
         const publishedAt = m.snippet?.publishedAt;
         if (!publishedAt) continue;
-        if (new Date(publishedAt).getTime() < windowOpenMs) continue;
+        if (new Date(publishedAt).getTime() < windowOpenMs) {
+            // Seen, but out of window. Log once per (user, stream) so the
+            // dashboard can show the user why they didn't get credit, and
+            // so the audit chain retains evidence that the system noticed.
+            const already = await env.DB.prepare(
+                `SELECT 1 FROM audit_log WHERE action = 'attendance_outside_window'
+                 AND entity_type = 'user' AND entity_id = ?1
+                 AND after_json LIKE ?2 LIMIT 1`
+            ).bind(userId, `%"stream_id":"${session.stream_id}"%`).first();
+            if (!already) {
+                await audit(env, "poller", userId, "attendance_outside_window", "user",
+                    userId, null, {
+                        stream_id: session.stream_id,
+                        posted_at: publishedAt,
+                        window_open_at: new Date(windowOpenMs).toISOString(),
+                    });
+            }
+            continue;
+        }
 
         const existing = await env.DB.prepare(
             "SELECT user_id FROM attendance WHERE user_id = ?1 AND stream_id = ?2"
