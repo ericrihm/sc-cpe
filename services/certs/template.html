@@ -312,8 +312,8 @@
 
       <div class="citation">
         attended the <span class="program">Simply Cyber Daily Threat Briefing</span>
-        during the period of <strong>{{ period_display }}</strong>
-        <span class="period">{{ period_start }} &nbsp;&mdash;&nbsp; {{ period_end }}</span>
+        <strong>{{ attended_line }}</strong>
+        {% if dates_line %}<span class="period">{{ dates_line }}</span>{% endif %}
       </div>
 
       <div class="credit-line">
