@@ -24,6 +24,7 @@ export async function onRequestGet({ params, env, request }) {
 
     const attendance = await env.DB.prepare(`
         SELECT a.stream_id, a.earned_cpe, a.first_msg_at, a.rule_version, a.source,
+               a.first_msg_sha256, a.created_at AS credited_at,
                s.scheduled_date, s.yt_video_id, s.title, s.actual_start_at
         FROM attendance a JOIN streams s ON s.id = a.stream_id
         WHERE a.user_id = ?1
@@ -33,7 +34,7 @@ export async function onRequestGet({ params, env, request }) {
     const certs = await env.DB.prepare(`
         SELECT id, public_token, period_yyyymm, cpe_total, sessions_count,
                state, cert_kind, stream_id, supersedes_cert_id,
-               generated_at, delivered_at
+               generated_at, delivered_at, first_viewed_at
         FROM certs WHERE user_id = ?1 AND state != 'regenerated'
         ORDER BY period_yyyymm DESC, created_at DESC
     `).bind(user.id).all();
