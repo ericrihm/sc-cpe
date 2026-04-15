@@ -41,6 +41,27 @@ jobs:
           : "${ORIGIN:?SMOKE_ORIGIN repo var not set}"
           : "${ADMIN_TOKEN:?ADMIN_TOKEN repo secret not set}"
           bash scripts/smoke_hardening.sh
+      - name: Assert prior canary beat is fresh
+        # Catches the case where smoke itself passes but canary-beat silently
+        # regressed. Smoke is hourly, so the prior beat should be <70min old.
+        # Skipped on manual dispatch runs (they may fire off-cadence).
+        if: github.event_name != 'workflow_dispatch'
+        run: |
+          age=$(curl -fsS --max-time 20 \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            "$ORIGIN/api/admin/heartbeat-status" | \
+            python3 -c 'import json,sys
+d=json.load(sys.stdin)
+for s in d.get("sources",[]):
+    if s["source"]=="canary":
+        print(s.get("age_seconds") or 99999); break
+else:
+    print(99999)')
+          echo "canary age: ${age}s"
+          if [[ "$age" -gt 4200 ]]; then
+            echo "canary heartbeat stale (>70min) — beat endpoint may have regressed" >&2
+            exit 1
+          fi
       - name: Write canary heartbeat
         # Only reached if smoke passed — the heartbeat means "last green run".
         run: |
