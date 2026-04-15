@@ -25,18 +25,26 @@ check() {
 code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
 
 echo "== admin HMAC (isAdmin) =="
-check "no auth → 401" 401 "$(code "$ORIGIN/api/admin/users")"
-check "wrong bearer → 401" 401 "$(code -H 'Authorization: Bearer nope' "$ORIGIN/api/admin/users")"
-check "short bearer → 401 (no length oracle)" 401 "$(code -H 'Authorization: Bearer x' "$ORIGIN/api/admin/users")"
-check "valid bearer → 200" 200 "$(code -H "Authorization: Bearer $ADMIN_TOKEN" "$ORIGIN/api/admin/users?limit=1")"
+# /api/admin/users requires ?q=<2-200 chars>; use a benign 2-char query.
+ADMIN_URL="$ORIGIN/api/admin/users?q=ab&limit=1"
+check "no auth → 401" 401 "$(code "$ADMIN_URL")"
+check "wrong bearer → 401" 401 "$(code -H 'Authorization: Bearer nope' "$ADMIN_URL")"
+check "short bearer → 401 (no length oracle)" 401 "$(code -H 'Authorization: Bearer x' "$ADMIN_URL")"
+check "valid bearer → 200" 200 "$(code -H "Authorization: Bearer $ADMIN_TOKEN" "$ADMIN_URL")"
 
-echo "== CSRF gate on mutating admin endpoints =="
-# Missing/mismatched Origin should be rejected even with valid bearer.
-check "revoke w/o origin → 403" 403 "$(code -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
-    -H 'Content-Type: application/json' -d '{"user_id":"00000000"}' "$ORIGIN/api/admin/revoke")"
-check "revoke cross-origin → 403" 403 "$(code -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
-    -H 'Origin: https://evil.example' -H 'Content-Type: application/json' \
-    -d '{"user_id":"00000000"}' "$ORIGIN/api/admin/revoke")"
+echo "== CSRF gate on dashboard-token (me) endpoints =="
+# Admin endpoints don't need a CSRF gate: bearer tokens in Authorization
+# headers are NOT auto-sent by browsers cross-origin, so CSRF is inapplicable.
+# The dashboard-token paths under /api/me/[token]/* DO need the gate — the
+# token sits in the URL and a browser will happily POST to it from any page.
+# Pick a random token so we're exercising the CSRF branch, not auth.
+FAKE_TOKEN="smoketest$(date +%s)smoketest$(date +%s)"
+check "me/delete w/o origin → 403" 403 "$(code -X POST \
+    -H 'Content-Type: application/json' -d '{}' \
+    "$ORIGIN/api/me/$FAKE_TOKEN/delete")"
+check "me/delete cross-origin → 403" 403 "$(code -X POST \
+    -H 'Origin: https://evil.example' -H 'Content-Type: application/json' -d '{}' \
+    "$ORIGIN/api/me/$FAKE_TOKEN/delete")"
 
 echo "== preflight/channel rate limit =="
 # First probe must succeed; after the cap we want 429. Cap is 60/h — hit it
