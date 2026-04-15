@@ -4,7 +4,7 @@ import { json, audit, clientIp, ipHash, isAdmin, queueEmail, now } from "../../.
 // Auth: Authorization: Bearer <ADMIN_TOKEN>
 //
 // Re-queues the cert delivery email with the current durable download URL
-// (cpe.simplycyber.io/api/download/{token}). Use this for certs whose
+// (sc-cpe-web.pages.dev/api/download/{token}). Use this for certs whose
 // original email carried the legacy 30-day-presigned R2 URL — those URLs
 // were rejected by S3 with "X-Amz-Expires must be less than a week" and
 // have since expired, leaving recipients with broken links.
@@ -16,7 +16,7 @@ import { json, audit, clientIp, ipHash, isAdmin, queueEmail, now } from "../../.
 // retry a stuck send. Use sparingly; the email_outbox drainer also
 // auto-retries failed sends up to MAX_ATTEMPTS.
 
-const SITE_BASE = "https://cpe.simplycyber.io";
+const SITE_BASE = "https://sc-cpe-web.pages.dev";
 
 function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, c => (

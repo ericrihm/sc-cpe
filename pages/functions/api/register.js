@@ -3,7 +3,7 @@ import {
     isValidEmail, isValidName, verifyTurnstile, queueEmail,
 } from "../_lib.js";
 
-const SITE_BASE = "https://cpe.simplycyber.io";
+const SITE_BASE = "https://sc-cpe-web.pages.dev";
 
 function welcomeEmailBodies({ legalName, code, dashboardToken, expiresAt }) {
     const dashUrl = `${SITE_BASE}/dashboard.html?t=${dashboardToken}`;

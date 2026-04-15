@@ -300,14 +300,17 @@ class Config:
             resend_api_key=require_env("RESEND_API_KEY"),
             from_email=os.environ.get("FROM_EMAIL", "Simply Cyber CPE <certs@signalplane.co>"),
             issuer_name=os.environ.get("ISSUER_NAME", "Simply Cyber LLC"),
+            # Default to the Pages production alias because the apex
+            # cpe.simplycyber.io is not yet pointed at the project — the
+            # workflow can override both via env once DNS is wired.
             verify_base_url=os.environ.get(
-                "VERIFY_BASE_URL", "https://cpe.simplycyber.io/verify.html"
+                "VERIFY_BASE_URL", "https://sc-cpe-web.pages.dev/verify.html"
             ),
             # Durable download endpoint (Pages function streams from R2 binding).
             # Email links point here so they never expire — S3 presigned URLs
             # cap at 604800s / 7 days which is too short for monthly certs.
             download_base_url=os.environ.get(
-                "DOWNLOAD_BASE_URL", "https://cpe.simplycyber.io/api/download"
+                "DOWNLOAD_BASE_URL", "https://sc-cpe-web.pages.dev/api/download"
             ),
             tsa_url=os.environ.get("TSA_URL", "https://freetsa.org/tsr"),
             # Comma-separated list of RFC-3161 fallback TSAs. Tried in order
