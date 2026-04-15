@@ -704,7 +704,7 @@ def build_email_bodies(
             padding:10px 16px;border-radius:4px;text-decoration:none;">
      Download signed PDF
   </a><br/>
-  <small style="color:#666;">Link valid for 30 days.</small>
+  <small style="color:#666;">Link does not expire — you can re-download anytime.</small>
 </p>
 <p>
   Anyone (including auditors) can verify this certificate:<br/>
