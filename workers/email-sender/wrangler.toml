@@ -1,0 +1,20 @@
+name = "sc-cpe-email-sender"
+main = "src/index.js"
+compatibility_date = "2026-04-01"
+workers_dev = false
+preview_urls = false
+
+# Drain the email_outbox every 2 minutes. High frequency because recovery
+# and registration emails are user-blocking; monthly cert emails can wait
+# a few minutes without complaint.
+[triggers]
+crons = ["*/2 * * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "sc-cpe"
+database_id = "28218db6-6f35-4bfb-85cd-abd2881b6049"
+
+# Secrets to set with `wrangler secret put`:
+#   RESEND_API_KEY - Resend API key (same key as the monthly cert job)
+#   FROM_EMAIL     - "Display Name <user@verified-domain>"

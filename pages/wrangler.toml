@@ -28,3 +28,10 @@ database_id = "28218db6-6f35-4bfb-85cd-abd2881b6049"
 [[kv_namespaces]]
 binding = "RATE_KV"
 id = "5066e1eeba0748cc96ad6d44f3f5325f"
+
+# Signed cert PDFs. Pages /api/download/{token} streams from this bucket
+# so we don't need to presign URLs (which cap at 7 days); the durable
+# download endpoint auths the caller and emits the object inline.
+[[r2_buckets]]
+binding = "CERTS_BUCKET"
+bucket_name = "sc-cpe-certs"
