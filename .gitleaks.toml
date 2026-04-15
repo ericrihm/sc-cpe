@@ -1,0 +1,18 @@
+# gitleaks config. Inherits the default ruleset (broad coverage of API-key
+# shapes) and adds allow-listings for places we carry test/fake/example
+# values that look sensitive but aren't.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Globally allowed paths / patterns"
+paths = [
+    # Smoke script uses a FAKE token pattern deliberately to exercise the
+    # CSRF gate without mutating state — not a real credential.
+    '''scripts/smoke_hardening\.sh''',
+]
+regexes = [
+    # The README / docs reference token SHAPE (hex, length) for operators.
+    '''dashboard_token''',
+]
