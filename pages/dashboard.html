@@ -97,6 +97,35 @@
     margin-top: 4px; background: none; border: none; padding: 4px 0;
 }
 .cert-history-toggle:hover { color: #111; text-decoration: underline; }
+
+/* Attendance list — same card pattern as certs for mobile-first UX. */
+.att-list { display: flex; flex-direction: column; gap: 10px; }
+.att-row {
+    border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px 14px;
+    background: #fff;
+}
+.att-row-top {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: 8px; flex-wrap: wrap;
+}
+.att-title {
+    font-weight: 600; font-size: 14px; color: #111; line-height: 1.3;
+    word-break: break-word;
+}
+.att-title a { color: inherit; text-decoration: none; border-bottom: 1px dotted #9ca3af; }
+.att-title a:hover { border-bottom-color: #2563eb; color: #2563eb; }
+.att-meta { font-size: 12px; color: #555; margin-top: 4px; }
+.att-actions { margin-top: 10px; }
+.att-ps-btn {
+    font-size: 12px; padding: 5px 10px; border-radius: 4px;
+    border: 1px solid #2563eb; color: #2563eb; background: #fff;
+    cursor: pointer;
+}
+.att-ps-btn:hover { background: #eff6ff; }
+.att-ps-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.att-ps-done { font-size: 12px; color: #166534; }
+.warn-list { margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
+.warn-list li { margin-bottom: 4px; }
 </style>
 </head>
 <body>
@@ -181,10 +210,7 @@
 
         <div class="card">
             <h2>Attendance history</h2>
-            <table id="att-table" hidden>
-                <thead><tr><th>Date</th><th>Video</th><th>Credit</th><th>First message</th><th>Session cert</th></tr></thead>
-                <tbody id="att"></tbody>
-            </table>
+            <div id="att" class="att-list" hidden></div>
             <p id="att-empty" hidden class="muted">No attendance records yet. See you at the next Daily Threat Briefing.</p>
         </div>
 
@@ -247,63 +273,129 @@ async function load() {
     const cpe = Number(d.total_cpe_earned ?? 0);
     document.getElementById("total").textContent = `${cpe.toFixed(1)} CPE`;
 
-    const warnings = d.code_window_warnings || [];
-    if (warnings.length) {
-        const latest = warnings[0];
-        const when = latest.posted_at
-            ? new Date(latest.posted_at).toLocaleString()
-            : "recently";
-        document.getElementById("window-warn-body").textContent =
-            `We saw your verification code at ${when}, but it was posted before the live window opened — no credit was applied.`;
-        document.getElementById("window-warn-card").hidden = false;
-    }
+    renderWindowWarnings(d.code_window_warnings || []);
 
     calData = { attendance: d.attendance || [], appeals: d.appeals || [] };
     renderToday(d.today);
     renderCalendar();
 
-    const att = document.getElementById("att");
-    if (d.attendance.length === 0) {
-        document.getElementById("att-empty").hidden = false;
-    } else {
-        document.getElementById("att-table").hidden = false;
-        for (const a of d.attendance) {
-            const tr = document.createElement("tr");
-            const btn = a.per_session_cert_exists
-                ? `<span class="muted" style="font-size:11px;">issued</span>`
-                : `<button type="button" class="ps-btn" data-stream="${a.stream_id}"
-                     style="font-size:11px;padding:2px 6px;">Request</button>`;
-            tr.innerHTML = `<td>${a.scheduled_date}</td>
-                <td><a href="https://youtu.be/${a.yt_video_id}" target="_blank" rel="noopener">${escapeHtml(a.title || a.yt_video_id)}</a></td>
-                <td>${a.earned_cpe}</td>
-                <td class="muted">${a.first_msg_at}</td>
-                <td class="ps-cell">${btn}</td>`;
-            att.appendChild(tr);
-        }
-        att.addEventListener("click", async (e) => {
-            const btn = e.target.closest(".ps-btn");
-            if (!btn || btn.disabled) return;
-            btn.disabled = true;
-            const stream = btn.dataset.stream;
-            btn.textContent = "sending…";
-            try {
-                const r = await fetch(
-                    `/api/me/${encodeURIComponent(token)}/cert-per-session/${encodeURIComponent(stream)}`,
-                    { method: "POST", headers: { "Content-Type": "application/json" } },
-                );
-                const j = await r.json().catch(() => ({}));
-                if (!r.ok) throw new Error(j.error || "HTTP " + r.status);
-                btn.parentElement.innerHTML =
-                    `<span class="muted" style="font-size:11px;">${j.existing ? "already issued" : "queued"}</span>`;
-            } catch (err) {
-                btn.disabled = false;
-                btn.textContent = "retry";
-                btn.title = String(err.message || err);
-            }
-        });
-    }
+    renderAttendance(d.attendance || []);
 
     renderCerts(d.certs || []);
+}
+
+function formatDateTime(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return d.toLocaleString(undefined, {
+        year: "numeric", month: "short", day: "numeric",
+        hour: "numeric", minute: "2-digit",
+    });
+}
+
+function formatDate(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return d.toLocaleDateString(undefined, {
+        year: "numeric", month: "short", day: "numeric",
+    });
+}
+
+function attendanceSourceBadge(source) {
+    if (source === "admin_manual") return { cls: "pill-amber", label: "Granted manually" };
+    if (source === "appeal_granted") return { cls: "pill-amber", label: "Appeal granted" };
+    return null;
+}
+
+function renderWindowWarnings(warnings) {
+    const card = document.getElementById("window-warn-card");
+    const body = document.getElementById("window-warn-body");
+    if (!warnings.length) { card.hidden = true; return; }
+    card.hidden = false;
+    body.innerHTML = "";
+    const intro = document.createElement("p");
+    intro.style.margin = "0 0 6px";
+    intro.textContent = warnings.length === 1
+        ? "We detected a chat message that couldn't be credited:"
+        : `We detected ${warnings.length} chat messages that couldn't be credited:`;
+    body.appendChild(intro);
+    const ul = document.createElement("ul");
+    ul.className = "warn-list";
+    for (const w of warnings.slice(0, 5)) {
+        const li = document.createElement("li");
+        const when = formatDateTime(w.posted_at);
+        const openAt = formatDateTime(w.window_open_at);
+        const label = w.kind === "attendance"
+            ? `Your message at <strong>${escapeHtml(when)}</strong> was posted before the live window opened (${escapeHtml(openAt)}) — no attendance credit was applied.`
+            : `Your verification code was posted at <strong>${escapeHtml(when)}</strong>, before the live window opened (${escapeHtml(openAt)}) — account not verified from that post.`;
+        li.innerHTML = label;
+        ul.appendChild(li);
+    }
+    body.appendChild(ul);
+}
+
+function renderAttendance(items) {
+    const host = document.getElementById("att");
+    host.innerHTML = "";
+    if (items.length === 0) {
+        document.getElementById("att-empty").hidden = false;
+        return;
+    }
+    host.hidden = false;
+    for (const a of items) {
+        const row = document.createElement("div");
+        row.className = "att-row";
+        const title = escapeHtml(a.title || a.yt_video_id);
+        const yt = `https://youtu.be/${encodeURIComponent(a.yt_video_id)}`;
+        const srcBadge = attendanceSourceBadge(a.source);
+        const headerRight = srcBadge
+            ? `<span class="pill ${srcBadge.cls}" title="${escapeHtml(srcBadge.label)}">${escapeHtml(srcBadge.label)}</span>`
+            : `<span class="pill pill-green" title="Credited from live chat">Credited</span>`;
+        const date = formatDate(a.scheduled_date);
+        // Show first message time only for live-chat-sourced attendance.
+        // admin_manual / appeal_granted rows don't have a meaningful
+        // per-message timestamp; showing one there is actively misleading.
+        const meta = a.source === "poll"
+            ? `${date} · ${a.earned_cpe} CPE · first message ${formatDateTime(a.first_msg_at)}`
+            : `${date} · ${a.earned_cpe} CPE`;
+        const actions = a.per_session_cert_exists
+            ? `<span class="att-ps-done">per-session cert issued</span>`
+            : `<button type="button" class="att-ps-btn" data-stream="${a.stream_id}">Request per-session cert</button>`;
+        row.innerHTML = `
+            <div class="att-row-top">
+                <div>
+                    <div class="att-title"><a href="${yt}" target="_blank" rel="noopener">${title}</a></div>
+                    <div class="att-meta">${meta}</div>
+                </div>
+                ${headerRight}
+            </div>
+            <div class="att-actions">${actions}</div>
+        `;
+        host.appendChild(row);
+    }
+    host.addEventListener("click", async (e) => {
+        const btn = e.target.closest(".att-ps-btn");
+        if (!btn || btn.disabled) return;
+        btn.disabled = true;
+        const stream = btn.dataset.stream;
+        const original = btn.textContent;
+        btn.textContent = "sending…";
+        try {
+            const r = await fetch(
+                `/api/me/${encodeURIComponent(token)}/cert-per-session/${encodeURIComponent(stream)}`,
+                { method: "POST", headers: { "Content-Type": "application/json" } },
+            );
+            const j = await r.json().catch(() => ({}));
+            if (!r.ok) throw new Error(j.error || "HTTP " + r.status);
+            btn.outerHTML = `<span class="att-ps-done">${j.existing ? "already issued" : "queued — arrives within ~2h"}</span>`;
+        } catch (err) {
+            btn.disabled = false;
+            btn.textContent = original;
+            btn.title = String(err.message || err);
+        }
+    });
 }
 
 function formatPeriod(yyyymm) {
