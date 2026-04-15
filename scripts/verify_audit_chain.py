@@ -35,7 +35,9 @@ import os
 import sys
 from typing import Any
 
-import requests
+# `requests` is imported lazily inside fetch_all_rows so the pure-logic
+# functions (canonical, row_hash, verify) can be imported by the
+# chain-parity test harness without the requests dependency installed.
 
 AUDIT_FIELDS = (
     "id", "actor_type", "actor_id", "action",
@@ -67,6 +69,7 @@ def require_env(name: str) -> str:
 
 
 def fetch_all_rows() -> list[dict[str, Any]]:
+    import requests  # lazy; see module header
     acct = require_env("CLOUDFLARE_ACCOUNT_ID")
     db = require_env("D1_DATABASE_ID")
     token = require_env("CLOUDFLARE_API_TOKEN")
