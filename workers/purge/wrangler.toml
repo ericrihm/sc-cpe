@@ -1,7 +1,7 @@
 name = "sc-cpe-purge"
 main = "src/index.js"
 compatibility_date = "2026-04-01"
-workers_dev = false
+workers_dev = true   # required for admin on-demand trigger fetch handler
 preview_urls = false
 
 # Daily at 09:00 UTC (~05:00 ET). Sweeps expired raw chat and emits telemetry.

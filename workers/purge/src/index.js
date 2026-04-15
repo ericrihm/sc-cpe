@@ -2,6 +2,49 @@
 // timestamp. Writes audit_log entry per purged stream and a heartbeat.
 
 export default {
+    // Admin-gated on-demand trigger for the scheduled work. Used to verify
+    // cron paths without waiting for 09:00 UTC. Bearer-gated against
+    // ADMIN_TOKEN; query ?only=security_alerts|weekly_digest|cert_nudge|purge
+    // runs just that block. No param = full run.
+    async fetch(request, env, ctx) {
+        const auth = request.headers.get("Authorization") || "";
+        if (!env.ADMIN_TOKEN || auth !== `Bearer ${env.ADMIN_TOKEN}`) {
+            return new Response(JSON.stringify({ error: "unauthorized" }),
+                { status: 401, headers: { "content-type": "application/json" }});
+        }
+        const now = new Date().toISOString();
+        const only = new URL(request.url).searchParams.get("only") || "all";
+        const out = {};
+        try {
+            if (only === "all" || only === "purge") {
+                out.purge = await purgeExpired(env, now);
+                await heartbeat(env, "purge", "ok", { at: now, ...out.purge });
+            }
+            if (only === "all" || only === "security_alerts") {
+                out.security_alerts = await runSecurityAlerts(env, now);
+                await heartbeat(env, "security_alerts", "ok",
+                    { at: now, ...out.security_alerts });
+            }
+            if (only === "all" || only === "weekly_digest") {
+                out.weekly_digest = await runWeeklyDigest(env, now);
+                await heartbeat(env, "weekly_digest", "ok",
+                    { at: now, ...out.weekly_digest });
+            }
+            if (only === "all" || only === "cert_nudge") {
+                out.cert_nudge = await runCertNudges(env, now);
+                await heartbeat(env, "cert_nudge", "ok",
+                    { at: now, ...out.cert_nudge });
+            }
+            return new Response(JSON.stringify({ ok: true, now, ...out }),
+                { headers: { "content-type": "application/json" }});
+        } catch (err) {
+            return new Response(JSON.stringify({
+                ok: false, error: String(err?.message || err),
+                stack: String(err?.stack || "").slice(0, 800), partial: out,
+            }), { status: 500, headers: { "content-type": "application/json" }});
+        }
+    },
+
     async scheduled(event, env, ctx) {
         const now = new Date().toISOString();
         try {
@@ -326,7 +369,7 @@ async function runSecurityAlerts(env, nowIso) {
             "Content-Type": "application/json",
             // Idempotency-keyed on the window + tip id so a retried cron won't
             // double-send the same digest.
-            "Idempotency-Key": `sec-alert:${since}:${rows[rows.length - 1].id}`,
+            "Idempotency-Key": `sec-alert:${since}:${rows.length ? rows[rows.length - 1].id : "stale"}`,
         },
         body: JSON.stringify({
             from: env.FROM_EMAIL,
