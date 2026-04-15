@@ -1,0 +1,48 @@
+name: ci
+
+# Runs on every push and PR. Two jobs:
+#   tests  — node --test suite (pure logic, no network)
+#   leaks  — gitleaks scans the full history on push and the diff on PR
+# Both are fast (<30s) so they gate cheaply. Smoke against Pages preview
+# is in smoke.yml (separate so preview-url deployment latency doesn't
+# block the fast logic check).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Node test suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Run tests
+        run: bash scripts/test.sh
+
+  leaks:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # gitleaks needs history to scan; 0 = full history.
+          fetch-depth: 0
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          # Token only used for PR comments; scan itself doesn't require it.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
