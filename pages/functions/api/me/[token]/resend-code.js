@@ -1,6 +1,6 @@
 import {
     ulid, randomCode, json, now, audit, clientIp, ipHash,
-    queueEmail, escapeHtml, emailShell,
+    queueEmail, escapeHtml, emailShell, isSameOrigin, rateLimit,
 } from "../../../_lib.js";
 
 // POST /api/me/{dashboard_token}/resend-code
@@ -56,6 +56,11 @@ export async function onRequestPost({ params, request, env }) {
     const token = params.token;
     if (!token || token.length < 32) return json({ error: "invalid_token" }, 400);
 
+    // CSRF gate — see delete.js for rationale.
+    if (!isSameOrigin(request, env)) {
+        return json({ error: "forbidden_origin" }, 403);
+    }
+
     const ip = clientIp(request);
     const ipH = await ipHash(ip);
 
@@ -68,20 +73,16 @@ export async function onRequestPost({ params, request, env }) {
         return json({ error: "already_verified" }, 409);
     }
 
-    // Rate limit per dashboard_token, not per IP — the token is the credential
-    // here and the legitimate user could roam between IPs.
-    if (env.RATE_KV) {
-        const hourBucket = new Date().toISOString().slice(0, 13);
-        const key = `resend_code:${user.id}:${hourBucket}`;
-        const current = parseInt(await env.RATE_KV.get(key), 10) || 0;
-        if (current >= MAX_PER_HOUR) {
-            return json({ error: "rate_limited", retry_in: "1h" }, 429);
-        }
-        await env.RATE_KV.put(key, String(current + 1), { expirationTtl: 3700 });
-    }
+    // Per-token rate limit (token is the credential, user may roam IPs).
+    // Fail-closed via rateLimit() helper — without RATE_KV bound this returns
+    // 503 instead of silently disabling the cap.
+    const hourBucket = new Date().toISOString().slice(0, 13);
+    const rl = await rateLimit(env, `resend_code:${user.id}:${hourBucket}`, MAX_PER_HOUR);
+    if (!rl.ok) return json(rl.body, rl.status);
 
     const code = await uniqueCode(env);
-    const expiresAt = new Date(Date.now() + 7 * 864e5).toISOString();
+    // 72h — see register.js for rationale (race-attack window vs. weekend).
+    const expiresAt = new Date(Date.now() + 3 * 864e5).toISOString();
 
     await env.DB.prepare(`
         UPDATE users SET verification_code = ?1, code_expires_at = ?2 WHERE id = ?3

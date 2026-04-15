@@ -1,4 +1,4 @@
-import { json, isAdmin } from "../../_lib.js";
+import { json, isAdmin, escapeLike, audit, clientIp, ipHash } from "../../_lib.js";
 
 // GET /api/admin/users?q=<query>[&limit=20]
 // Auth: Authorization: Bearer <ADMIN_TOKEN>
@@ -24,8 +24,9 @@ export async function onRequestGet({ request, env }) {
     }
     const limit = Math.min(Math.max(parseInt(url.searchParams.get("limit") || "20", 10) || 20, 1), 100);
 
-    const like = `%${q.toLowerCase()}%`;
-    // Match any field; LEFT JOIN counts attendance and certs per user.
+    // Escape `%` `_` `\` so a query of just `_` doesn't match every row and
+    // turn the admin search into a "list everyone" oracle.
+    const like = `%${escapeLike(q.toLowerCase())}%`;
     const sql = `
         SELECT u.id, u.email, u.legal_name, u.yt_channel_id,
                u.yt_display_name_seen, u.state, u.created_at, u.verified_at,
@@ -34,14 +35,22 @@ export async function onRequestGet({ request, env }) {
                (SELECT COUNT(*) FROM certs    c WHERE c.user_id = u.id) AS cert_count,
                (SELECT COUNT(*) FROM appeals  ap WHERE ap.user_id = u.id AND ap.state = 'open') AS open_appeal_count
           FROM users u
-         WHERE lower(u.email) LIKE ?1
-            OR lower(u.legal_name) LIKE ?1
+         WHERE lower(u.email) LIKE ?1 ESCAPE '\\'
+            OR lower(u.legal_name) LIKE ?1 ESCAPE '\\'
             OR u.yt_channel_id = ?2
             OR u.id = ?2
       ORDER BY u.created_at DESC
          LIMIT ?3
     `;
     const { results = [] } = await env.DB.prepare(sql).bind(like, q, limit).all();
+
+    // Audit the search itself — admin lookups touch PII and must be
+    // attributable. Entity is "users" collectively (no single id).
+    await audit(
+        env, "admin", null, "admin_user_search", "users", "*",
+        null, { query: q, count: results.length },
+        { ip_hash: await ipHash(clientIp(request)) },
+    );
 
     return json({ ok: true, query: q, count: results.length, users: results });
 }

@@ -82,7 +82,10 @@ export async function onRequestPost({ request, env }) {
     }
 
     const nowIso = now();
-    const expiresAt = new Date(Date.now() + 7 * 864e5).toISOString();
+    // 72h covers any weekday-registered user through the next briefing (and
+    // weekend registrations through Monday's). Shorter than the original
+    // 7d to limit the window for a chat-tailing race attack on the code.
+    const expiresAt = new Date(Date.now() + 3 * 864e5).toISOString();
     const code = await uniqueCode(env);
 
     if (existing) {

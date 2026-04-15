@@ -1,8 +1,17 @@
-import { json } from "../../_lib.js";
+import { json, clientIp, ipHash, rateLimit } from "../../_lib.js";
 
-export async function onRequestGet({ params, env }) {
+export async function onRequestGet({ params, env, request }) {
     const token = params.token;
     if (!token || token.length < 32) return json({ error: "invalid_token" }, 400);
+
+    // Per-IP rate limit on dashboard reads. Without this an attacker who
+    // knows the token-charset and length can grind through guesses against
+    // /api/me; even with 64-hex tokens the floor on probing rate matters
+    // for any future shorter-token migration. 600/hr is well above any
+    // legitimate dashboard polling cadence (30s = 120/hr at the busy end).
+    const ipH = await ipHash(clientIp(request));
+    const rl = await rateLimit(env, `me_get:${ipH}`, 600);
+    if (!rl.ok) return json(rl.body, rl.status);
 
     const user = await env.DB.prepare(`
         SELECT id, email, legal_name, yt_channel_id, yt_display_name_seen,

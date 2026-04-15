@@ -1,4 +1,4 @@
-import { json } from "../../_lib.js";
+import { json, clientIp, ipHash, rateLimit } from "../../_lib.js";
 
 // GET /api/preflight/channel?q=<channel-id-or-url>
 //
@@ -46,6 +46,13 @@ function extractChannelId(q) {
 }
 
 export async function onRequestGet({ request, env }) {
+    // Anonymous endpoint that answers "is this YouTube channel bound to an
+    // SC-CPE account?" → it's an account-enumeration oracle for anyone with
+    // a list of channel IDs to test. Cap probes per IP per hour.
+    const ipH = await ipHash(clientIp(request));
+    const rl = await rateLimit(env, `preflight_channel:${ipH}`, 60);
+    if (!rl.ok) return json(rl.body, rl.status);
+
     const url = new URL(request.url);
     const q = url.searchParams.get("q");
 

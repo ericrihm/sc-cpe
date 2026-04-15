@@ -14,6 +14,15 @@
 //         "period_yyyymm": "202603" }, ...
 //     ]
 //   }
+function classifyRevocation(reason) {
+    const r = String(reason || "").toLowerCase();
+    if (/fraud|fake|forg|impersonat/.test(r)) return "issued_in_error";
+    if (/duplicate|superseded|replaced|reissued/.test(r)) return "superseded";
+    if (/withdraw|delete|gdpr|right to be forgotten/.test(r)) return "subject_request";
+    if (/key|signing|cert/.test(r)) return "key_compromise";
+    return "other";
+}
+
 export async function onRequestGet({ env }) {
     const rows = await env.DB.prepare(`
         SELECT public_token, revoked_at, revocation_reason, period_yyyymm
@@ -28,7 +37,9 @@ export async function onRequestGet({ env }) {
         revoked: (rows?.results || []).map(r => ({
             public_token: r.public_token,
             revoked_at: r.revoked_at,
-            reason: r.revocation_reason,
+            // Public CRL — see verify/[token].js: never expose the free-text
+            // admin reason. Map to an opaque enum.
+            reason: classifyRevocation(r.revocation_reason),
             period_yyyymm: r.period_yyyymm,
         })),
     });
