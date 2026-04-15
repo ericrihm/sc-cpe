@@ -57,7 +57,11 @@ jobs:
       FROM_EMAIL: "Simply Cyber CPE <certs@signalplane.co>"
       # Branding / routing
       ISSUER_NAME: "Simply Cyber LLC"
-      VERIFY_BASE_URL: "https://cpe.simplycyber.io/verify.html"
+      # Apex cpe.simplycyber.io is not yet wired in DNS; until then both
+      # verify and download URLs go through the Pages production alias so
+      # recipients land on a domain that actually resolves.
+      VERIFY_BASE_URL: "https://sc-cpe-web.pages.dev/verify.html"
+      DOWNLOAD_BASE_URL: "https://sc-cpe-web.pages.dev/api/download"
       # Forwarded manual-dispatch input; empty on cron.
       PERIOD_YYYYMM: ${{ github.event.inputs.period_yyyymm }}
 
