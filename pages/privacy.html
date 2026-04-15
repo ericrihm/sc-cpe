@@ -75,9 +75,9 @@
                 <td>Supports post-audit defensibility if a cert is challenged</td>
             </tr>
             <tr>
-                <td>Certificate records</td>
-                <td>7 years</td>
-                <td>Certificate verification and audit trail</td>
+                <td>Certificate records (including the <em>recipient name snapshot</em> that appears on each issued certificate)</td>
+                <td>Retained indefinitely, even after account deletion</td>
+                <td>Evidentiary artefact — third parties (employers, (ISC)²/ISACA auditors) rely on these to verify CPE submissions years after issuance. Retained under GDPR Art. 17(3)(e) for the establishment, exercise or defence of legal claims.</td>
             </tr>
             <tr>
                 <td>Audit log</td>
@@ -91,7 +91,8 @@
             </tr>
         </tbody>
     </table>
-    <p>When you request account deletion, we perform a soft-delete of your profile and personal identifiers. Audit log entries referencing your account are retained for 7 years but are not used for any purpose other than integrity and fraud review. A hard-delete of all personal identifiers is completed within 30 days of a verified request, except where retention is required by law.</p>
+    <p>When you request account deletion, we scrub your profile-level personal identifiers (email, legal name, YouTube channel ID, most-recent display name) and rotate your dashboard access token so the account becomes inaccessible. Audit log entries referencing your account are retained for 7 years but are not used for any purpose other than integrity and fraud review. Profile scrubbing is completed immediately on request; a hard-delete of residual identifiers is completed within 30 days.</p>
+    <p><strong>Evidentiary carve-out for issued certificates.</strong> Each certificate we issue contains a <em>recipient name snapshot</em> fixed at the moment of issuance. That snapshot, together with the certificate's hash and signature, is an evidentiary record relied upon by third parties (employers, (ISC)²/ISACA, ISC2 chapter CPE reviewers) to verify CPE attendance — often years later. If we erased or modified those records on account deletion, every certificate you had previously been issued would become unverifiable and we would lose the ability to defend the integrity of the programme. We therefore retain issued certificate records, including the recipient name snapshot, indefinitely under GDPR Art. 17(3)(e) ("establishment, exercise or defence of legal claims") even after you delete your account. The snapshot does <em>not</em> update to reflect your deletion; it reflects the name that was on the certificate at issuance.</p>
 
     <h2>5. Who We Share Data With</h2>
     <p>We do not sell your personal data. We share data only with the following sub-processors, who act on our instructions:</p>
@@ -106,7 +107,7 @@
     <ul>
         <li><strong>Access:</strong> Request a copy of the personal data we hold about you.</li>
         <li><strong>Rectification:</strong> Ask us to correct inaccurate data (e.g., a misspelled legal name).</li>
-        <li><strong>Erasure:</strong> Request deletion of your personal data ("right to be forgotten"), subject to retention obligations described above.</li>
+        <li><strong>Erasure:</strong> Request deletion of your personal data ("right to be forgotten"), subject to retention obligations described above. Note: previously issued certificates, including the recipient name snapshot they carry, are retained under the Art. 17(3)(e) evidentiary carve-out described in §4.</li>
         <li><strong>Data portability:</strong> Request your data in a structured, machine-readable format.</li>
         <li><strong>Objection:</strong> Object to processing based on legitimate interests.</li>
         <li><strong>Withdrawal of consent:</strong> Where processing is based on consent, you may withdraw it at any time. Withdrawal does not affect the lawfulness of prior processing.</li>
