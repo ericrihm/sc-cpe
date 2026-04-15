@@ -753,8 +753,17 @@ class Stats:
 def already_issued(d1: D1Client, user_id: str, period_yyyymm: str) -> bool:
     rows = d1.query(
         "SELECT 1 AS ok FROM certs WHERE user_id = ? AND period_yyyymm = ? "
-        "AND state != 'revoked' LIMIT 1",
+        "AND cert_kind = 'bundled' AND state != 'revoked' LIMIT 1",
         [user_id, period_yyyymm],
+    )
+    return bool(rows)
+
+
+def already_issued_per_session(d1: D1Client, user_id: str, stream_pk: str) -> bool:
+    rows = d1.query(
+        "SELECT 1 AS ok FROM certs WHERE user_id = ? AND stream_id = ? "
+        "AND cert_kind = 'per_session' AND state != 'revoked' LIMIT 1",
+        [user_id, stream_pk],
     )
     return bool(rows)
 
@@ -771,25 +780,61 @@ def issue_for_user(
     period_start_date: dt.date,
     period_end_date: dt.date,
     period_display: str,
+    cert_kind: str = "bundled",
+    stream_row: dict[str, Any] | None = None,
+    existing_cert_id: str | None = None,
+    existing_public_token: str | None = None,
+    supersedes_cert_id: str | None = None,
 ) -> None:
+    """Issue one cert. cert_kind='bundled' aggregates all eligible sessions
+    (user_row must carry cpe_total/sessions_count/session_video_ids/session_dates
+    from ELIGIBLE_SQL). cert_kind='per_session' issues a single-session cert;
+    stream_row is required and supplies stream_pk/yt_video_id/scheduled_date/
+    earned_cpe/title.
+
+    existing_cert_id/public_token are set when this call is fulfilling a
+    pre-inserted 'pending' row (on-demand per_session request or admin
+    reissue); the row is UPDATEd instead of INSERTed.
+
+    supersedes_cert_id wires the reissue chain: on successful delivery the
+    superseded cert flips to state='regenerated'. audit action becomes
+    'cert_regenerated' so the chain tells the story.
+    """
     user_id = user_row["id"]
     email = user_row["email"]
     recipient_name = user_row["legal_name"]
 
-    cpe_total = float(user_row["cpe_total"])
-    sessions_count = int(user_row["sessions_count"])
-    attended_line, dates_line = attendance_phrasing(
-        user_row.get("session_dates"), sessions_count, period_display,
-    )
-    session_video_ids_raw = user_row.get("session_video_ids") or ""
-    # Dedup + normalize the comma-joined list from GROUP_CONCAT.
-    video_ids = sorted(
-        {v for v in (session_video_ids_raw.split(",") if session_video_ids_raw else []) if v}
-    )
+    if cert_kind == "per_session":
+        if not stream_row:
+            raise ValueError("per_session issuance requires stream_row")
+        cpe_total = float(stream_row["earned_cpe"])
+        sessions_count = 1
+        session_date = stream_row["scheduled_date"]
+        attended_line = f"on {_format_long_date(session_date)}"
+        dates_line = ""
+        # Subject-line period for single-session certs reads the date, not
+        # the month — users get one email per session so "March 2026" would
+        # be confusing when they attended the 15th and 22nd both that month.
+        per_session_period_display = _format_long_date(session_date)
+        video_ids = [stream_row["yt_video_id"]]
+        stream_pk = stream_row["stream_pk"]
+    else:
+        cpe_total = float(user_row["cpe_total"])
+        sessions_count = int(user_row["sessions_count"])
+        attended_line, dates_line = attendance_phrasing(
+            user_row.get("session_dates"), sessions_count, period_display,
+        )
+        session_video_ids_raw = user_row.get("session_video_ids") or ""
+        video_ids = sorted(
+            {v for v in (session_video_ids_raw.split(",") if session_video_ids_raw else []) if v}
+        )
+        per_session_period_display = period_display
+        stream_pk = None
+
     session_video_ids_json = json.dumps(video_ids)
 
-    cert_id = new_ulid()
-    public_token = new_public_token()
+    cert_id = existing_cert_id or new_ulid()
+    public_token = existing_public_token or new_public_token()
     issued_at = now_iso_utc()
     verify_url = f"{cfg.verify_base_url}?t={public_token}"
 
@@ -810,7 +855,7 @@ def issue_for_user(
         recipient_name=recipient_name,
         period_start=period_start_date,
         period_end=period_end_date,
-        period_display=period_display,
+        period_display=per_session_period_display,
         attended_line=attended_line,
         dates_line=dates_line,
         cpe_total=cpe_total,
@@ -856,45 +901,65 @@ def issue_for_user(
     # and audit-logs each download.
     download_url = f"{cfg.download_base_url.rstrip('/')}/{public_token}"
 
-    # 10. INSERT certs row (state='generated')
-    d1.execute(
-        """
-        INSERT INTO certs (
-            id, public_token, user_id,
-            period_yyyymm, period_start, period_end,
-            cpe_total, sessions_count, session_video_ids,
-            issuer_name_snapshot, recipient_name_snapshot,
-            signing_cert_sha256, pdf_r2_key, pdf_sha256,
-            state, generated_at, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'generated', ?, ?)
-        """,
-        [
-            cert_id,
-            public_token,
-            user_id,
-            period_yyyymm,
-            period_start_date.isoformat(),
-            period_end_date.isoformat(),
-            cpe_total,
-            sessions_count,
-            session_video_ids_json,
-            cfg.issuer_name,
-            recipient_name,
-            sig.cert_der_sha256,
-            r2_key,
-            signed_sha,
-            issued_at,
-            issued_at,
-        ],
-    )
-    log("info", "certs_inserted", cert_id=cert_id, state="generated")
+    # 10. Write certs row. When filling a pending row (on-demand per_session
+    # or admin reissue) we UPDATE; fresh bundled/per_session from the monthly
+    # sweep INSERTs.
+    if existing_cert_id:
+        d1.execute(
+            """
+            UPDATE certs
+               SET issuer_name_snapshot = ?, recipient_name_snapshot = ?,
+                   signing_cert_sha256 = ?, pdf_r2_key = ?, pdf_sha256 = ?,
+                   cpe_total = ?, sessions_count = ?, session_video_ids = ?,
+                   state = 'generated', generated_at = ?
+             WHERE id = ?
+            """,
+            [
+                cfg.issuer_name, recipient_name,
+                sig.cert_der_sha256, r2_key, signed_sha,
+                cpe_total, sessions_count, session_video_ids_json,
+                issued_at, cert_id,
+            ],
+        )
+        log("info", "certs_updated", cert_id=cert_id, state="generated")
+    else:
+        d1.execute(
+            """
+            INSERT INTO certs (
+                id, public_token, user_id,
+                period_yyyymm, period_start, period_end,
+                cpe_total, sessions_count, session_video_ids,
+                issuer_name_snapshot, recipient_name_snapshot,
+                signing_cert_sha256, pdf_r2_key, pdf_sha256,
+                state, cert_kind, stream_id,
+                generated_at, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                      'generated', ?, ?, ?, ?)
+            """,
+            [
+                cert_id, public_token, user_id,
+                period_yyyymm,
+                period_start_date.isoformat(),
+                period_end_date.isoformat(),
+                cpe_total, sessions_count, session_video_ids_json,
+                cfg.issuer_name, recipient_name,
+                sig.cert_der_sha256, r2_key, signed_sha,
+                cert_kind, stream_pk,
+                issued_at, issued_at,
+            ],
+        )
+        log("info", "certs_inserted", cert_id=cert_id,
+            state="generated", cert_kind=cert_kind)
 
     # 11. Queue email_outbox (idempotent on cert_id)
     email_id = new_ulid()
-    subject = f"Your {period_display} CPE certificate"
+    if cert_kind == "per_session":
+        subject = f"Your {per_session_period_display} Daily Threat Briefing cert"
+    else:
+        subject = f"Your {period_display} CPE certificate"
     html_body, text_body = build_email_bodies(
         recipient_name=recipient_name,
-        period_display=period_display,
+        period_display=per_session_period_display,
         attended_line=attended_line,
         dates_line=dates_line,
         cpe_total=cpe_total,
@@ -977,12 +1042,21 @@ def issue_for_user(
         # Do NOT re-raise; the cert is in R2 and in D1 as 'generated', the
         # drainer will own delivery from here.
 
-    # 13. Audit log (hash-chained)
+    # 13. Audit log (hash-chained). action is 'cert_regenerated' when this
+    # fills a reissue-driven pending row, 'cert_issued' otherwise (including
+    # on-demand per_session requests). The superseded cert flips to
+    # 'regenerated' so the user dashboard hides it from the active list.
+    if supersedes_cert_id:
+        d1.execute(
+            "UPDATE certs SET state = 'regenerated' WHERE id = ? AND state != 'revoked'",
+            [supersedes_cert_id],
+        )
+    audit_action = "cert_regenerated" if supersedes_cert_id else "cert_issued"
     audit_id = insert_chained_audit(
         d1,
         actor_type="cron",
         actor_id="monthly-certs",
-        action="cert_issued",
+        action=audit_action,
         entity_type="certs",
         entity_id=cert_id,
         before_json=None,
@@ -993,13 +1067,17 @@ def issue_for_user(
                 "period_yyyymm": period_yyyymm,
                 "cpe_total": cpe_total,
                 "sessions_count": sessions_count,
+                "cert_kind": cert_kind,
+                "stream_id": stream_pk,
+                "supersedes_cert_id": supersedes_cert_id,
                 "pdf_r2_key": r2_key,
                 "pdf_sha256": signed_sha,
                 "signing_cert_sha256": sig.cert_der_sha256,
             }
         ),
     )
-    log("info", "audit_logged", cert_id=cert_id, audit_id=audit_id)
+    log("info", "audit_logged", cert_id=cert_id, audit_id=audit_id,
+        action=audit_action)
 
     # 14. Summary line
     log(
@@ -1020,7 +1098,7 @@ def issue_for_user(
 
 
 ELIGIBLE_SQL = """
-SELECT u.id, u.email, u.legal_name, u.dashboard_token,
+SELECT u.id, u.email, u.legal_name, u.dashboard_token, u.email_prefs,
        SUM(a.earned_cpe) AS cpe_total,
        COUNT(*) AS sessions_count,
        MIN(s.scheduled_date) AS period_start,
@@ -1033,9 +1111,36 @@ JOIN streams s ON s.id = a.stream_id
 WHERE u.state = 'active'
   AND u.deleted_at IS NULL
   AND strftime('%Y%m', s.scheduled_date) = ?
-GROUP BY u.id, u.email, u.legal_name, u.dashboard_token
+GROUP BY u.id, u.email, u.legal_name, u.dashboard_token, u.email_prefs
 HAVING SUM(a.earned_cpe) > 0
 """
+
+# Per-session eligibility: one row per (user, stream). Consumed when a user
+# has cert_style in ('per_session','both'). Cheaper to do one join + group by
+# in memory than re-query per session.
+ELIGIBLE_PER_SESSION_SQL = """
+SELECT u.id AS user_id, u.email, u.legal_name, u.dashboard_token,
+       s.id AS stream_pk, s.yt_video_id, s.scheduled_date, s.title,
+       a.earned_cpe
+  FROM users u
+  JOIN attendance a ON a.user_id = u.id
+  JOIN streams s ON s.id = a.stream_id
+ WHERE u.state = 'active'
+   AND u.deleted_at IS NULL
+   AND strftime('%Y%m', s.scheduled_date) = ?
+   AND a.earned_cpe > 0
+"""
+
+
+def get_cert_style(email_prefs_json: str | None) -> str:
+    """users.email_prefs is a JSON blob; cert_style drives the monthly loop.
+    Defaults to 'bundled' for backward compat (pre-migration users)."""
+    try:
+        prefs = json.loads(email_prefs_json or "{}") or {}
+    except Exception:
+        return "bundled"
+    v = prefs.get("cert_style", "bundled")
+    return v if v in ("bundled", "per_session", "both") else "bundled"
 
 
 def _format_long_date(iso: str) -> str:
@@ -1081,8 +1186,147 @@ def attendance_phrasing(
     )
 
 
+PENDING_SQL = """
+SELECT c.id, c.public_token, c.user_id,
+       c.period_yyyymm, c.period_start, c.period_end,
+       c.cpe_total, c.sessions_count, c.session_video_ids,
+       c.cert_kind, c.stream_id, c.supersedes_cert_id,
+       u.email, u.legal_name, u.dashboard_token, u.email_prefs,
+       s.yt_video_id, s.scheduled_date, s.title AS stream_title
+  FROM certs c
+  JOIN users u ON u.id = c.user_id
+  LEFT JOIN streams s ON s.id = c.stream_id
+ WHERE c.state = 'pending'
+   AND u.deleted_at IS NULL
+ ORDER BY c.created_at ASC
+"""
+
+
+def _period_dates(period_yyyymm: str,
+                  fallback_start: str | None,
+                  fallback_end: str | None) -> tuple[dt.date, dt.date, str]:
+    """Given a YYYYMM + optional stored period_start/end strings, return
+    (start_date, end_date, display). Used by pending-pickup where the cert
+    row already carries the period bounds."""
+    try:
+        if fallback_start and fallback_end:
+            start = dt.date.fromisoformat(fallback_start)
+            end = dt.date.fromisoformat(fallback_end)
+        else:
+            y = int(period_yyyymm[:4])
+            m = int(period_yyyymm[4:])
+            start = dt.date(y, m, 1)
+            if m == 12:
+                end = dt.date(y + 1, 1, 1) - dt.timedelta(days=1)
+            else:
+                end = dt.date(y, m + 1, 1) - dt.timedelta(days=1)
+        return start, end, start.strftime("%B %Y")
+    except Exception:
+        return dt.date.today(), dt.date.today(), period_yyyymm
+
+
+def _run_pending_pickup(cfg: Config, d1: D1Client, s3, sig,
+                        jinja_env: Environment) -> int:
+    rows = d1.query(PENDING_SQL, [])
+    stats = Stats(eligible=len(rows))
+    log("info", "pending_pickup_begin", count=len(rows))
+    stats_lock = threading.Lock()
+
+    def _process(p: dict[str, Any]) -> None:
+        cert_id = p["id"]
+        try:
+            period_start, period_end, period_display = _period_dates(
+                p["period_yyyymm"], p.get("period_start"), p.get("period_end"),
+            )
+            user_row: dict[str, Any] = {
+                "id": p["user_id"],
+                "email": p["email"],
+                "legal_name": p["legal_name"],
+                "dashboard_token": p["dashboard_token"],
+                "email_prefs": p.get("email_prefs"),
+                "cpe_total": p["cpe_total"],
+                "sessions_count": p["sessions_count"],
+                "session_video_ids": p.get("session_video_ids") or "",
+            }
+            stream_row = None
+            if p["cert_kind"] == "per_session":
+                stream_row = {
+                    "stream_pk": p["stream_id"],
+                    "yt_video_id": p["yt_video_id"],
+                    "scheduled_date": p["scheduled_date"],
+                    "title": p.get("stream_title"),
+                    "earned_cpe": p["cpe_total"],
+                }
+            else:
+                dates_rows = d1.query(
+                    "SELECT DISTINCT s.scheduled_date FROM attendance a "
+                    "JOIN streams s ON s.id = a.stream_id "
+                    "WHERE a.user_id = ? "
+                    "AND strftime('%Y%m', s.scheduled_date) = ? "
+                    "ORDER BY s.scheduled_date",
+                    [p["user_id"], p["period_yyyymm"]],
+                )
+                user_row["session_dates"] = ",".join(
+                    r["scheduled_date"] for r in dates_rows
+                )
+
+            issue_for_user(
+                cfg=cfg, d1=d1, s3=s3, jinja_env=jinja_env, sig=sig,
+                user_row=user_row,
+                period_yyyymm=p["period_yyyymm"],
+                period_start_date=period_start,
+                period_end_date=period_end,
+                period_display=period_display,
+                cert_kind=p["cert_kind"] or "bundled",
+                stream_row=stream_row,
+                existing_cert_id=cert_id,
+                existing_public_token=p["public_token"],
+                supersedes_cert_id=p.get("supersedes_cert_id"),
+            )
+            with stats_lock:
+                stats.issued += 1
+        except Exception as e:
+            tb = traceback.format_exc(limit=6)
+            with stats_lock:
+                stats.errored += 1
+                stats.errors.append({"cert_id": cert_id, "error": str(e)})
+            log("error", "pending_pickup_failed",
+                cert_id=cert_id, error=str(e), trace=tb)
+
+    if cfg.issue_workers <= 1 or len(rows) <= 1:
+        for r in rows:
+            _process(r)
+    else:
+        with ThreadPoolExecutor(max_workers=cfg.issue_workers) as pool:
+            for _ in as_completed([pool.submit(_process, r) for r in rows]):
+                pass
+
+    log("info", "pending_pickup_done",
+        eligible=stats.eligible, issued=stats.issued, errored=stats.errored)
+    return 0 if stats.errored == 0 else 1
+
+
 def main() -> int:
+    pending_only = (
+        os.environ.get("PENDING_ONLY", "").strip() in ("1", "true", "yes")
+        or "--pending-only" in sys.argv
+    )
+
     cfg = Config.from_env()
+    d1 = D1Client(cfg.cf_account_id, cfg.d1_database_id, cfg.cf_api_token)
+    s3 = make_r2_client(cfg)
+    sig = load_signing_material(cfg)
+    here = os.path.dirname(os.path.abspath(__file__))
+    jinja_env = Environment(
+        loader=FileSystemLoader(here),
+        autoescape=select_autoescape(["html", "xml"]),
+        trim_blocks=True,
+        lstrip_blocks=True,
+    )
+
+    if pending_only:
+        return _run_pending_pickup(cfg, d1, s3, sig, jinja_env)
+
     period_yyyymm, period_start, period_end, period_display = resolve_period(cfg)
     log(
         "info",
@@ -1094,72 +1338,95 @@ def main() -> int:
         override=bool(cfg.period_override),
     )
 
-    d1 = D1Client(cfg.cf_account_id, cfg.d1_database_id, cfg.cf_api_token)
-    s3 = make_r2_client(cfg)
-    sig = load_signing_material(cfg)
+    bundled_rows = d1.query(ELIGIBLE_SQL, [period_yyyymm])
+    per_session_rows = d1.query(ELIGIBLE_PER_SESSION_SQL, [period_yyyymm])
 
-    # Jinja env scoped to the template directory (this file's dir).
-    here = os.path.dirname(os.path.abspath(__file__))
-    jinja_env = Environment(
-        loader=FileSystemLoader(here),
-        autoescape=select_autoescape(["html", "xml"]),
-        trim_blocks=True,
-        lstrip_blocks=True,
-    )
+    # Index per-session rows by user_id for O(1) lookup during dispatch.
+    per_session_by_user: dict[str, list[dict[str, Any]]] = {}
+    for r in per_session_rows:
+        per_session_by_user.setdefault(r["user_id"], []).append(r)
 
-    users = d1.query(ELIGIBLE_SQL, [period_yyyymm])
-    stats = Stats(eligible=len(users))
-    log("info", "eligible_users", count=len(users), period=period_yyyymm,
-        workers=cfg.issue_workers)
+    stats = Stats(eligible=len(bundled_rows))
+    log("info", "eligible_users",
+        count=len(bundled_rows), per_session_candidates=len(per_session_rows),
+        period=period_yyyymm, workers=cfg.issue_workers)
 
-    # Per-user work is almost entirely blocking I/O (TSA, R2, D1, Resend),
-    # so a ThreadPoolExecutor gives ~Nx speedup on Python's GIL without
-    # touching the signing code. The audit-chain UNIQUE index on prev_hash
-    # serialises concurrent audit writes — the chain INSERT path already
-    # retries on contention (see audit_insert in this file), so parallel
-    # writers are safe. stats are mutated under a lock to keep counts exact.
     stats_lock = threading.Lock()
+
+    def _issue_bundled(row: dict[str, Any]) -> None:
+        user_id = row["id"]
+        if already_issued(d1, user_id, period_yyyymm):
+            log("info", "skip_already_issued",
+                user_id=user_id, period=period_yyyymm, kind="bundled")
+            with stats_lock:
+                stats.skipped_already_issued += 1
+            return
+        issue_for_user(
+            cfg=cfg, d1=d1, s3=s3, jinja_env=jinja_env, sig=sig,
+            user_row=row, period_yyyymm=period_yyyymm,
+            period_start_date=period_start, period_end_date=period_end,
+            period_display=period_display, cert_kind="bundled",
+        )
+        with stats_lock:
+            stats.issued += 1
+
+    def _issue_per_session(row: dict[str, Any], s_row: dict[str, Any]) -> None:
+        if already_issued_per_session(d1, row["id"], s_row["stream_pk"]):
+            log("info", "skip_already_issued",
+                user_id=row["id"], stream_id=s_row["stream_pk"],
+                kind="per_session")
+            with stats_lock:
+                stats.skipped_already_issued += 1
+            return
+        issue_for_user(
+            cfg=cfg, d1=d1, s3=s3, jinja_env=jinja_env, sig=sig,
+            user_row=row, period_yyyymm=period_yyyymm,
+            period_start_date=period_start, period_end_date=period_end,
+            period_display=period_display,
+            cert_kind="per_session", stream_row=s_row,
+        )
+        with stats_lock:
+            stats.issued += 1
 
     def _process(row: dict[str, Any]) -> None:
         user_id = row.get("id")
+        style = get_cert_style(row.get("email_prefs"))
         try:
-            if already_issued(d1, user_id, period_yyyymm):
-                log("info", "skip_already_issued",
-                    user_id=user_id, period=period_yyyymm)
-                with stats_lock:
-                    stats.skipped_already_issued += 1
-                return
-
-            issue_for_user(
-                cfg=cfg,
-                d1=d1,
-                s3=s3,
-                jinja_env=jinja_env,
-                sig=sig,
-                user_row=row,
-                period_yyyymm=period_yyyymm,
-                period_start_date=period_start,
-                period_end_date=period_end,
-                period_display=period_display,
-            )
-            with stats_lock:
-                stats.issued += 1
+            if style in ("bundled", "both"):
+                _issue_bundled(row)
+            if style in ("per_session", "both"):
+                for s_row in per_session_by_user.get(user_id, []):
+                    try:
+                        _issue_per_session(row, s_row)
+                    except Exception as se:
+                        tb = traceback.format_exc(limit=6)
+                        with stats_lock:
+                            stats.errored += 1
+                            stats.errors.append({
+                                "user_id": user_id,
+                                "stream_id": s_row.get("stream_pk"),
+                                "error": str(se),
+                            })
+                        log("error", "issue_failed",
+                            user_id=user_id,
+                            stream_id=s_row.get("stream_pk"),
+                            kind="per_session",
+                            error=str(se), trace=tb)
         except Exception as e:
             tb = traceback.format_exc(limit=6)
-            err = {"user_id": user_id, "error": str(e), "trace": tb}
             with stats_lock:
                 stats.errored += 1
-                stats.errors.append(err)
+                stats.errors.append({"user_id": user_id, "error": str(e)})
             log("error", "issue_failed",
                 user_id=user_id, period=period_yyyymm,
                 error=str(e), trace=tb)
 
-    if cfg.issue_workers <= 1 or len(users) <= 1:
-        for row in users:
+    if cfg.issue_workers <= 1 or len(bundled_rows) <= 1:
+        for row in bundled_rows:
             _process(row)
     else:
         with ThreadPoolExecutor(max_workers=cfg.issue_workers) as pool:
-            for _ in as_completed([pool.submit(_process, r) for r in users]):
+            for _ in as_completed([pool.submit(_process, r) for r in bundled_rows]):
                 pass
 
     log(
@@ -1172,7 +1439,6 @@ def main() -> int:
         errored=stats.errored,
     )
 
-    # Exit 0 if no errors. Nonzero on any per-user failure so CI flags it.
     return 0 if stats.errored == 0 else 1
 
 
