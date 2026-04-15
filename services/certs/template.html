@@ -127,15 +127,16 @@
   .qr {
     width: 2.4cm;
     height: 2.4cm;
-    border: 1px solid #0b3d5c;
-    font-family: "Menlo", "DejaVu Sans Mono", monospace;
-    font-size: 6pt;
-    color: #0b3d5c;
-    padding: 3pt;
+    padding: 2pt;
     box-sizing: border-box;
-    text-align: center;
-    word-break: break-all;
     display: inline-block;
+    background: #fff;
+    border: 1px solid #0b3d5c;
+  }
+  .qr img {
+    width: 100%;
+    height: 100%;
+    display: block;
   }
   .meta-label {
     color: #666;
@@ -188,7 +189,7 @@
       </div>
 
       <div class="col center">
-        <div class="qr">verify<br/>{{ public_token_short }}</div>
+        <div class="qr"><img src="{{ verify_qr_data_uri }}" alt="verify QR code"/></div>
         <div class="verify-url" style="margin-top:4pt;">{{ verify_url }}</div>
       </div>
 

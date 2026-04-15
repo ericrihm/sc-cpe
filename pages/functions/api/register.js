@@ -1,7 +1,52 @@
 import {
     ulid, randomCode, randomToken, json, now, audit, clientIp, ipHash,
-    isValidEmail, isValidName, verifyTurnstile,
+    isValidEmail, isValidName, verifyTurnstile, queueEmail,
 } from "../_lib.js";
+
+const SITE_BASE = "https://cpe.simplycyber.io";
+
+function welcomeEmailBodies({ legalName, code, dashboardToken, expiresAt }) {
+    const dashUrl = `${SITE_BASE}/dashboard.html?t=${dashboardToken}`;
+    const subject = `Simply Cyber CPE — your verification code: ${code}`;
+    const text = (
+        `Hi ${legalName},\n\n` +
+        `Welcome to Simply Cyber CPE. To finish activating your account,\n` +
+        `paste this code into a live chat message during the Daily Threat\n` +
+        `Briefing on YouTube:\n\n` +
+        `    ${code}\n\n` +
+        `Our poller sees the code and links your YouTube channel to this\n` +
+        `registration. The code expires ${expiresAt}.\n\n` +
+        `Your dashboard (bookmark this — it is your access URL):\n` +
+        `  ${dashUrl}\n\n` +
+        `If you did not register for SC-CPE, you can ignore this email —\n` +
+        `the account stays inactive unless the code is used.\n\n` +
+        `— Simply Cyber\n`
+    );
+    const html = `<!doctype html>
+<html><body style="font-family:Helvetica,Arial,sans-serif;color:#111;line-height:1.5;max-width:560px;margin:0 auto;padding:24px;">
+<p>Hi ${escapeHtml(legalName)},</p>
+<p>Welcome to <strong>Simply Cyber CPE</strong>. To finish activating your account,
+paste this code into a live chat message during the Daily Threat Briefing on YouTube:</p>
+<p style="font-family:Menlo,monospace;font-size:22pt;text-align:center;
+   background:#f4f6f8;padding:14px;border-radius:6px;letter-spacing:0.08em;">
+   ${escapeHtml(code)}
+</p>
+<p>Our poller sees the code in chat and links your YouTube channel to this
+registration. The code expires <strong>${escapeHtml(expiresAt)}</strong>.</p>
+<p>Your dashboard (bookmark this — it is your access URL):<br/>
+<a href="${dashUrl}">${dashUrl}</a></p>
+<p style="color:#666;font-size:12px;">If you did not register for SC-CPE you can ignore
+this email — the account stays inactive unless the code is used in chat.</p>
+<p>— Simply Cyber</p>
+</body></html>`;
+    return { subject, html, text };
+}
+
+function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => (
+        { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+    ));
+}
 
 export async function onRequestPost({ request, env }) {
     let body;
@@ -53,6 +98,19 @@ export async function onRequestPost({ request, env }) {
         await audit(env, "user", existing.id, "registration_reissued", "user", existing.id,
             null, { email_lower: email, ip_hash: await ipHash(clientIp(request)) });
 
+        const bodies = welcomeEmailBodies({
+            legalName, code, dashboardToken: existing.dashboard_token, expiresAt,
+        });
+        await queueEmail(env, {
+            userId: existing.id,
+            template: "register",
+            to: email,
+            subject: bodies.subject,
+            html: bodies.html,
+            text: bodies.text,
+            idempotencyKey: `register:${existing.id}:${code}`,
+        });
+
         return json({
             ok: true,
             dashboard_url: `/dashboard.html?t=${existing.dashboard_token}`,
@@ -73,6 +131,17 @@ export async function onRequestPost({ request, env }) {
 
     await audit(env, "user", userId, "registration_created", "user", userId, null, {
         email_lower: email, ip_hash: await ipHash(clientIp(request)),
+    });
+
+    const bodies = welcomeEmailBodies({ legalName, code, dashboardToken, expiresAt });
+    await queueEmail(env, {
+        userId,
+        template: "register",
+        to: email,
+        subject: bodies.subject,
+        html: bodies.html,
+        text: bodies.text,
+        idempotencyKey: `register:${userId}:${code}`,
     });
 
     return json({
