@@ -23,8 +23,8 @@ export async function onRequestGet({ params, env, request }) {
     if (!user) return json({ error: "not_found" }, 404);
 
     const attendance = await env.DB.prepare(`
-        SELECT a.stream_id, a.earned_cpe, a.first_msg_at, a.rule_version,
-               s.scheduled_date, s.yt_video_id, s.title
+        SELECT a.stream_id, a.earned_cpe, a.first_msg_at, a.rule_version, a.source,
+               s.scheduled_date, s.yt_video_id, s.title, s.actual_start_at
         FROM attendance a JOIN streams s ON s.id = a.stream_id
         WHERE a.user_id = ?1
         ORDER BY s.scheduled_date DESC, a.first_msg_at DESC
@@ -63,18 +63,28 @@ export async function onRequestGet({ params, env, request }) {
     // a user's verification code in chat before the live window opens.
     // Surfacing these on the dashboard tells the user why they didn't get
     // credit without exposing the internal time-gate logic.
-    const cutoff = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
+    // Out-of-window notifications (last 7d). Two flavors:
+    //  - code_posted_outside_window: verification code posted pre-stream;
+    //    user wasn't verified as a result.
+    //  - attendance_outside_window: verified user's message was pre-stream
+    //    and didn't earn attendance credit.
+    // We surface both to the dashboard so the user has a clear answer when
+    // they look at a stream they "thought" they attended and see no credit.
+    const cutoff = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
     const outsideWindow = await env.DB.prepare(`
-        SELECT after_json, ts FROM audit_log
-         WHERE action = 'code_posted_outside_window'
+        SELECT action, after_json, ts FROM audit_log
+         WHERE action IN ('code_posted_outside_window','attendance_outside_window')
            AND entity_type = 'user' AND entity_id = ?1
            AND ts > ?2
-         ORDER BY ts DESC LIMIT 5
+         ORDER BY ts DESC LIMIT 10
     `).bind(user.id, cutoff).all();
     const codeWindowWarnings = (outsideWindow.results || []).map(r => {
         let d = {};
         try { d = JSON.parse(r.after_json || "{}"); } catch {}
-        return { posted_at: d.posted_at, window_open_at: d.window_open_at, seen_at: r.ts };
+        return {
+            kind: r.action === "attendance_outside_window" ? "attendance" : "code",
+            posted_at: d.posted_at, window_open_at: d.window_open_at, seen_at: r.ts,
+        };
     });
 
     // Near-real-time "credited today" signal. Poller writes attendance the

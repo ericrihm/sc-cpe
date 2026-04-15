@@ -46,7 +46,7 @@ export async function onRequestPost({ request, env }) {
     if (user.deleted_at) return json({ error: "user_deleted" }, 409);
 
     const stream = await env.DB.prepare(
-        "SELECT id FROM streams WHERE id = ?1"
+        "SELECT id, actual_start_at FROM streams WHERE id = ?1"
     ).bind(streamId).first();
     if (!stream) return json({ error: "stream_not_found" }, 404);
 
@@ -63,12 +63,18 @@ export async function onRequestPost({ request, env }) {
 
     const ts = now();
     const cpe = await getCpePerDay(env, ruleVersion);
+    // For manual grants we anchor first_msg_at to the stream's actual_start_at
+    // rather than "now" — the user didn't post a chat message right now; the
+    // timestamp should reference the session the credit pertains to. Otherwise
+    // the dashboard surfaces a misleading "first message at 18:47Z" for a
+    // stream that ended hours earlier.
+    const firstMsgAt = stream.actual_start_at || ts;
     await env.DB.prepare(`
         INSERT INTO attendance
           (user_id, stream_id, earned_cpe, first_msg_id, first_msg_at,
            first_msg_sha256, first_msg_len, rule_version, source, created_at)
         VALUES (?1, ?2, ?3, ?4, ?5, '', 0, ?6, 'admin_manual', ?7)
-    `).bind(userId, streamId, cpe, `admin:${resolver}:${ts}`, ts, ruleVersion, ts).run();
+    `).bind(userId, streamId, cpe, `admin:${resolver}:${ts}`, firstMsgAt, ruleVersion, ts).run();
 
     await audit(
         env, "admin", resolver, "attendance_granted_manual", "attendance",
