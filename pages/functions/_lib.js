@@ -123,6 +123,53 @@ export async function audit(env, actorType, actorId, action, entityType, entityI
     throw new Error(`audit chain contention: ${MAX_ATTEMPTS} attempts failed: ${lastErr}`);
 }
 
+// Same-origin gate for state-changing POSTs. The dashboard token sits in
+// query strings and can leak via Referer / forwarded URLs; without an
+// Origin check, any third-party site that knows a victim's dashboard URL
+// can cross-post-fetch /api/me/[token]/{delete,resend-code} and act on
+// their behalf. Browsers always send Origin on cross-origin POSTs, so
+// rejecting null/mismatched values is a sound baseline. Allow-list extra
+// origins through env.ALLOWED_ORIGINS (comma-separated) for staging/dev.
+export function isSameOrigin(request, env) {
+    const origin = request.headers.get("Origin");
+    if (!origin) return false;
+    const url = new URL(request.url);
+    const expected = `${url.protocol}//${url.host}`;
+    if (origin === expected) return true;
+    const extra = (env?.ALLOWED_ORIGINS || "")
+        .split(",").map(s => s.trim()).filter(Boolean);
+    return extra.includes(origin);
+}
+
+// Per-key rate limiter that fails *closed* if the KV binding is missing.
+// Earlier this returned `false` (no limit) on missing binding, which made
+// the limit silently disappear in any environment that hadn't bound the
+// namespace. Returns { ok: true } when allowed, { ok: false, status, body }
+// when the caller should short-circuit.
+export async function rateLimit(env, key, max, ttlSec = 3700) {
+    if (!env.RATE_KV) {
+        // No binding = no enforcement = vector. Refuse the request rather
+        // than silently turning the limiter off.
+        console.error("rateLimit:RATE_KV_unbound", { key });
+        return { ok: false, status: 503, body: { error: "rate_limiter_unavailable" } };
+    }
+    const current = parseInt(await env.RATE_KV.get(key), 10) || 0;
+    if (current >= max) {
+        return { ok: false, status: 429, body: { error: "rate_limited" } };
+    }
+    await env.RATE_KV.put(key, String(current + 1), { expirationTtl: ttlSec });
+    return { ok: true };
+}
+
+// SQLite LIKE wildcards `%` and `_` (and the `\` we use to escape them)
+// must be neutralised when the user-supplied substring is interpolated
+// into a `LIKE ?1 ESCAPE '\'` clause. Without this, a 1-char query of
+// `_` matches every row and quietly turns the admin search into a
+// "list everyone" oracle.
+export function escapeLike(s) {
+    return String(s).replace(/[\\%_]/g, c => "\\" + c);
+}
+
 export function isValidEmail(s) {
     if (!s || s.length > 254) return false;
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
@@ -210,6 +257,11 @@ export async function queueEmail(env, { userId, template, to, subject, html, tex
 // Constant-time bearer-token check for admin endpoints. env.ADMIN_TOKEN
 // is set via `wrangler pages secret put ADMIN_TOKEN`. Returns true if the
 // Authorization header matches.
+//
+// Compares HMAC-SHA256 digests of both sides under a per-request random key
+// so neither length nor byte-pattern of the expected token leaks via timing.
+// An earlier impl returned early on length mismatch — that's an enumeration
+// oracle for the secret length.
 export async function isAdmin(env, request) {
     const expected = env.ADMIN_TOKEN;
     if (!expected) return false;
@@ -217,9 +269,16 @@ export async function isAdmin(env, request) {
     const m = /^Bearer\s+(.+)$/i.exec(h);
     if (!m) return false;
     const given = m[1];
-    if (given.length !== expected.length) return false;
-    const a = new TextEncoder().encode(given);
-    const b = new TextEncoder().encode(expected);
+
+    const enc = new TextEncoder();
+    const keyMaterial = crypto.getRandomValues(new Uint8Array(32));
+    const key = await crypto.subtle.importKey(
+        "raw", keyMaterial, { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
+    );
+    const a = new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode(given)));
+    const b = new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode(expected)));
+    // Both digests are fixed 32 bytes regardless of input length — safe to
+    // compare without leaking the secret's length.
     let diff = 0;
     for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
     return diff === 0;

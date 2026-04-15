@@ -1,6 +1,6 @@
 import {
     ulid, json, now, audit, clientIp, ipHash,
-    isValidEmail, verifyTurnstile, escapeHtml, emailShell,
+    isValidEmail, verifyTurnstile, escapeHtml, emailShell, rateLimit,
 } from "../_lib.js";
 
 const SITE_BASE = "https://sc-cpe-web.pages.dev";
@@ -81,11 +81,15 @@ export async function onRequestPost({ request, env }) {
     const hourBucket = new Date().toISOString().slice(0, 13); // "YYYY-MM-DDTHH"
     const rateKey = `recover:${ipH}:${hourBucket}`;
 
-    // Rate limit. On over-limit we return the same constant-time 200 — the
-    // attacker learns nothing from the response. We just skip DB work.
-    const overLimit = await incrementAndCheck(env, rateKey, MAX_PER_HOUR);
-    if (overLimit) {
-        return json(CONSTANT_RESPONSE, 200);
+    // Rate limit via the shared fail-closed helper. On over-limit we still
+    // return the same constant-time 200 to preserve enumeration resistance —
+    // the attacker shouldn't learn from a 429 that they hit a real lookup.
+    // On a missing KV binding the helper returns 503; that's the right call
+    // (refuse rather than silently drop the limiter).
+    const rl = await rateLimit(env, rateKey, MAX_PER_HOUR);
+    if (!rl.ok) {
+        if (rl.status === 429) return json(CONSTANT_RESPONSE, 200);
+        return json(rl.body, rl.status);
     }
 
     const user = await env.DB.prepare(
@@ -143,18 +147,3 @@ export async function onRequestPost({ request, env }) {
     return json(CONSTANT_RESPONSE, 200);
 }
 
-// Atomic-ish increment of the hour counter. KV has no native increment, so we
-// GET, compute, PUT. Under concurrent requests from the same IP we can race
-// and slightly undercount — acceptable for this purpose (5/hr is a soft cap,
-// not a security boundary; Turnstile is the primary anti-abuse layer).
-async function incrementAndCheck(env, key, max) {
-    if (!env.RATE_KV) {
-        // KV binding missing (dev without config) — don't block, but warn.
-        console.warn("RATE_KV unbound — rate limiting disabled");
-        return false;
-    }
-    const current = parseInt(await env.RATE_KV.get(key), 10) || 0;
-    if (current >= max) return true;
-    await env.RATE_KV.put(key, String(current + 1), { expirationTtl: 3700 });
-    return false;
-}
