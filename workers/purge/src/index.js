@@ -27,8 +27,82 @@ export default {
                 at: now, msg: String(err && err.message || err),
             });
         }
+
+        // Weekly ops digest — runs only on Mondays (UTC). Also isolated
+        // so a failure here doesn't cascade. Uses its own heartbeat row
+        // `weekly_digest` which doubles as a "last sent" marker.
+        if (new Date(now).getUTCDay() === 1) {
+            try {
+                const sent = await runWeeklyDigest(env, now);
+                await heartbeat(env, "weekly_digest", "ok", { at: now, ...sent });
+            } catch (err) {
+                await heartbeat(env, "weekly_digest", "error", {
+                    at: now, msg: String(err && err.message || err),
+                });
+            }
+        }
     },
 };
+
+// Weekly rollup — one email Monday morning (UTC) covering the prior 7 days.
+// Kept intentionally terse: counts only, no row-by-row event lists. Its job
+// is "is the system doing its job" at a glance, not forensic detail.
+async function runWeeklyDigest(env, nowIso) {
+    if (!env.RESEND_API_KEY || !env.FROM_EMAIL || !env.ADMIN_ALERT_EMAIL) {
+        return { skipped: "missing_secrets" };
+    }
+    const since = new Date(Date.parse(nowIso) - 7 * 86400_000).toISOString();
+
+    const [
+        regs, verified, attendance, certs, appealsOpened, appealsGranted,
+        appealsDenied, emailSent, emailFailed,
+    ] = await Promise.all([
+        env.DB.prepare("SELECT COUNT(*) AS n FROM users WHERE created_at > ?1").bind(since).first(),
+        env.DB.prepare("SELECT COUNT(*) AS n FROM users WHERE verified_at > ?1").bind(since).first(),
+        env.DB.prepare("SELECT COUNT(*) AS n FROM attendance WHERE created_at > ?1").bind(since).first(),
+        env.DB.prepare("SELECT COUNT(*) AS n FROM certs WHERE created_at > ?1").bind(since).first(),
+        env.DB.prepare("SELECT COUNT(*) AS n FROM appeals WHERE created_at > ?1").bind(since).first(),
+        env.DB.prepare("SELECT COUNT(*) AS n FROM appeals WHERE resolved_at > ?1 AND state = 'granted'").bind(since).first(),
+        env.DB.prepare("SELECT COUNT(*) AS n FROM appeals WHERE resolved_at > ?1 AND state = 'denied'").bind(since).first(),
+        env.DB.prepare("SELECT COUNT(*) AS n FROM email_outbox WHERE sent_at > ?1 AND state = 'sent'").bind(since).first(),
+        env.DB.prepare("SELECT COUNT(*) AS n FROM email_outbox WHERE state = 'failed'").first(),
+    ]);
+
+    const subject = `[SC-CPE] weekly digest — ${since.slice(0, 10)} → ${nowIso.slice(0, 10)}`;
+    const text =
+        `SC-CPE weekly ops digest\n` +
+        `Window: ${since} → ${nowIso}\n\n` +
+        `Users registered:     ${regs?.n ?? 0}\n` +
+        `Users verified:       ${verified?.n ?? 0}\n` +
+        `Attendance rows:      ${attendance?.n ?? 0}\n` +
+        `Certs issued:         ${certs?.n ?? 0}\n` +
+        `Appeals opened:       ${appealsOpened?.n ?? 0}\n` +
+        `Appeals granted:      ${appealsGranted?.n ?? 0}\n` +
+        `Appeals denied:       ${appealsDenied?.n ?? 0}\n` +
+        `Emails sent:          ${emailSent?.n ?? 0}\n` +
+        `Emails failed (all):  ${emailFailed?.n ?? 0}\n\n` +
+        `Dashboard: /admin.html\n`;
+
+    const resp = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+            "Authorization": `Bearer ${env.RESEND_API_KEY}`,
+            "Content-Type": "application/json",
+            "Idempotency-Key": `weekly-digest:${nowIso.slice(0, 10)}`,
+        },
+        body: JSON.stringify({
+            from: env.FROM_EMAIL,
+            to: [env.ADMIN_ALERT_EMAIL],
+            subject,
+            text,
+        }),
+    });
+    if (resp.status >= 400) {
+        const body = (await resp.text()).slice(0, 500);
+        throw new Error(`resend_${resp.status}: ${body}`);
+    }
+    return { window_start: since, sent: true };
+}
 
 // Actions we want the admin to see the morning after. Keep this list tight —
 // every entry becomes a daily email. Noisy signals (rate-limit hits, expired
@@ -38,6 +112,41 @@ const ALERT_ACTIONS = [
     "code_channel_conflict",
     "appeal_granted",  // admin action — useful to see in a daily digest
 ];
+
+// MIRROR of pages/functions/_heartbeat.js::EXPECTED_CADENCE_S. Keep in sync —
+// divergence means the admin UI and the daily digest disagree on what's
+// "stale". The purge worker is a separate deploy so we can't share the import.
+const EXPECTED_CADENCE_S = {
+    poller: 120,
+    purge: 90000,
+    security_alerts: 90000,
+    email_sender: 300,
+    canary: 3600,
+};
+
+function staleHeartbeats(rows, nowMs) {
+    // The digest runs daily at 09:00 UTC. The ET poll window is 8-11am ET
+    // (~12:00-15:00 UTC depending on DST), so at digest time the poller is
+    // normally OFF duty. To avoid a noisy "poller stale" every morning we
+    // skip the poller in the digest — the admin endpoint has richer context
+    // (time-of-day check) and is the right place to see that one.
+    const out = [];
+    const known = Object.keys(EXPECTED_CADENCE_S).filter(s => s !== "poller");
+    const byName = new Map(rows.map(r => [r.source, r]));
+    for (const name of known) {
+        const expected_s = EXPECTED_CADENCE_S[name];
+        const row = byName.get(name);
+        if (!row) {
+            out.push({ source: name, age_seconds: null, expected_s, reason: "never_beat" });
+            continue;
+        }
+        const age_s = Math.floor((nowMs - new Date(row.last_beat_at).getTime()) / 1000);
+        if (age_s > 2 * expected_s) {
+            out.push({ source: name, age_seconds: age_s, expected_s, reason: "age_exceeds_2x" });
+        }
+    }
+    return out;
+}
 
 async function runSecurityAlerts(env, nowIso) {
     if (!env.RESEND_API_KEY || !env.FROM_EMAIL || !env.ADMIN_ALERT_EMAIL) {
@@ -64,18 +173,40 @@ async function runSecurityAlerts(env, nowIso) {
     `).bind(since, ...ALERT_ACTIONS).all();
 
     const rows = rs.results || [];
-    if (rows.length === 0) return { scanned_since: since, events: 0 };
 
-    const subject = `[SC-CPE] ${rows.length} security event(s) since ${since.slice(0, 16)}`;
+    // Stale-heartbeats section. Reads all heartbeats and reports any known
+    // source whose age exceeds 2× its expected cadence (poller excluded —
+    // see staleHeartbeats comment). Always included in the digest if any
+    // are found, even when there are no security events.
+    const hbRows = (await env.DB.prepare(
+        "SELECT source, last_beat_at, last_status FROM heartbeats",
+    ).all()).results || [];
+    const stale = staleHeartbeats(hbRows, Date.now());
+
+    if (rows.length === 0 && stale.length === 0) {
+        return { scanned_since: since, events: 0, stale_heartbeats: 0 };
+    }
+
+    const subject =
+        `[SC-CPE] ${rows.length} security event(s)` +
+        (stale.length ? `, ${stale.length} stale heartbeat(s)` : "") +
+        ` since ${since.slice(0, 16)}`;
     const lines = rows.map(r =>
         `${r.ts}  ${r.action.padEnd(24)}  entity=${r.entity_id}  after=${(r.after_json || "").slice(0, 200)}`
+    );
+    const staleLines = stale.map(s =>
+        `  - ${s.source.padEnd(18)} age=${s.age_seconds ?? "never"}s expected≤${2 * s.expected_s}s (${s.reason})`
     );
     const text =
         `SC-CPE daily security digest\n` +
         `Scanned audit_log since: ${since}\n` +
         `Events: ${rows.length}\n\n` +
-        lines.join("\n") +
-        `\n\nRun /api/admin/audit-chain-verify to confirm chain integrity.\n`;
+        (rows.length ? lines.join("\n") + "\n\n" : "") +
+        (stale.length
+            ? `Stale heartbeats (${stale.length}):\n` + staleLines.join("\n") + "\n\n"
+            : "") +
+        `Run /api/admin/audit-chain-verify to confirm chain integrity.\n` +
+        `Run /api/admin/heartbeat-status for per-source detail.\n`;
 
     const resp = await fetch("https://api.resend.com/emails", {
         method: "POST",
@@ -99,9 +230,19 @@ async function runSecurityAlerts(env, nowIso) {
     }
 
     // Advance cursor only after a successful send so a failed email gets
-    // retried on the next run instead of being silently lost.
-    return { scanned_since: since, events: rows.length, cursor_ts: rows[rows.length - 1].ts };
+    // retried on the next run instead of being silently lost. If there were
+    // no audit events (digest was purely a staleness alarm), keep the cursor
+    // where it was so the next run still scans from the same point.
+    return {
+        scanned_since: since,
+        events: rows.length,
+        stale_heartbeats: stale.length,
+        cursor_ts: rows.length ? rows[rows.length - 1].ts : since,
+    };
 }
+
+// Exported for tests.
+export { staleHeartbeats };
 
 async function purgeExpired(env, now) {
     const rs = await env.DB.prepare(`

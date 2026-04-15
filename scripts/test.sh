@@ -5,4 +5,7 @@ set -e
 cd "$(dirname "$0")/.."
 node --test \
     pages/functions/_lib.test.mjs \
-    workers/poller/src/race-detection.test.mjs
+    pages/functions/_heartbeat.test.mjs \
+    workers/poller/src/race-detection.test.mjs \
+    workers/purge/src/heartbeat-staleness.test.mjs \
+    scripts/test_chain_parity.mjs
