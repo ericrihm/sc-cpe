@@ -134,6 +134,37 @@ export function isValidName(s) {
     return /[\p{L}]/u.test(s);
 }
 
+export function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => (
+        { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+    ));
+}
+
+// Shared email chrome. All user-facing emails (register, cert delivery,
+// resend, recovery) pass through this so the navy header, footer, and
+// deliverability boilerplate stay consistent. bodyHtml must already be
+// escaped where needed; preheader is the grey preview-pane text.
+export function emailShell({ title, preheader = "", bodyHtml }) {
+    const safeTitle = escapeHtml(title);
+    return `<!doctype html>
+<html><body style="margin:0;padding:0;background:#f4f6f8;font-family:Helvetica,Arial,sans-serif;color:#111;line-height:1.5;">
+<span style="display:none!important;opacity:0;color:transparent;height:0;width:0;overflow:hidden;">${escapeHtml(preheader)}</span>
+<div style="max-width:580px;margin:0 auto;background:#fff;">
+  <div style="background:#0b3d5c;padding:18px 24px;">
+    <div style="color:#fff;font-size:11pt;letter-spacing:0.18em;text-transform:uppercase;">Simply Cyber CPE</div>
+    <div style="color:#d4a73a;font-size:9pt;margin-top:2px;">${safeTitle}</div>
+  </div>
+  <div style="padding:24px;">
+    ${bodyHtml}
+  </div>
+  <div style="padding:16px 24px;border-top:1px solid #e6eaee;font-size:11px;color:#777;">
+    You're receiving this because you registered for Simply Cyber CPE.<br/>
+    Questions? Reply to this email.
+  </div>
+</div>
+</body></html>`;
+}
+
 // Insert a row into email_outbox. The email-sender Worker (polls every
 // 2 min) is responsible for actually dispatching via Resend. `template`
 // is a tag for analytics; payload_json must carry html_body and/or

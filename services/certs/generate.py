@@ -425,6 +425,8 @@ def render_pdf(
     period_start: dt.date,
     period_end: dt.date,
     period_display: str,
+    attended_line: str,
+    dates_line: str,
     cpe_total: float,
     sessions_count: int,
     cert_id: str,
@@ -451,6 +453,8 @@ def render_pdf(
         period_start=period_start.isoformat(),
         period_end=period_end.isoformat(),
         period_display=period_display,
+        attended_line=attended_line,
+        dates_line=dates_line,
         cpe_total=cpe_total_str,
         sessions_count=sessions_count,
         cert_id_display=cert_id[:12],
@@ -670,6 +674,8 @@ def build_email_bodies(
     *,
     recipient_name: str,
     period_display: str,
+    attended_line: str,
+    dates_line: str,
     cpe_total: float,
     sessions_count: int,
     verify_url: str,
@@ -681,11 +687,19 @@ def build_email_bodies(
     else:
         cpe_str = f"{float(cpe_total):.1f}"
 
+    dates_text_block = f"  Sessions: {dates_line}\n" if dates_line else ""
+    dates_html_line = (
+        f'<li>Sessions: <strong>{dates_line}</strong></li>' if dates_line else ""
+    )
+    attended_sentence = f"Attendance recorded {attended_line}."
+
     text = (
         f"Hi {recipient_name},\n\n"
-        f"Your {period_display} Simply Cyber CPE certificate is ready.\n\n"
+        f"Your {period_display} Simply Cyber CPE certificate is ready.\n"
+        f"{attended_sentence}\n\n"
         f"  CPE credit hours: {cpe_str}\n"
-        f"  Sessions attended: {sessions_count}\n\n"
+        f"  Sessions attended: {sessions_count}\n"
+        f"{dates_text_block}\n"
         f"Download your signed PDF:\n  {download_url}\n\n"
         f"Anyone (including auditors) can verify this certificate at:\n  {verify_url}\n\n"
         f"The signed PDF is PAdES-signed; most PDF readers will show the "
@@ -696,10 +710,12 @@ def build_email_bodies(
     html = f"""<!doctype html>
 <html><body style="font-family:Helvetica,Arial,sans-serif;color:#111;line-height:1.45;">
 <p>Hi {recipient_name},</p>
-<p>Your <strong>{period_display}</strong> Simply Cyber CPE certificate is ready.</p>
+<p>Your <strong>{period_display}</strong> Simply Cyber CPE certificate is ready.
+{attended_sentence}</p>
 <ul>
   <li>CPE credit hours: <strong>{cpe_str}</strong></li>
   <li>Sessions attended: <strong>{sessions_count}</strong></li>
+  {dates_html_line}
 </ul>
 <p>
   <a href="{download_url}"
@@ -762,6 +778,9 @@ def issue_for_user(
 
     cpe_total = float(user_row["cpe_total"])
     sessions_count = int(user_row["sessions_count"])
+    attended_line, dates_line = attendance_phrasing(
+        user_row.get("session_dates"), sessions_count, period_display,
+    )
     session_video_ids_raw = user_row.get("session_video_ids") or ""
     # Dedup + normalize the comma-joined list from GROUP_CONCAT.
     video_ids = sorted(
@@ -792,6 +811,8 @@ def issue_for_user(
         period_start=period_start_date,
         period_end=period_end_date,
         period_display=period_display,
+        attended_line=attended_line,
+        dates_line=dates_line,
         cpe_total=cpe_total,
         sessions_count=sessions_count,
         cert_id=cert_id,
@@ -874,6 +895,8 @@ def issue_for_user(
     html_body, text_body = build_email_bodies(
         recipient_name=recipient_name,
         period_display=period_display,
+        attended_line=attended_line,
+        dates_line=dates_line,
         cpe_total=cpe_total,
         sessions_count=sessions_count,
         verify_url=verify_url,
@@ -991,7 +1014,8 @@ SELECT u.id, u.email, u.legal_name, u.dashboard_token,
        COUNT(*) AS sessions_count,
        MIN(s.scheduled_date) AS period_start,
        MAX(s.scheduled_date) AS period_end,
-       GROUP_CONCAT(s.yt_video_id, ',') AS session_video_ids
+       GROUP_CONCAT(s.yt_video_id, ',') AS session_video_ids,
+       GROUP_CONCAT(DISTINCT s.scheduled_date) AS session_dates
 FROM users u
 JOIN attendance a ON a.user_id = u.id
 JOIN streams s ON s.id = a.stream_id
@@ -1001,6 +1025,49 @@ WHERE u.state = 'active'
 GROUP BY u.id, u.email, u.legal_name, u.dashboard_token
 HAVING SUM(a.earned_cpe) > 0
 """
+
+
+def _format_long_date(iso: str) -> str:
+    """'2026-03-15' -> 'March 15, 2026'. Falls back to the ISO string on parse
+    failure so a malformed row never breaks cert generation."""
+    try:
+        d = dt.date.fromisoformat(iso)
+        return d.strftime("%B %-d, %Y") if os.name != "nt" else d.strftime("%B %#d, %Y")
+    except Exception:
+        return iso
+
+
+def attendance_phrasing(
+    session_dates_csv: str | None,
+    sessions_count: int,
+    period_display: str,
+) -> tuple[str, str]:
+    """Return (attended_line, dates_line) for the cert / email.
+
+    Honesty matters for CPE audit: showing "March 1 – March 31" on a cert
+    earned from a single attended day overstates participation. We use the
+    actual dates instead.
+
+    - 1 session:   attended "on March 15, 2026"; no dates line.
+    - 2–5 sessions: attended "during March 2026"; list every date.
+    - 6+ sessions:  attended "during March 2026"; first/last + total.
+    """
+    dates = sorted({d for d in (session_dates_csv or "").split(",") if d})
+    if not dates:
+        return (f"during {period_display}", "")
+    if sessions_count == 1 or len(dates) == 1:
+        return (f"on {_format_long_date(dates[0])}", "")
+    if len(dates) <= 5:
+        return (
+            f"during {period_display}",
+            " · ".join(_format_long_date(d) for d in dates),
+        )
+    return (
+        f"during {period_display}",
+        f"First {_format_long_date(dates[0])} · "
+        f"Last {_format_long_date(dates[-1])} · "
+        f"{len(dates)} sessions",
+    )
 
 
 def main() -> int:
