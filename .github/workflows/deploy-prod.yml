@@ -1,0 +1,120 @@
+name: deploy-prod
+
+# Deploys Cloudflare Pages + all three Workers on a single run, then verifies
+# with the hardening smoke suite. Replaces the manual `wrangler pages deploy`
+# / `wrangler deploy` workflow documented in README.md.
+#
+# Ordering: tests -> Pages -> Workers -> verify-deploy.
+# Pages first so a new API shape is live before any Worker that might call it;
+# Workers are matrix-parallel. Every step must tolerate ONE rev of Pages↔Worker
+# skew during the ~30s window between them.
+#
+# Trigger state: workflow_dispatch-only initially. Once we've run it manually
+# once and confirmed the green path, uncomment `push: branches: [main]` below.
+# Branch protection + required status checks should be enabled before the
+# push trigger is enabled — otherwise a direct commit to main = live push.
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip_smoke:
+        description: "Skip the post-deploy smoke (emergency-only)."
+        required: false
+        default: "false"
+  # push:
+  #   branches: [main]
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false   # never yank a mid-flight deploy
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
+        with:
+          node-version: "20"
+      - name: Run tests
+        run: bash scripts/test.sh
+
+  deploy-pages:
+    name: Deploy Cloudflare Pages
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: production
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      - name: wrangler pages deploy
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd  # v3.15.0
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_DEPLOY_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: pages
+          command: pages deploy . --project-name sc-cpe-web --branch main --commit-dirty=true
+
+  deploy-workers:
+    name: Deploy Worker (${{ matrix.worker }})
+    needs: deploy-pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: production
+    strategy:
+      fail-fast: false
+      matrix:
+        worker: [purge, poller, email-sender]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      - name: wrangler deploy
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd  # v3.15.0
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_DEPLOY_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: workers/${{ matrix.worker }}
+          command: deploy
+
+  verify-deploy:
+    name: Post-deploy smoke
+    needs: deploy-workers
+    if: inputs.skip_smoke != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      ORIGIN: https://sc-cpe-web.pages.dev
+      ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      - name: Wait for Pages propagation
+        # Pages deploy returns before the edge fully picks up the new bundle.
+        # ~20s is empirically enough for sc-cpe-web; bump if smoke flakes.
+        run: sleep 20
+      - name: Run hardening smoke
+        run: bash scripts/smoke_hardening.sh
+
+  alert-on-failure:
+    name: Discord alert on deploy failure
+    needs: [test, deploy-pages, deploy-workers, verify-deploy]
+    if: failure()
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Notify Discord
+        env:
+          DISCORD_ALERT_WEBHOOK: ${{ secrets.DISCORD_ALERT_WEBHOOK }}
+        run: |
+          if [[ -z "${DISCORD_ALERT_WEBHOOK:-}" ]]; then
+            echo "DISCORD_ALERT_WEBHOOK unset — skipping"; exit 0
+          fi
+          payload=$(jq -cn \
+            --arg c ":rotating_light: **SC-CPE deploy-prod FAILED** on ${{ github.sha }}. See Actions run ${{ github.run_id }}." \
+            '{content: $c, username: "SC-CPE Deploy"}')
+          curl -fsS --max-time 20 \
+            -H "Content-Type: application/json" \
+            -X POST -d "$payload" "$DISCORD_ALERT_WEBHOOK" >/dev/null
