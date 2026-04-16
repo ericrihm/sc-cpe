@@ -58,10 +58,18 @@ body {
 main.narrow {
     max-width: 640px;
     margin: 1rem auto;               /* mobile-default; bumped up at ≥640px below */
-    padding: 0 1rem;
+    /* Bottom padding absorbs iOS home-indicator safe area + gives the
+       submit button clearance from Safari/Chrome mobile's URL bar, which
+       otherwise visually covers the button at scroll-bottom. */
+    padding: 0 1rem max(1.5rem, env(safe-area-inset-bottom) + 1rem);
 }
 @media (min-width: 640px) {
     main.narrow { margin: 2rem auto; }
+}
+/* Wider viewports: nudge max-width up so the column doesn't feel lost in
+   a 1440px+ browser, while staying within readable measure (~80ch). */
+@media (min-width: 960px) {
+    main.narrow { max-width: 720px; }
 }
 h1 { font-size: 1.75rem; margin-bottom: .25rem; line-height: 1.2; }
 h2 { font-size: 1.25rem; margin-top: 1.5rem; line-height: 1.3; }
@@ -92,7 +100,12 @@ form .check {
     font-weight: 400;
     margin-bottom: .75rem;
 }
-form .check input { margin-top: .25rem; }
+form .check input { margin-top: .25rem; flex: 0 0 auto; }
+/* The text (and any nested links) must live in a single child so the
+   flex container doesn't split it into per-word items that wrap into
+   pseudo-columns on narrow screens. min-width:0 lets it actually shrink
+   inside the flex row instead of forcing horizontal overflow. */
+form .check > span { flex: 1 1 auto; min-width: 0; }
 button {
     /* 44px floor matches the iOS HIG + WCAG 2.5.5 (enhanced) target size.
        rem-based so user text-scaling grows it too. */
