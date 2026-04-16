@@ -1,4 +1,7 @@
-import { json, audit, clientIp, ipHash, isAdmin, now } from "../../_lib.js";
+import {
+    json, audit, clientIp, ipHash, isAdmin, now,
+    classifyRevocation, sha256Hex,
+} from "../../_lib.js";
 
 // POST /api/admin/revoke
 // Body: { "public_token": "...", "reason": "human-readable reason" }
@@ -54,6 +57,10 @@ export async function onRequestPost({ request, env }) {
          WHERE id = ?3 AND state != 'revoked'
     `).bind(reason, ts, row.id).run();
 
+    // Classify the free-text reason to an enum BEFORE writing audit. The
+    // cleartext reason stays in certs.revocation_reason for internal admin
+    // review, but audit_log is append-only and survives user deletion — it
+    // must not hold free-form text that can name recipients or allegations.
     await audit(
         env,
         "admin",
@@ -62,7 +69,13 @@ export async function onRequestPost({ request, env }) {
         "cert",
         row.id,
         { state: row.state },
-        { state: "revoked", revocation_reason: reason, revoked_at: ts },
+        {
+            state: "revoked",
+            revocation_class: classifyRevocation(reason),
+            revocation_reason_sha256: await sha256Hex(reason),
+            revocation_reason_length: reason.length,
+            revoked_at: ts,
+        },
         { ip_hash: await ipHash(clientIp(request)) },
     );
 

@@ -1,6 +1,7 @@
 import {
     ulid, json, now, audit, clientIp, ipHash,
     isValidEmail, verifyTurnstile, escapeHtml, emailShell, rateLimit,
+    sha256Hex,
 } from "../_lib.js";
 
 const SITE_BASE = "https://sc-cpe-web.pages.dev";
@@ -140,7 +141,7 @@ export async function onRequestPost({ request, env }) {
 
     await audit(
         env, "user", user.id, "recovery_requested", "user", user.id,
-        null, { email_lower: email, idempotency_key: idempotencyKey },
+        null, { email_sha256: await sha256Hex(email), idempotency_key: idempotencyKey },
         { ip_hash: ipH, user_agent: request.headers.get("User-Agent") || null },
     );
 

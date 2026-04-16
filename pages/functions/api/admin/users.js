@@ -1,4 +1,4 @@
-import { json, isAdmin, escapeLike, audit, clientIp, ipHash } from "../../_lib.js";
+import { json, isAdmin, escapeLike, audit, clientIp, ipHash, sha256Hex } from "../../_lib.js";
 
 // GET /api/admin/users?q=<query>[&limit=20]
 // Auth: Authorization: Bearer <ADMIN_TOKEN>
@@ -46,9 +46,16 @@ export async function onRequestGet({ request, env }) {
 
     // Audit the search itself — admin lookups touch PII and must be
     // attributable. Entity is "users" collectively (no single id).
+    // Don't store the raw query — admins search by email or name, which is
+    // indefinite-retention PII in audit_log. Hash + length is enough for
+    // attribution (an auditor can re-hash a suspected query to check).
     await audit(
         env, "admin", null, "admin_user_search", "users", "*",
-        null, { query: q, count: results.length },
+        null, {
+            query_sha256: await sha256Hex(q.toLowerCase()),
+            query_length: q.length,
+            count: results.length,
+        },
         { ip_hash: await ipHash(clientIp(request)) },
     );
 

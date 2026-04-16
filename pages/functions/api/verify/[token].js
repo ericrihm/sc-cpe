@@ -1,15 +1,4 @@
-import { json, audit, clientIp, ipHash } from "../../_lib.js";
-
-// Map free-text admin reason to a public enum. Anything we don't recognise
-// becomes "other" so a careless admin note never reaches the verifier.
-function classifyRevocation(reason) {
-    const r = String(reason || "").toLowerCase();
-    if (/fraud|fake|forg|impersonat/.test(r)) return "issued_in_error";
-    if (/duplicate|superseded|replaced|reissued/.test(r)) return "superseded";
-    if (/withdraw|delete|gdpr|right to be forgotten/.test(r)) return "subject_request";
-    if (/key|signing|cert/.test(r)) return "key_compromise";
-    return "other";
-}
+import { json, audit, clientIp, ipHash, classifyRevocation } from "../../_lib.js";
 
 export async function onRequestGet({ params, env, request }) {
     const token = params.token;

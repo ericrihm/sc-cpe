@@ -65,6 +65,18 @@ export async function sha256Hex(s) {
     return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
+// Map free-text admin revocation reason to a public enum. Used at write
+// time to keep PII (recipient names, allegation details) out of the
+// append-only audit_log; also used at read time in the verify portal.
+export function classifyRevocation(reason) {
+    const r = String(reason || "").toLowerCase();
+    if (/fraud|fake|forg|impersonat/.test(r)) return "issued_in_error";
+    if (/duplicate|superseded|replaced|reissued/.test(r)) return "superseded";
+    if (/withdraw|delete|gdpr|right to be forgotten/.test(r)) return "subject_request";
+    if (/key|signing|cert/.test(r)) return "key_compromise";
+    return "other";
+}
+
 // Insert a hash-chained audit row. Reads the current chain tip, computes
 // prev_hash from it, INSERTs. On UNIQUE-index collision (two writers picked
 // the same tip) retries up to MAX_ATTEMPTS. The partial unique index on

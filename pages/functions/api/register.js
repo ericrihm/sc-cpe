@@ -1,7 +1,7 @@
 import {
     ulid, randomCode, randomToken, json, now, audit, clientIp, ipHash,
     isValidEmail, isValidName, verifyTurnstile, queueEmail,
-    escapeHtml, emailShell,
+    escapeHtml, emailShell, sha256Hex,
 } from "../_lib.js";
 
 const SITE_BASE = "https://sc-cpe-web.pages.dev";
@@ -101,7 +101,7 @@ export async function onRequestPost({ request, env }) {
         `).bind(legalName, code, expiresAt, tosVersion, existing.id).run();
 
         await audit(env, "user", existing.id, "registration_reissued", "user", existing.id,
-            null, { email_lower: email, ip_hash: await ipHash(clientIp(request)) });
+            null, { email_sha256: await sha256Hex(email), ip_hash: await ipHash(clientIp(request)) });
 
         const bodies = welcomeEmailBodies({
             legalName, code, dashboardToken: existing.dashboard_token, expiresAt,
@@ -134,7 +134,7 @@ export async function onRequestPost({ request, env }) {
     `).bind(userId, email, legalName, code, expiresAt, dashboardToken, tosVersion, nowIso).run();
 
     await audit(env, "user", userId, "registration_created", "user", userId, null, {
-        email_lower: email, ip_hash: await ipHash(clientIp(request)),
+        email_sha256: await sha256Hex(email), ip_hash: await ipHash(clientIp(request)),
     });
 
     const bodies = welcomeEmailBodies({ legalName, code, dashboardToken, expiresAt });
