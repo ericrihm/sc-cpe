@@ -47,9 +47,14 @@ check "me/delete cross-origin → 403" 403 "$(code -X POST \
     "$ORIGIN/api/me/$FAKE_TOKEN/delete")"
 
 echo "== preflight/channel rate limit =="
-# First probe must succeed; after the cap we want 429. Cap is 60/h — hit it
-# hard to confirm it fails closed rather than silently allowing.
-check "first probe → 200" 200 "$(code "$ORIGIN/api/preflight/channel?q=UCG-48Ki-b6W_siaUkukJOSw")"
+# Smoke runs hourly. The per-channel cap (hardened to 10/day in PR #9)
+# would trip if we reused one channel ID across 24 hourly probes, so we
+# rotate the probe target on the UTC hour: UC + SMOKE + YYYYMMDDHH + 7
+# zeros = 24 chars total, matching /^UC[0-9A-Za-z_-]{22}$/. Channel IDs
+# that start with SMOKE aren't real YouTube IDs, so the probe always
+# returns available=true (no binding in prod).
+SMOKE_CH="UCSMOKE$(date -u +%Y%m%d%H)0000000"
+check "well-formed channel probe → 200" 200 "$(code "$ORIGIN/api/preflight/channel?q=$SMOKE_CH")"
 
 echo "== audit-chain-verify =="
 body=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" "$ORIGIN/api/admin/audit-chain-verify?limit=50")
