@@ -74,9 +74,10 @@ https://sc-cpe-web.pages.dev/api/crl.json — machine-readable, same data.
 
 Every state transition in SC-CPE — registration, chat-code match,
 attendance credit, cert issuance, delivery, revocation — writes an
-append-only row to a SHA-256 hash-chained audit log. A `UNIQUE INDEX` on
-`prev_hash` makes chain forks structurally impossible. If you need a
-higher level of assurance than signature + hash-match:
+append-only row to a SHA-256 hash-chained audit log. A `UNIQUE INDEX`
+on `prev_hash` serialises concurrent writers so accidental or racing
+chain forks fail at insert time rather than silently branching. If
+you need a higher level of assurance than signature + hash-match:
 
 - `GET /api/admin/audit-chain-verify` (admin-gated) walks the full chain
   and confirms no tampering. Contact the issuer for a one-shot verify if

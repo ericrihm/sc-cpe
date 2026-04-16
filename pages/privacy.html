@@ -135,7 +135,7 @@
         <li>All traffic between your browser and the service is encrypted with TLS.</li>
         <li>Data stored in Cloudflare D1 is encrypted at rest.</li>
         <li>Registration and dashboard pages are protected with Cloudflare Turnstile CAPTCHA to prevent automated account creation.</li>
-        <li>PDF certificates are digitally signed using the PAdES (PDF Advanced Electronic Signatures) standard to prevent tampering.</li>
+        <li>PDF certificates are digitally signed using the PAdES (PDF Advanced Electronic Signatures) standard so tampering is detectable on verification — any modification to the PDF after issuance invalidates the signature.</li>
         <li>IP addresses are hashed on receipt and never stored in raw form.</li>
     </ul>
     <p>No security measure is perfect. If you discover a vulnerability, please disclose it responsibly to <a href="mailto:certs@signalplane.co?subject=%5BSECURITY%5D%20SC-CPE%20disclosure">certs@signalplane.co</a> with subject <code>[SECURITY]</code>. See our <a href="/.well-known/security.txt">security.txt</a> for full disclosure guidance and our expected response window.</p>
