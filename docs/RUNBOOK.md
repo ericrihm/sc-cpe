@@ -69,11 +69,66 @@ briefing run.
 
 ## Poller worker
 
-- Lives at `workers/poller/`. Deploy: `cd workers/poller && wrangler deploy`.
-- Race-detection (see `processCodeMatches` in `src/index.js`) requires
-  redeploy after any edits — Pages auto-deploy does **not** cover workers.
+- Lives at `workers/poller/`. Auto-deployed by
+  `.github/workflows/deploy-prod.yml` on every merge to `main` (the
+  workflow redeploys Pages + all three Workers together; manual
+  `wrangler deploy` is break-glass only).
+- Race-detection (see `processCodeMatches` in `src/index.js`) is covered
+  by the same pipeline — no special handling post-refactor.
 - Expected heartbeat: `heartbeats WHERE source='poller'` should tick every
   minute during the ET weekday 08:00–11:00 window.
+
+## Rollback
+
+Every `deploy-prod` run publishes four artefacts: one Pages deployment and
+three Worker versions. Rollback is per-artefact — in a real regression you
+usually need to roll back ALL of them to the same pre-bad SHA.
+
+### Workers (CLI)
+
+```sh
+cd workers/email-sender && wrangler deployments list | head
+cd workers/email-sender && wrangler rollback      # interactive, confirms
+cd workers/poller       && wrangler rollback
+cd workers/purge        && wrangler rollback
+```
+
+`wrangler rollback` without an id promotes the deployment immediately
+before the current one; pass a specific deployment id to jump further
+back. Cursor is idempotent in `email-sender`; the other two crons are
+state-less per invocation, so re-running after rollback just re-emits
+heartbeats from the older code.
+
+### Pages (dashboard)
+
+No CLI rollback today. Cloudflare dashboard →
+[`sc-cpe-web`](https://dash.cloudflare.com) → *Deployments* → pick a prior
+successful deployment → *Rollback*. Takes ~10s to propagate.
+
+### Verify after rollback
+
+```sh
+ADMIN_TOKEN=... ORIGIN=https://sc-cpe-web.pages.dev scripts/smoke_hardening.sh
+curl -fsS https://sc-cpe-web.pages.dev/api/health | jq '.sources[] | {source, stale}'
+```
+
+All four cron sources should beat within their cadence; no `stale:true`.
+
+### Rehearsal target
+
+Rehearse a rollback of `email-sender` on any quiet weekday outside the
+08:00–11:00 ET poll window. Time it. Under 90 seconds end-to-end is fine;
+above 3 minutes means we should script it into a GH Actions workflow
+dispatch.
+
+### Break-glass (CI red)
+
+If required checks can't go green and you must ship a fix now: toggle off
+the `Require status checks to pass` rule for `main` in *Settings →
+Branches*, push the fix directly (admin bypass), re-enable the rule. The
+deploy-prod push trigger still fires, and its first job re-runs tests as
+a safety net — so a truly broken fix still surfaces in the deploy log
+even if you skipped the PR gate.
 
 ## Rotating ADMIN_TOKEN
 
