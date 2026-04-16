@@ -97,7 +97,7 @@ jobs:
   alert-on-failure:
     name: Discord alert on monthly-certs failure
     needs: generate
-    if: failure()
+    if: failure() && github.run_attempt == 1   # silence on manual rerun
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:

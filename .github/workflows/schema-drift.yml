@@ -35,7 +35,7 @@ jobs:
           : "${D1_DATABASE_ID:?set secret}"
           bash scripts/check_schema.sh --http
       - name: Alert Discord on drift
-        if: failure()
+        if: failure() && github.run_attempt == 1   # silence on manual rerun
         run: |
           if [[ -z "${DISCORD_ALERT_WEBHOOK:-}" ]]; then
             echo "DISCORD_ALERT_WEBHOOK not set — skipping"
