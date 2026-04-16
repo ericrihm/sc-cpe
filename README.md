@@ -57,6 +57,11 @@ the skeptical (which is most of this community, appropriately):
   [security.txt](https://sc-cpe-web.pages.dev/.well-known/security.txt)
   or email `security@signalplane.co` directly. 3‑day acknowledgement,
   7‑day triage, 30‑day fix plan for P0/P1 findings.
+- **Live service health.** [`/status.html`](https://sc-cpe-web.pages.dev/status.html)
+  auto‑refreshes every 30s from `/api/health` and shows per‑cron
+  staleness in plain English; [`/faq.html`](https://sc-cpe-web.pages.dev/faq.html)
+  covers the common operational questions (missing credits, email
+  delays, verification for CE‑portal auditors).
 
 ---
 
