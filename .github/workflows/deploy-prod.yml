@@ -52,7 +52,25 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      # Same retry-with-backoff pattern as the worker deploys below.
       - name: wrangler pages deploy
+        id: pages_deploy
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd  # v3.15.0
+        continue-on-error: true
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_DEPLOY_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: pages
+          command: pages deploy . --project-name sc-cpe-web --branch main --commit-dirty=true
+
+      - name: Wait before retry
+        if: steps.pages_deploy.outcome == 'failure'
+        run: |
+          echo "First wrangler pages deploy attempt failed — CF API may be flaky. Waiting 20s before retry."
+          sleep 20
+
+      - name: wrangler pages deploy (retry)
+        if: steps.pages_deploy.outcome == 'failure'
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd  # v3.15.0
         with:
           apiToken: ${{ secrets.CLOUDFLARE_DEPLOY_TOKEN }}
@@ -72,7 +90,32 @@ jobs:
         worker: [purge, poller, email-sender]
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+
+      # First attempt. continue-on-error so a transient CF Workers API
+      # 503 (e.g. wrangler's pre-publish GET to /workers/services/...)
+      # doesn't immediately fail the job — we give it one retry below.
+      # PR #29 launch-day: CF 503'd on sc-cpe-purge's pre-publish GET
+      # three times in a row even though the worker itself was healthy.
+      # A single retry with 20s backoff recovered every subsequent CF
+      # blip observed during the first launch week.
       - name: wrangler deploy
+        id: deploy
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd  # v3.15.0
+        continue-on-error: true
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_DEPLOY_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: workers/${{ matrix.worker }}
+          command: deploy
+
+      - name: Wait before retry
+        if: steps.deploy.outcome == 'failure'
+        run: |
+          echo "First wrangler deploy attempt failed — CF API may be flaky. Waiting 20s before retry."
+          sleep 20
+
+      - name: wrangler deploy (retry)
+        if: steps.deploy.outcome == 'failure'
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd  # v3.15.0
         with:
           apiToken: ${{ secrets.CLOUDFLARE_DEPLOY_TOKEN }}
