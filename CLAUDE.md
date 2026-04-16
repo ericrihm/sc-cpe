@@ -90,8 +90,37 @@ All new pure-logic code should get a `node --test` file wired into
 
 ## Deploying
 
-Pages auto-deploy from GitHub is NOT currently wired. Every Pages deploy is
-manual:
+Pages + Workers auto-deploy on every merge to `main` via
+`.github/workflows/deploy-prod.yml` (tests → Pages → Workers matrix →
+post-deploy smoke). `main` is branch-protected: PRs required, status
+checks `Node test suite` + `Secret scan (gitleaks)` must be green,
+no force-push, no deletions. `enforce_admins: false` is deliberate —
+admin (owner) can break-glass push if CI itself is broken; otherwise
+use the PR flow.
+
+Normal flow for an edit:
+
+```
+git checkout -b kind/topic
+# ...edits...
+git commit -m "kind(scope): message"
+git push -u origin kind/topic
+gh pr create --fill
+gh pr merge --auto --squash
+```
+
+Auto-merge is enabled repo-wide; `gh pr merge --auto` lands the PR the
+moment required checks go green and triggers `deploy-prod`.
+
+Emergency break-glass:
+- If CI is broken and blocking merge: toggle off the required-checks
+  rule in Settings → Branches, ship, re-engage.
+- If it's a one-off "ship now" case: direct `git push origin main` works
+  because `enforce_admins: false` — the push trigger still fires
+  `deploy-prod`, which re-runs tests as its first job so we don't ship
+  broken code silently.
+
+The manual fallback still works if `deploy-prod.yml` is itself broken:
 
 ```
 cd pages && wrangler pages deploy .
@@ -136,12 +165,15 @@ ADMIN_TOKEN="$(tr -d '\n' < ~/.cloudflare/sc-cpe-admin-token)" \
 
 ## Known gaps (as of 2026-04-16)
 
-- Pages auto-deploy from GitHub is unwired (dashboard action, not code).
-  Planned: Option B from the 2026-04-16 brainstorm — one `deploy-prod.yml`
-  GH Actions workflow deploying Pages + Workers together behind required
-  CI checks, narrow-scope `CLOUDFLARE_DEPLOY_TOKEN`, and a protected
-  `production` environment. Preconditions still open: mint the deploy token,
-  protect `main`, disable CF preview URLs (current bindings are prod).
+- Pages auto-deploy — **landed 2026-04-16.** `.github/workflows/deploy-prod.yml`
+  runs tests → Pages → Workers (matrix) → smoke on every push to `main`.
+  Branch protection is active (required checks `Node test suite` +
+  `Secret scan (gitleaks)`, PR-required, no force-push, `enforce_admins: false`
+  for solo admin break-glass). Repo-wide auto-merge + delete-branch-on-merge
+  are on. CF deploy token is `sc-cpe-deploy`, scoped to Pages Edit +
+  Workers Scripts Edit only, stored in the `production` GH environment.
+  Still open: CF Pages PR previews remain disabled because current bindings
+  are prod — enabling them requires a separate `sc-cpe-preview` D1/R2/KV.
 - **Out-of-band leaked secrets** (chat/screenshots, NOT git history) —
   verified clean against full git history with gitleaks 8.21.2 +
   `git log -S` regex on 2026-04-15. Rotation status:
