@@ -153,6 +153,26 @@ export function isSameOrigin(request, env) {
     return extra.includes(origin);
 }
 
+// Known kill switches. Endpoints check `await killSwitched(env, name)` at
+// entry and return 503 if the switch is set. Used to contain launch-day
+// abuse bursts without taking the whole service down. Only the public,
+// unauthenticated, abuse-prone endpoints are killable — dashboard reads,
+// cert verification, cert download, user deletion, and admin paths stay
+// on even under a kill so legit users can still access their data.
+export const KILL_SWITCHES = Object.freeze(["register", "recover", "preflight"]);
+
+export async function killSwitched(env, name) {
+    if (!env.RATE_KV) return false;  // KV-gated, same store as rateLimit
+    return !!(await env.RATE_KV.get(`kill:${name}`));
+}
+
+export function killedResponse() {
+    return json({
+        error: "service_temporarily_unavailable",
+        reason: "admin_kill_switch",
+    }, 503);
+}
+
 // Per-key rate limiter that fails *closed* if the KV binding is missing.
 // Earlier this returned `false` (no limit) on missing binding, which made
 // the limit silently disappear in any environment that hadn't bound the

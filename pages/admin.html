@@ -50,6 +50,9 @@
     <div class="section-h">Overview (last 24h)</div>
     <div class="grid" id="stats"></div>
 
+    <div class="section-h">Kill switches <span class="muted" style="font-size:11px;text-transform:none;letter-spacing:0;">— emergency containment for public endpoints</span></div>
+    <div id="toggles" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;"></div>
+
     <div class="section-h">Heartbeats</div>
     <table id="hb"><thead>
       <tr><th>Source</th><th>Status</th><th>Last beat</th><th>Age</th><th>Expected ≤</th><th>On duty</th></tr>
@@ -95,13 +98,15 @@ async function fetchJson(path) {
 async function load() {
   $("#err").innerHTML = "";
   try {
-    const [stats, hb, chain, fb] = await Promise.all([
+    const [stats, hb, chain, fb, toggles] = await Promise.all([
       fetchJson("/api/admin/ops-stats"),
       fetchJson("/api/admin/heartbeat-status"),
       fetchJson("/api/admin/audit-chain-verify?limit=200"),
       fetchJson("/api/admin/cert-feedback?rating=typo,wrong&limit=100"),
+      fetchJson("/api/admin/toggles"),
     ]);
     renderStats(stats);
+    renderToggles(toggles);
     renderHeartbeats(hb);
     renderChain(chain, stats);
     renderFeedback(fb);
@@ -112,6 +117,44 @@ async function load() {
       $("#app").style.display = "none";
       $("#login").style.display = "";
     }
+  }
+}
+function renderToggles(d) {
+  const box = $("#toggles"); box.innerHTML = "";
+  for (const t of (d.toggles || [])) {
+    const wrap = document.createElement("div");
+    wrap.className = "card";
+    wrap.style.padding = "10px 14px";
+    wrap.style.display = "flex";
+    wrap.style.alignItems = "center";
+    wrap.style.gap = "10px";
+    wrap.style.minWidth = "240px";
+    const label = document.createElement("div");
+    label.innerHTML = `<span class="k">/api/${t.name}</span><div class="v ${t.killed ? "stale" : "ok"}" style="font-size:14px;">${t.killed ? "KILLED (503)" : "live"}</div>`;
+    const btn = document.createElement("button");
+    btn.className = "refresh";
+    btn.style.marginLeft = "auto";
+    btn.textContent = t.killed ? "Re-enable" : "Kill";
+    if (!t.killed) btn.style.background = "#5c1515";
+    btn.addEventListener("click", async () => {
+      const verb = t.killed ? "re-enable" : "KILL";
+      if (!confirm(`${verb} /api/${t.name}?`)) return;
+      btn.disabled = true;
+      try {
+        const r = await fetch("/api/admin/toggles", {
+          method: "POST",
+          headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+          body: JSON.stringify({ name: t.name, killed: !t.killed }),
+        });
+        if (!r.ok) throw new Error("toggle → HTTP " + r.status);
+        load();
+      } catch (e) {
+        $("#err").innerHTML = `<div class="err">${e.message}</div>`;
+        btn.disabled = false;
+      }
+    });
+    wrap.append(label, btn);
+    box.appendChild(wrap);
   }
 }
 function renderStats(s) {
