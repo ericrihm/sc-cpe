@@ -144,7 +144,12 @@ jobs:
   alert-on-failure:
     name: Discord alert on deploy failure
     needs: [test, deploy-pages, deploy-workers, verify-deploy]
-    if: failure()
+    # github.run_attempt == 1 suppresses re-pings when an operator
+    # reruns a failed run — the first attempt's alert already
+    # delivered the signal. Complements PR #39's step-level retry
+    # (which catches in-run transient flakes) by covering the
+    # manual-rerun case.
+    if: failure() && github.run_attempt == 1
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
