@@ -1,13 +1,52 @@
 :root {
-    --fg: #0f1115;
-    --muted: #5b6473;
-    --bg: #fafbfc;
-    --card: #fff;
-    --border: #e5e7eb;
-    --accent: #0057d8;
-    --ok: #0a8754;
-    --bad: #b4231e;
+    color-scheme: light dark;
+
+    --fg:              light-dark(#0f1115, #e5ecf2);
+    --fg-strong:       light-dark(#111111, #f5f8fb);
+    --muted:           light-dark(#5b6473, #95a4b3);
+    --bg:              light-dark(#fafbfc, #0b0f14);
+    --bg-alt:          light-dark(#f1f3f5, #0e151c);
+    --card:            light-dark(#ffffff, #111820);
+    --card-alt:        light-dark(#fafafa, #0e151c);
+    --border:          light-dark(#e5e7eb, #2a3644);
+    --border-strong:   light-dark(#cbd5e1, #3a4656);
+    --hover-bg:        light-dark(#f9fafb, #1a2330);
+    --accent:          light-dark(#0057d8, #7cc3ff);
+    --accent-fg:       light-dark(#ffffff, #0b0f14);
+    --accent-soft-bg:  light-dark(#eff6ff, #0f2540);
+    --ok:              light-dark(#0a8754, #55d38b);
+    --bad:             light-dark(#b4231e, #e85a5a);
+    --warn:            light-dark(#9a6700, #e0b43a);
+
+    --ok-soft-bg:      light-dark(#dcfce7, #0e3a1a);
+    --ok-soft-border:  light-dark(#86efac, #1e6b3a);
+    --ok-soft-text:    light-dark(#166534, #9beab2);
+
+    --warn-soft-bg:    light-dark(#fef3c7, #3a2f18);
+    --warn-soft-border:light-dark(#facc15, #6b5a2a);
+    --warn-soft-text:  light-dark(#92400e, #ffe4a4);
+
+    --bad-soft-bg:     light-dark(#fee2e2, #3a1818);
+    --bad-soft-border: light-dark(#fca5a5, #6b2a2a);
+    --bad-soft-text:   light-dark(#991b1b, #ffb4b4);
+
+    --info-soft-bg:    light-dark(#dbeafe, #0f2540);
+    --info-soft-border:light-dark(#60a5fa, #3a5a8a);
+    --info-soft-text:  light-dark(#1e40af, #a4c4ff);
+
+    --neutral-soft-bg: light-dark(#f3f4f6, #1e2833);
+    --neutral-soft-border: light-dark(#d1d5db, #2a3644);
+    --neutral-soft-text:   light-dark(#374151, #95a4b3);
+
+    --err-bg:          light-dark(#fdecea, #3a1818);
+
+    --drop-border:     light-dark(#8a94a3, #4a5668);
+    --drop-bg:         light-dark(#f4f6f8, #1a2330);
+    --drop-active-bg:  light-dark(#e3ebf3, #22324a);
 }
+:root[data-theme="dark"] { color-scheme: dark; }
+:root[data-theme="light"] { color-scheme: light; }
+
 * { box-sizing: border-box; }
 body {
     margin: 0;
@@ -33,6 +72,7 @@ form input[type=text], form input[type=email], form input:not([type]) {
     padding: .6rem .75rem;
     margin-top: .25rem;
     font: inherit;
+    color: var(--fg);
     border: 1px solid var(--border);
     border-radius: 6px;
     background: var(--card);
@@ -50,14 +90,14 @@ button {
     font: inherit;
     font-weight: 600;
     background: var(--accent);
-    color: #fff;
+    color: var(--accent-fg);
     border: 0;
     border-radius: 6px;
     cursor: pointer;
 }
 button:hover { filter: brightness(1.08); }
 .err {
-    background: #fdecea;
+    background: var(--err-bg);
     color: var(--bad);
     padding: .75rem 1rem;
     border-radius: 6px;
@@ -76,7 +116,7 @@ button:hover { filter: brightness(1.08); }
 .card.bad h2 { color: var(--bad); }
 pre.code, .code {
     display: inline-block;
-    background: #f1f3f5;
+    background: var(--bg-alt);
     padding: .4rem .6rem;
     border-radius: 4px;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -103,3 +143,27 @@ dd.small { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-siz
     dl dt:first-child { margin-top: 0; }
 }
 a { color: var(--accent); }
+
+.theme-toggle {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    z-index: 1000;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    font: inherit;
+    font-size: 16px;
+    line-height: 1;
+    background: var(--card);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+.theme-toggle:hover { background: var(--hover-bg); filter: none; }
+.theme-toggle:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}

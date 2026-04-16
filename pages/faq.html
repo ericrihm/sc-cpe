@@ -85,11 +85,12 @@
     hours. Easiest to upload to (ISC)² / ISACA / CompTIA CE portals.</p>
     <p>Pick <strong>per-session</strong> if your certification body's
     audit process asks for one record per CPE activity — this is
-    uncommon; ISC2, ISACA, and CompTIA all accept bundled multi-activity
-    records under their standard CPE submission categories. Or pick
-    <strong>both</strong> if you want the monthly bundle AND an
-    on-demand per-session PDF for any briefing. Per-session certs are
-    signed within 2 hours of request.</p>
+    uncommon; bundled multi-activity records are a common format
+    under self-attested CE submission workflows at ISC2, ISACA, and
+    CompTIA, though your certification body's current documentation
+    requirements take precedence. Or pick <strong>both</strong> if you
+    want the monthly bundle AND an on-demand per-session PDF for any
+    briefing. Per-session certs are signed within 2 hours of request.</p>
   </div>
 
   <div class="faq-q">
@@ -116,10 +117,12 @@
       Proof of live attendance at a cybersecurity-focused educational
       webinar. The attendee's identity is established through a YouTube
       channel binding (one-per-account) verified by an out-of-band code
-      exchange. The certificate is PAdES-T signed and independently
-      verifiable via the SHA-256 printed on the cert — the issuer
-      (Simply Cyber LLC) does not need to be contacted. Credits map
-      1:1 with (ISC)² Group B / ISACA CPE / CompTIA CEU.
+      exchange. The certificate is PAdES-T signed with an RFC-3161
+      timestamp; the signature and the <code>pdf_sha256</code> printed
+      on the face of the cert can be checked without contacting the
+      issuer. Whether the record is accepted for CPE credit is the
+      certification body's decision; the cert carries 0.5 CPE / CEU
+      in the "webinar / web-based training" submission category.
     </div>
   </div>
 
