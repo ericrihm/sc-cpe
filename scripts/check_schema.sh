@@ -25,18 +25,23 @@ MODE="${1:-wrangler}"
 canonicalise() {
     # Strip SQL line comments, drop blank lines, collapse runs of whitespace,
     # sort statements so order doesn't drive diffs.
-    python3 - "$@" <<'PY'
+    #
+    # Must use `python3 -c` (not `python3 - <<HEREDOC`): with heredoc, python
+    # consumes stdin as the script source, so sys.stdin.read() reads empty and
+    # canonicalise silently returned "" for every call — the drift check was
+    # comparing "" == "" and reporting OK without actually checking anything.
+    python3 -c '
 import re, sys
 src = sys.stdin.read()
-# Remove -- comments to end of line, and /* ... */ blocks.
 src = re.sub(r"--[^\n]*", "", src)
 src = re.sub(r"/\*.*?\*/", "", src, flags=re.S)
-# Split on ; (statement boundary).
 stmts = [re.sub(r"\s+", " ", s).strip().lower() for s in src.split(";")]
-stmts = [s for s in stmts if s]
+# Drop pragmas — they are session-level, never appear in sqlite_master,
+# and would otherwise always false-positive as drift in --http mode.
+stmts = [s for s in stmts if s and not s.startswith("pragma ")]
 stmts.sort()
 sys.stdout.write("\n".join(stmts) + "\n")
-PY
+'
 }
 
 expected=$(canonicalise < db/schema.sql)
