@@ -40,12 +40,10 @@
     <div id="err" class="err" hidden></div>
 
     <section id="ok" hidden>
-        <h2>Almost there — one step to verify</h2>
-        <p>Post this code in the Simply Cyber Daily Threat Briefing live chat within 7 days. Any message containing this code binds your YouTube account to your registration.</p>
-        <pre id="code" class="code"></pre>
+        <h2>Check your email</h2>
+        <p>We sent your verification code and dashboard link to the address you entered. The email arrives within a minute or two — check spam if you don't see it.</p>
         <p>Your code expires: <span id="expires"></span></p>
-        <p><strong>Save this dashboard URL</strong> — it's how you check your attendance and download certs. Bookmark it now:</p>
-        <p><a id="dash" href="#" class="dash"></a></p>
+        <p class="muted">We deliberately don't show the code here: possession of your inbox is the only way to activate the account, so a bot that knows your address can't register on your behalf.</p>
     </section>
 
     <p class="muted" style="margin-top:2rem;font-size:0.9rem;">
@@ -99,11 +97,7 @@ document.getElementById("f").addEventListener("submit", async (e) => {
             return;
         }
         document.getElementById("f").hidden = true;
-        document.getElementById("code").textContent = "SC-CPE-" + data.verification_code;
         document.getElementById("expires").textContent = data.expires_at;
-        const a = document.getElementById("dash");
-        a.href = data.dashboard_url;
-        a.textContent = location.origin + data.dashboard_url;
         document.getElementById("ok").hidden = false;
     } catch (x) {
         err.textContent = "Network error — check your connection and try again.";
