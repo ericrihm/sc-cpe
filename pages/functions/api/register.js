@@ -2,6 +2,7 @@ import {
     ulid, randomCode, randomToken, json, now, audit, clientIp, ipHash,
     isValidEmail, isValidName, verifyTurnstile, queueEmail,
     escapeHtml, emailShell, sha256Hex, rateLimit,
+    killSwitched, killedResponse,
 } from "../_lib.js";
 
 // Defence-in-depth against a Turnstile-solver farm. Turnstile is the first
@@ -52,6 +53,8 @@ this email — the account stays inactive unless the code is used in chat.</p>`;
 }
 
 export async function onRequestPost({ request, env }) {
+    if (await killSwitched(env, "register")) return killedResponse();
+
     let body;
     try { body = await request.json(); }
     catch { return json({ error: "invalid_json" }, 400); }

@@ -1,7 +1,7 @@
 import {
     ulid, json, now, audit, clientIp, ipHash,
     isValidEmail, verifyTurnstile, escapeHtml, emailShell, rateLimit,
-    sha256Hex,
+    sha256Hex, killSwitched, killedResponse,
 } from "../_lib.js";
 
 const SITE_BASE = "https://sc-cpe-web.pages.dev";
@@ -61,6 +61,8 @@ const CONSTANT_RESPONSE = {
 };
 
 export async function onRequestPost({ request, env }) {
+    if (await killSwitched(env, "recover")) return killedResponse();
+
     let body;
     try { body = await request.json(); }
     catch { return json({ error: "invalid_json" }, 400); }

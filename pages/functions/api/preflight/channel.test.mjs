@@ -51,8 +51,12 @@ test("preflight: channel id that is bound → {available:false}", async () => {
 
 test("preflight: IP cap (20/hr) trips on the 21st probe from same hashed IP", async () => {
     // KV returns "20" for the IP key — meaning 20 prior successful probes.
+    // kill-switch key must be null so we hit the IP-cap branch, not 503.
     const kv = {
-        get: async (k) => k.startsWith("preflight_channel_ip:") ? "20" : null,
+        get: async (k) => {
+            if (k.startsWith("kill:")) return null;
+            return k.startsWith("preflight_channel_ip:") ? "20" : null;
+        },
         put: async () => {},
     };
     const r = await preflightGet({
@@ -70,6 +74,7 @@ test("preflight: per-channel cap (10/day) trips regardless of IP", async () => {
     // is low.
     const kv = {
         get: async (k) => {
+            if (k.startsWith("kill:")) return null;
             if (k.startsWith("preflight_channel_ip:")) return "0";
             if (k.startsWith("preflight_channel_ch:")) return "10";
             return null;
@@ -85,8 +90,11 @@ test("preflight: per-channel cap (10/day) trips regardless of IP", async () => {
 
 test("preflight: malformed input returns 400 BEFORE touching per-channel cap", async () => {
     const puts = [];
+    // get() returns "0" for counter keys, null for kill-switch keys. "0" is
+    // truthy as a string in JS — if kill-switch keys returned "0" the
+    // killSwitched() check would false-positive and we'd 503 instead of 400.
     const kv = {
-        get: async () => "0",
+        get: async (k) => k.startsWith("kill:") ? null : "0",
         put: async (k) => { puts.push(k); },
     };
     const r = await preflightGet({
@@ -99,6 +107,18 @@ test("preflight: malformed input returns 400 BEFORE touching per-channel cap", a
     // non-existent channel ids.
     assert.equal(puts.some(k => k.startsWith("preflight_channel_ch:")), false,
         "per-channel KV write must not happen when input is malformed");
+});
+
+test("preflight: kill switch set → 503 with admin_kill_switch reason", async () => {
+    const killed = { get: async (k) => k === "kill:preflight" ? "1" : null, put: async () => {} };
+    const r = await preflightGet({
+        env: { DB: DB_EMPTY, RATE_KV: killed },
+        request: req(`${BASE}?q=${CHANNEL}`),
+    });
+    assert.equal(r.status, 503);
+    const j = await r.json();
+    assert.equal(j.error, "service_temporarily_unavailable");
+    assert.equal(j.reason, "admin_kill_switch");
 });
 
 test("preflight: missing RATE_KV → 503 (fail-closed)", async () => {
