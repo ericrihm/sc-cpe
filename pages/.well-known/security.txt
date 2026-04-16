@@ -6,11 +6,16 @@
 # origin of record (sc-cpe-web.pages.dev) which is the authoritative
 # delivery channel for this policy.
 
-Contact: mailto:security@signalplane.co
+Contact: mailto:certs@signalplane.co?subject=%5BSECURITY%5D%20SC-CPE%20disclosure
 Expires: 2027-04-16T00:00:00.000Z
 Preferred-Languages: en
 Canonical: https://sc-cpe-web.pages.dev/.well-known/security.txt
 Policy: https://sc-cpe-web.pages.dev/privacy.html#security
+
+# Single operator inbox: certs@signalplane.co. Please put [SECURITY] at the
+# start of your subject line so the filter routes disclosure mail ahead of
+# general support. We read and triage every message, not just the
+# auto-filtered ones.
 
 # What we care about (high-priority):
 #   - Anything that forges a certificate, bypasses revocation, or tampers

@@ -8,7 +8,10 @@ or deliberate human process. Track-and-check. Each item has an owner
 ## P0 — blocks public announcement
 
 - [ ] **DMARC DNS record on `signalplane.co`** — starting policy
-      `v=DMARC1; p=quarantine; rua=mailto:dmarc-reports@signalplane.co; adkim=s; aspf=s; fo=1`.
+      `v=DMARC1; p=quarantine; rua=mailto:certs@signalplane.co; adkim=s; aspf=s; fo=1`.
+      (rua= points at `certs@` — the single launch-time inbox — because
+      `dmarc-reports@` would silently black-hole. DMARC aggregate XMLs
+      are noisy but filter easily: subject contains `Report domain:`.)
       Verify with `dig TXT _dmarc.signalplane.co +short`. After ~2
       weeks of clean `rua` reports, tighten to `p=reject`.
 
@@ -16,10 +19,16 @@ or deliberate human process. Track-and-check. Each item has an owner
       push as repo secret `DISCORD_ALERT_WEBHOOK`. Fire `gh workflow
       run watchdog.yml -R ericrihm/sc-cpe` and confirm the alert lands.
 
-- [ ] **Monitored inboxes** — `contact@`, `privacy@`, `security@`
-      all at `signalplane.co`, forwarding to an address you actively
-      watch. Simplest path: Cloudflare Email Routing on
-      `signalplane.co`. Send a test to each, confirm arrival.
+- [ ] **Single inbox online** — `certs@signalplane.co` forwarding to
+      an address you actively watch. One mailbox at launch by design
+      (upstream email limit). Filter rules on the receiving mailbox:
+      `Subject:[SECURITY]` → label SECURITY, `Subject:[PRIVACY]` →
+      label PRIVACY, `Subject:[ACCOUNT]` → label SUPPORT,
+      `Subject:[CERT]` → label CERT-DISPUTE, `Subject:Report domain:`
+      → label DMARC-AUTO (auto-archive). Everything else falls through
+      to the default inbox for human review.
+      Send a test to `certs@signalplane.co` with each prefix; confirm
+      arrival and correct labelling before announcement.
 
 - [ ] **Wrangler rollback rehearsal on `email-sender`** — pick a
       quiet weekday outside 08:00–11:00 ET. Run
