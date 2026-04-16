@@ -406,7 +406,6 @@ async function loadRule(env) {
         version: v,
         min_msg_len: parseInt(m[`rule_version.${v}.min_msg_len`] || "3", 10),
         pre_start_grace_min: parseInt(m[`rule_version.${v}.pre_start_grace_min`] || "15", 10),
-        pre_end_grace_min: parseInt(m[`rule_version.${v}.pre_end_grace_min`] || "15", 10),
         cpe_per_day: parseFloat(m[`rule_version.${v}.cpe_per_day`] || "0.5"),
         finalize_settle_min: parseInt(m[`rule_version.${v}.finalize_settle_min`] || "5", 10),
     };
