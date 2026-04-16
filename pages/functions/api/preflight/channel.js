@@ -45,13 +45,22 @@ function extractChannelId(q) {
     return { error: "could_not_extract_channel_id" };
 }
 
+// Anti-enumeration caps. A legit user checks their own channel once or twice
+// while registering.
+//   - Per-IP, per-hour: blocks a single host from sweeping a channel list.
+//   - Per-channel, per-UTC-day: blocks a distributed attacker from targeting
+//     ONE channel across rotating IPs to answer "is victim X's channel
+//     bound?" After PROBES_PER_CHANNEL_PER_DAY total probes against the same
+//     channel id in a 24h window, further probes of THAT channel return 429
+//     regardless of source IP.
+// Both caps fail-closed via rateLimit(); a missing RATE_KV returns 503.
+const PROBES_PER_IP_PER_HOUR = 20;
+const PROBES_PER_CHANNEL_PER_DAY = 10;
+
 export async function onRequestGet({ request, env }) {
-    // Anonymous endpoint that answers "is this YouTube channel bound to an
-    // SC-CPE account?" → it's an account-enumeration oracle for anyone with
-    // a list of channel IDs to test. Cap probes per IP per hour.
     const ipH = await ipHash(clientIp(request));
-    const rl = await rateLimit(env, `preflight_channel:${ipH}`, 60);
-    if (!rl.ok) return json(rl.body, rl.status);
+    const rlIp = await rateLimit(env, `preflight_channel_ip:${ipH}`, PROBES_PER_IP_PER_HOUR);
+    if (!rlIp.ok) return json(rlIp.body, rlIp.status);
 
     const url = new URL(request.url);
     const q = url.searchParams.get("q");
@@ -60,6 +69,16 @@ export async function onRequestGet({ request, env }) {
     if (parsed.error) {
         return json({ valid: false, error: parsed.error }, 400);
     }
+
+    // Per-channel-id cap works across IPs. Keyed by normalised id + UTC day
+    // so a legit user re-checking tomorrow (after fixing their account)
+    // still succeeds.
+    const day = new Date().toISOString().slice(0, 10);
+    const rlChan = await rateLimit(env,
+        `preflight_channel_ch:${parsed.id}:${day}`,
+        PROBES_PER_CHANNEL_PER_DAY,
+        86_400 + 60);
+    if (!rlChan.ok) return json(rlChan.body, rlChan.status);
 
     const taken = await env.DB.prepare(
         "SELECT id FROM users WHERE yt_channel_id = ?1 AND state = 'active'"
