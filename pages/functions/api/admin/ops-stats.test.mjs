@@ -7,7 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { onRequestGet as opsStatsGet } from "./ops-stats.js";
+import { onRequestGet as opsStatsGet, computeWarnings } from "./ops-stats.js";
 
 const BASE = "https://sc-cpe-web.pages.dev";
 
@@ -115,6 +115,78 @@ test("ops-stats: pending certs — oldest_pending_age_seconds surfaces cron-stuc
     const age = j.certs.oldest_pending_age_seconds;
     assert.ok(age >= 6 * 3600 - 30 && age <= 6 * 3600 + 30, `expected ~21600s, got ${age}`);
 });
+
+// ── computeWarnings (pure) ──────────────────────────────────────────────
+
+function baseStats(overrides = {}) {
+    return {
+        users: { total: 42, active: 30, pending: 2, ...overrides.users },
+        last_24h: { attendance: 17, certs_issued: 4, ...overrides.last_24h },
+        certs_total: 20,
+        appeals_open: 0,
+        email_outbox: {
+            queued: 0, failed: 0, sent_24h: 100,
+            oldest_queued_age_seconds: null, oldest_failed_age_seconds: null,
+            ...overrides.email_outbox,
+        },
+        certs: { pending: 0, oldest_pending_age_seconds: null, ...overrides.certs },
+        fixture_pollution: { streams: 0, attendance: 0, users: 0, ...overrides.fixture_pollution },
+        ...overrides,
+    };
+}
+
+test("computeWarnings: clean state → no warnings", () => {
+    const w = computeWarnings(baseStats());
+    assert.equal(w.length, 0);
+});
+
+test("computeWarnings: Resend quota 80% → warn, 95% → critical", () => {
+    const warnSet = computeWarnings(baseStats({ email_outbox: { sent_24h: 2500 } }));
+    assert.equal(warnSet.find(x => x.code === "resend_quota_80pct")?.level, "warn");
+    const critSet = computeWarnings(baseStats({ email_outbox: { sent_24h: 2900 } }));
+    assert.equal(critSet.find(x => x.code === "resend_quota_95pct")?.level, "critical");
+});
+
+test("computeWarnings: oldest queued > 10min warns, > 30min critical", () => {
+    const warn = computeWarnings(baseStats({ email_outbox: { oldest_queued_age_seconds: 700 } }));
+    assert.equal(warn.find(x => x.code === "email_queue_aging")?.level, "warn");
+    const crit = computeWarnings(baseStats({ email_outbox: { oldest_queued_age_seconds: 2000 } }));
+    assert.equal(crit.find(x => x.code === "email_queue_stalled")?.level, "critical");
+});
+
+test("computeWarnings: queued > 100 warns, > 500 critical", () => {
+    const warn = computeWarnings(baseStats({ email_outbox: { queued: 150 } }));
+    assert.equal(warn.find(x => x.code === "email_queue_elevated")?.level, "warn");
+    const crit = computeWarnings(baseStats({ email_outbox: { queued: 600 } }));
+    assert.equal(crit.find(x => x.code === "email_queue_deep")?.level, "critical");
+});
+
+test("computeWarnings: any failed email triggers warn", () => {
+    const w = computeWarnings(baseStats({ email_outbox: { failed: 1 } }));
+    assert.equal(w.find(x => x.code === "email_failures")?.level, "warn");
+});
+
+test("computeWarnings: pending cert > 4h warns, > 12h critical", () => {
+    const warn = computeWarnings(baseStats({ certs: { oldest_pending_age_seconds: 5 * 3600 } }));
+    assert.equal(warn.find(x => x.code === "certs_pending_aging")?.level, "warn");
+    const crit = computeWarnings(baseStats({ certs: { oldest_pending_age_seconds: 13 * 3600 } }));
+    assert.equal(crit.find(x => x.code === "certs_pending_stalled")?.level, "critical");
+});
+
+test("computeWarnings: signup abuse — >100 pending and pending > 5× active", () => {
+    const w = computeWarnings(baseStats({ users: { total: 200, active: 15, pending: 150 } }));
+    assert.equal(w.find(x => x.code === "signup_abuse_pattern")?.level, "warn");
+    // Below threshold — low volume should NOT fire
+    const none = computeWarnings(baseStats({ users: { total: 50, active: 5, pending: 40 } }));
+    assert.equal(none.find(x => x.code === "signup_abuse_pattern"), undefined);
+});
+
+test("computeWarnings: fixture pollution in prod triggers warn", () => {
+    const w = computeWarnings(baseStats({ fixture_pollution: { streams: 2, attendance: 0, users: 0 } }));
+    assert.equal(w.find(x => x.code === "fixture_pollution")?.level, "warn");
+});
+
+// ── ops-stats response integration ──────────────────────────────────────
 
 test("ops-stats: unauthorized (wrong bearer) → 401", async () => {
     const r = await opsStatsGet({
