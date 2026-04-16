@@ -1,4 +1,7 @@
-import { json, clientIp, ipHash, rateLimit } from "../../_lib.js";
+import {
+    json, clientIp, ipHash, rateLimit,
+    killSwitched, killedResponse,
+} from "../../_lib.js";
 
 // GET /api/preflight/channel?q=<channel-id-or-url>
 //
@@ -58,6 +61,8 @@ const PROBES_PER_IP_PER_HOUR = 20;
 const PROBES_PER_CHANNEL_PER_DAY = 10;
 
 export async function onRequestGet({ request, env }) {
+    if (await killSwitched(env, "preflight")) return killedResponse();
+
     const ipH = await ipHash(clientIp(request));
     const rlIp = await rateLimit(env, `preflight_channel_ip:${ipH}`, PROBES_PER_IP_PER_HOUR);
     if (!rlIp.ok) return json(rlIp.body, rlIp.status);
