@@ -1,0 +1,39 @@
+version: 2
+
+# Post-launch dependency hygiene. Weekly cadence is a compromise: frequent
+# enough that security fixes land in reasonable time, infrequent enough
+# that PR noise doesn't drown the operator. Auto-merge stays OFF — every
+# dependency bump still runs the full test suite + gitleaks + CodeQL, and
+# landing is manual via the normal PR flow.
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - github-actions
+
+  - package-ecosystem: pip
+    directory: /services/certs
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - python
+
+# Notes:
+#  - No npm ecosystem: pages/functions and workers/* don't carry a
+#    package.json; runtime is Cloudflare's, not node_modules-based.
+#  - No terraform/npm-workspaces/composer/docker entries for the same
+#    reason — this repo's only dependency graphs are GH Actions YAML
+#    and services/certs/requirements.txt.
