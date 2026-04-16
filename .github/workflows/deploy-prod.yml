@@ -9,10 +9,10 @@ name: deploy-prod
 # Workers are matrix-parallel. Every step must tolerate ONE rev of Pages↔Worker
 # skew during the ~30s window between them.
 #
-# Trigger state: workflow_dispatch-only initially. Once we've run it manually
-# once and confirmed the green path, uncomment `push: branches: [main]` below.
-# Branch protection + required status checks should be enabled before the
-# push trigger is enabled — otherwise a direct commit to main = live push.
+# Trigger state: push-to-main auto-deploy + manual dispatch. Branch
+# protection on main is the CI gate — a PR must pass `Node test suite` and
+# `Secret scan (gitleaks)` before merge, so this auto-deploy only fires on
+# commits that have been through that gate (or an admin break-glass push).
 
 on:
   workflow_dispatch:
@@ -21,8 +21,8 @@ on:
         description: "Skip the post-deploy smoke (emergency-only)."
         required: false
         default: "false"
-  # push:
-  #   branches: [main]
+  push:
+    branches: [main]
 
 concurrency:
   group: deploy-prod
