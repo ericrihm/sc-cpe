@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Simply Cyber CPE">
+  <title>Simply Cyber CPE</title>
+  <!-- Shield outline: evokes attestation / certification without leaning on a
+       specific cert-body wordmark. Rounded base, straight shoulders. -->
+  <path d="M32 4 L10 12 V32 C10 46 20 56 32 60 C44 56 54 46 54 32 V12 Z"
+        fill="#0b3d5c"/>
+  <!-- Checkmark path, stroked so it renders crisply at 16px without
+       sub-pixel fill artefacts. Stroke width generous enough to stay
+       visible even when the browser downscales aggressively. -->
+  <path d="M21 33 L29 41 L44 23"
+        fill="none" stroke="#f4d66a" stroke-width="6"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
