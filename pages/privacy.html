@@ -110,7 +110,7 @@
         <li><strong>Withdrawal of consent:</strong> Where processing is based on consent, you may withdraw it at any time. Withdrawal does not affect the lawfulness of prior processing.</li>
         <li><strong>Complaint:</strong> Lodge a complaint with your local supervisory authority (e.g., your national data protection authority) if you believe we have not handled your data in accordance with the GDPR.</li>
     </ul>
-    <p>To exercise any of these rights, contact us at <a href="mailto:privacy@signalplane.co">privacy@signalplane.co</a>. We will respond within 30 days (or as required by applicable law).</p>
+    <p>To exercise any of these rights, contact us at <a href="mailto:certs@signalplane.co?subject=%5BPRIVACY%5D%20data-subject%20request">certs@signalplane.co</a> with subject <code>[PRIVACY]</code>. We will respond within 30 days (or as required by applicable law).</p>
 
     <h2>7. CCPA — Do Not Sell or Share My Personal Information</h2>
     <p>For California residents: Simply Cyber LLC does not sell your personal information, and does not share your personal information with third parties for cross-context behavioural advertising, as those terms are defined under the California Consumer Privacy Act (CCPA) and its amendments. You have the right to know what personal information we collect, request deletion, and opt out of any future sale — though we have no such sale to opt out of.</p>
@@ -125,7 +125,7 @@
     <p>Simply Cyber LLC is based in the United States. When you use SC-CPE, your data may be processed on Cloudflare's global network infrastructure, which operates data centres across multiple countries. Cloudflare provides Standard Contractual Clauses (SCCs) as a transfer mechanism for personal data transferred from the EEA and UK to third countries. By using the service, you acknowledge that your data may be transferred internationally in accordance with these safeguards.</p>
 
     <h2>10. Children</h2>
-    <p>This service is not directed at children. You must be at least 13 years old to register. We do not knowingly collect personal data from individuals under 13. If you believe a child under 13 has registered, please contact us at <a href="mailto:privacy@signalplane.co">privacy@signalplane.co</a> and we will delete the account promptly.</p>
+    <p>This service is not directed at children. You must be at least 13 years old to register. We do not knowingly collect personal data from individuals under 13. If you believe a child under 13 has registered, please contact us at <a href="mailto:certs@signalplane.co?subject=%5BPRIVACY%5D%20data-subject%20request">certs@signalplane.co</a> with subject <code>[PRIVACY]</code> and we will delete the account promptly.</p>
 
     <h2>11. Security</h2>
     <p>We take reasonable technical measures to protect your personal data:</p>
@@ -136,16 +136,21 @@
         <li>PDF certificates are digitally signed using the PAdES (PDF Advanced Electronic Signatures) standard to prevent tampering.</li>
         <li>IP addresses are hashed on receipt and never stored in raw form.</li>
     </ul>
-    <p>No security measure is perfect. If you discover a vulnerability, please disclose it responsibly to <a href="mailto:security@signalplane.co">security@signalplane.co</a>. See our <a href="/.well-known/security.txt">security.txt</a> for full disclosure guidance and our expected response window.</p>
+    <p>No security measure is perfect. If you discover a vulnerability, please disclose it responsibly to <a href="mailto:certs@signalplane.co?subject=%5BSECURITY%5D%20SC-CPE%20disclosure">certs@signalplane.co</a> with subject <code>[SECURITY]</code>. See our <a href="/.well-known/security.txt">security.txt</a> for full disclosure guidance and our expected response window.</p>
 
     <h2>12. Changes to This Policy</h2>
     <p>We may update this Privacy Policy from time to time. Each version is identified by a version number and effective date at the top of this page. We will notify registered users of material changes by email. Continued use of the service after a new version takes effect constitutes acknowledgement of the updated policy.</p>
 
     <h2>13. Contact</h2>
     <p>Data controller: Simply Cyber LLC (United States).</p>
-    <p>For privacy-related questions, GDPR rights requests, or data-subject access requests: <a href="mailto:privacy@signalplane.co">privacy@signalplane.co</a> — response within 30 days.</p>
-    <p>For general account or service questions: <a href="mailto:contact@signalplane.co">contact@signalplane.co</a>.</p>
-    <p>For security vulnerability disclosure: <a href="mailto:security@signalplane.co">security@signalplane.co</a> (see <a href="/.well-known/security.txt">security.txt</a>).</p>
+    <p>All inbound email goes to one address: <a href="mailto:certs@signalplane.co">certs@signalplane.co</a>. Use a subject-line prefix so the filter routes your message correctly:</p>
+    <ul>
+        <li><code>[PRIVACY]</code> — GDPR rights requests, data-subject access, deletion questions. Response within 30 days.</li>
+        <li><code>[SECURITY]</code> — vulnerability disclosure (see also <a href="/.well-known/security.txt">security.txt</a>). 3-day acknowledgement SLA.</li>
+        <li><code>[ACCOUNT]</code> — general account or service questions.</li>
+        <li><code>[CERT]</code> — specific certificate disputes, revocation requests, issuance errors.</li>
+    </ul>
+    <p class="muted">One mailbox is a deliberate choice at launch — a single address is easier to monitor and harder to overlook than a forest of aliases. Untagged messages still get read; the prefix just speeds triage.</p>
 
     <p><a href="/">&larr; Back to registration</a></p>
 </main>

@@ -25,7 +25,7 @@ Endpoint: `GET /api/admin/audit-chain-verify[?limit=N]`
 
 ```sh
 curl -H "Authorization: Bearer $ADMIN_TOKEN" \
-     https://sc-cpe.pages.dev/api/admin/audit-chain-verify | jq .
+     https://sc-cpe-web.pages.dev/api/admin/audit-chain-verify | jq .
 ```
 
 Happy response: `{"ok":true,"checked":N,"has_unique_index":true}`.
@@ -61,7 +61,7 @@ Means one of:
 
 ## Smoke-test after deploy
 
-`ORIGIN=https://sc-cpe.pages.dev ADMIN_TOKEN=... scripts/smoke_hardening.sh`
+`ORIGIN=https://sc-cpe-web.pages.dev ADMIN_TOKEN=... scripts/smoke_hardening.sh`
 
 Checks HMAC admin compare, CSRF gates, preflight/channel rate-limit, and
 audit chain integrity. Any FAIL = roll back or investigate before letting a
