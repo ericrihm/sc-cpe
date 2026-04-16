@@ -123,11 +123,19 @@ async function verifyPdf(file) {
             out.textContent = "No registered PDF hash to compare against.";
             return;
         }
+        // Screen-reader note: role + aria-label make the Unicode glyphs
+        // announce as "Match" / "Mismatch" instead of "check mark" /
+        // "warning sign white", and gives the region a programmatic role
+        // so the result is announced as a discrete status update.
         if (got === expectedPdfSha) {
             out.className = "match-ok";
+            out.setAttribute("role", "status");
+            out.setAttribute("aria-label", "Match: this PDF matches the registered certificate");
             out.textContent = "\u2713 This PDF matches the certificate registered under that token.";
         } else {
             out.className = "match-bad";
+            out.setAttribute("role", "alert");
+            out.setAttribute("aria-label", "Mismatch: this PDF does not match the registered certificate");
             out.textContent = "\u26A0 This PDF does NOT match. The token is registered, but the PDF you uploaded is not the one we issued. Computed: " + got;
         }
     } catch (e) {
