@@ -51,10 +51,8 @@ this email — no further action is taken.</p>`;
 // Success path: if we find an active user, we queue a recovery email via
 // email_outbox with idempotency_key=recover:{user_id}:{hour_bucket}, so two
 // requests in the same hour for the same user collapse to one queued email.
-//
-// The email_outbox consumer for non-monthly templates is not yet built — rows
-// are queued but will only send once a consumer Worker is deployed. This is
-// an accepted MVP gap; the row is durable and the consumer can drain later.
+// workers/email-sender drains the outbox every 2 min (templates: monthly_cert,
+// recover, register), so delivery is typically within one drain cycle.
 
 const MAX_PER_HOUR = 5;
 const CONSTANT_RESPONSE = {
