@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="/style.css">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <meta name="theme-color" content="#0b3d5c">
+<script src="/theme.js"></script>
 <style>
 .cal-nav { display: flex; align-items: center; gap: 12px; margin: 8px 0 10px; }
 .cal-nav button { min-width: 32px; padding: 2px 8px; font-size: 18px; cursor: pointer; }
@@ -16,9 +17,10 @@
     gap: 4px;
     font-size: 13px;
 }
-.cal-head { font-weight: 600; text-align: center; padding: 4px 0; color: #555; }
+.cal-head { font-weight: 600; text-align: center; padding: 4px 0; color: var(--muted); }
 .cal-cell {
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border);
+    background: var(--card);
     border-radius: 4px;
     padding: 4px 6px;
     min-height: 46px;
@@ -27,109 +29,128 @@
     justify-content: space-between;
 }
 .cal-cell.cal-empty { border-color: transparent; background: transparent; }
-.cal-cell.cal-today { outline: 2px solid #2563eb; outline-offset: -2px; }
+.cal-cell.cal-today { outline: 2px solid var(--accent); outline-offset: -2px; }
 .cal-cell .cal-dots { display: flex; gap: 3px; align-items: center; flex-wrap: wrap; }
 .cal-cell .cal-dot { margin: 0; }
-.cal-cell .cal-day { font-weight: 600; color: #111; }
-.cal-cell .cal-marks { font-size: 10px; color: #555; }
-.cal-cell.has-credit { background: #dcfce7; border-color: #86efac; }
-.cal-cell.has-appeal-open { background: #fef9c3; border-color: #facc15; }
-.cal-cell.has-appeal-granted { background: #dbeafe; border-color: #60a5fa; }
-.cal-cell.has-appeal-denied { background: #fee2e2; border-color: #fca5a5; }
+.cal-cell .cal-day { font-weight: 600; color: var(--fg-strong); }
+.cal-cell .cal-marks { font-size: 10px; color: var(--muted); }
+.cal-cell.has-credit { background: var(--ok-soft-bg); border-color: var(--ok-soft-border); }
+.cal-cell.has-credit .cal-day { color: var(--ok-soft-text); }
+.cal-cell.has-appeal-open { background: var(--warn-soft-bg); border-color: var(--warn-soft-border); }
+.cal-cell.has-appeal-open .cal-day { color: var(--warn-soft-text); }
+.cal-cell.has-appeal-granted { background: var(--info-soft-bg); border-color: var(--info-soft-border); }
+.cal-cell.has-appeal-granted .cal-day { color: var(--info-soft-text); }
+.cal-cell.has-appeal-denied { background: var(--bad-soft-bg); border-color: var(--bad-soft-border); }
+.cal-cell.has-appeal-denied .cal-day { color: var(--bad-soft-text); }
 .cal-dot {
     display: inline-block; width: 10px; height: 10px; border-radius: 50%;
     vertical-align: middle; margin: 0 2px 2px 8px;
 }
-.cal-dot.cal-credited { background: #86efac; border: 1px solid #16a34a; }
-.cal-dot.cal-appeal-open { background: #facc15; border: 1px solid #ca8a04; }
-.cal-dot.cal-appeal-granted { background: #60a5fa; border: 1px solid #2563eb; }
-.cal-dot.cal-appeal-denied { background: #fca5a5; border: 1px solid #dc2626; }
+.cal-dot.cal-credited      { background: var(--ok-soft-border);   border: 1px solid var(--ok); }
+.cal-dot.cal-appeal-open   { background: var(--warn-soft-border); border: 1px solid var(--warn); }
+.cal-dot.cal-appeal-granted{ background: var(--info-soft-border); border: 1px solid var(--accent); }
+.cal-dot.cal-appeal-denied { background: var(--bad-soft-border);  border: 1px solid var(--bad); }
 .cal-legend { margin-top: 8px; }
 
 /* Certificates list — replaces the old table on all viewports. Cards
    read well on phones and still look clean on desktop. */
 .cert-list { display: flex; flex-direction: column; gap: 10px; }
 .cert-row {
-    border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px 14px;
-    background: #fff;
+    border: 1px solid var(--border); border-radius: 6px; padding: 12px 14px;
+    background: var(--card);
 }
-.cert-row.is-superseded { background: #fafafa; border-style: dashed; }
+.cert-row.is-superseded { background: var(--card-alt); border-style: dashed; }
 .cert-row-top {
     display: flex; justify-content: space-between; align-items: baseline;
     gap: 8px; flex-wrap: wrap;
 }
-.cert-period { font-weight: 600; font-size: 15px; color: #111; }
-.cert-meta { font-size: 12px; color: #555; margin-top: 2px; }
+.cert-period { font-weight: 600; font-size: 15px; color: var(--fg-strong); }
+.cert-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
 .cert-actions {
     display: flex; gap: 8px; align-items: center; margin-top: 10px;
     flex-wrap: wrap;
 }
 .cert-verify {
     display: inline-block; padding: 5px 10px; font-size: 13px;
-    border: 1px solid #2563eb; border-radius: 4px; color: #2563eb;
-    text-decoration: none; background: #fff;
+    border: 1px solid var(--accent); border-radius: 4px; color: var(--accent);
+    text-decoration: none; background: var(--card);
 }
-.cert-verify:hover { background: #eff6ff; }
+.cert-verify:hover { background: var(--accent-soft-bg); }
 .pill {
     display: inline-block; padding: 2px 8px; border-radius: 999px;
     font-size: 11px; font-weight: 600; line-height: 16px;
 }
-.pill-green { background: #dcfce7; color: #166534; }
-.pill-grey  { background: #f3f4f6; color: #374151; }
-.pill-red   { background: #fee2e2; color: #991b1b; }
-.pill-amber { background: #fef3c7; color: #92400e; }
+.pill-green { background: var(--ok-soft-bg);      color: var(--ok-soft-text); }
+.pill-grey  { background: var(--neutral-soft-bg); color: var(--neutral-soft-text); }
+.pill-red   { background: var(--bad-soft-bg);     color: var(--bad-soft-text); }
+.pill-amber { background: var(--warn-soft-bg);    color: var(--warn-soft-text); }
 .fb-details { font-size: 12px; }
 .fb-details > summary {
-    cursor: pointer; color: #555; list-style: none;
-    padding: 4px 8px; border: 1px solid #e5e7eb; border-radius: 4px;
+    cursor: pointer; color: var(--muted); list-style: none;
+    padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px;
 }
-.fb-details > summary:hover { background: #f9fafb; }
-.fb-details[open] > summary { color: #111; border-color: #cbd5e1; }
+.fb-details > summary:hover { background: var(--hover-bg); }
+.fb-details[open] > summary { color: var(--fg-strong); border-color: var(--border-strong); }
 .fb-picker {
     display: flex; gap: 6px; margin-top: 8px;
 }
 .fb-picker button {
     font-size: 12px; padding: 4px 10px; border-radius: 4px;
-    border: 1px solid #d1d5db; background: #fff; cursor: pointer;
+    border: 1px solid var(--border-strong); background: var(--card);
+    color: var(--fg); cursor: pointer;
 }
-.fb-picker button:hover { background: #f9fafb; }
-.fb-picker button[data-r="ok"]:hover    { border-color: #16a34a; color: #166534; }
-.fb-picker button[data-r="typo"]:hover  { border-color: #d97706; color: #92400e; }
-.fb-picker button[data-r="wrong"]:hover { border-color: #dc2626; color: #991b1b; }
+.fb-picker button:hover { background: var(--hover-bg); }
+.fb-picker button[data-r="ok"]:hover    { border-color: var(--ok);   color: var(--ok-soft-text); }
+.fb-picker button[data-r="typo"]:hover  { border-color: var(--warn); color: var(--warn-soft-text); }
+.fb-picker button[data-r="wrong"]:hover { border-color: var(--bad);  color: var(--bad-soft-text); }
 .cert-history-toggle {
-    font-size: 12px; color: #555; cursor: pointer;
+    font-size: 12px; color: var(--muted); cursor: pointer;
     margin-top: 4px; background: none; border: none; padding: 4px 0;
 }
-.cert-history-toggle:hover { color: #111; text-decoration: underline; }
+.cert-history-toggle:hover { color: var(--fg-strong); text-decoration: underline; }
 
 /* Attendance list — same card pattern as certs for mobile-first UX. */
 .att-list { display: flex; flex-direction: column; gap: 10px; }
 .att-row {
-    border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px 14px;
-    background: #fff;
+    border: 1px solid var(--border); border-radius: 6px; padding: 12px 14px;
+    background: var(--card);
 }
 .att-row-top {
     display: flex; justify-content: space-between; align-items: baseline;
     gap: 8px; flex-wrap: wrap;
 }
 .att-title {
-    font-weight: 600; font-size: 14px; color: #111; line-height: 1.3;
+    font-weight: 600; font-size: 14px; color: var(--fg-strong); line-height: 1.3;
     word-break: break-word;
 }
-.att-title a { color: inherit; text-decoration: none; border-bottom: 1px dotted #9ca3af; }
-.att-title a:hover { border-bottom-color: #2563eb; color: #2563eb; }
-.att-meta { font-size: 12px; color: #555; margin-top: 4px; }
+.att-title a { color: inherit; text-decoration: none; border-bottom: 1px dotted var(--muted); }
+.att-title a:hover { border-bottom-color: var(--accent); color: var(--accent); }
+.att-meta { font-size: 12px; color: var(--muted); margin-top: 4px; }
 .att-actions { margin-top: 10px; }
 .att-ps-btn {
     font-size: 12px; padding: 5px 10px; border-radius: 4px;
-    border: 1px solid #2563eb; color: #2563eb; background: #fff;
+    border: 1px solid var(--accent); color: var(--accent); background: var(--card);
     cursor: pointer;
 }
-.att-ps-btn:hover { background: #eff6ff; }
+.att-ps-btn:hover { background: var(--accent-soft-bg); }
 .att-ps-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-.att-ps-done { font-size: 12px; color: #166534; }
+.att-ps-done { font-size: 12px; color: var(--ok-soft-text); }
 .warn-list { margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
 .warn-list li { margin-bottom: 4px; }
+
+.msg-ok  { color: var(--ok-soft-text); }
+.msg-bad { color: var(--bad-soft-text); }
+
+.code-expired-note { color: var(--bad-soft-text); }
+.today-credited { color: var(--ok); }
+.today-waiting  { color: var(--warn); }
+.today-missed   { color: var(--warn); }
+
+.window-warn {
+    border-left: 4px solid var(--warn-soft-border);
+    background: var(--warn-soft-bg);
+}
+.window-warn .muted { color: var(--muted); }
 </style>
 </head>
 <body>
@@ -137,7 +158,7 @@
     <h1>My SC-CPE Dashboard</h1>
     <div id="err" class="err" hidden></div>
     <section id="body" hidden>
-        <div id="window-warn-card" class="card" hidden style="border-left:4px solid #f59e0b;background:#fef3c7;">
+        <div id="window-warn-card" class="card window-warn" hidden>
             <h2 style="margin-top:0;">Code posted outside the live window</h2>
             <p id="window-warn-body" style="margin:0;"></p>
             <p class="muted" style="font-size:11px;margin:8px 0 0;">
@@ -608,7 +629,7 @@ function renderCodeStatus(codeState, codeExpiresAt) {
         status.innerHTML = `Your code expires <strong>${friendly}</strong>. Lost it?`;
         btn.hidden = false;
     } else if (codeState === "expired") {
-        status.innerHTML = `<strong style="color:#b91c1c">Your code expired ${friendly}.</strong>
+        status.innerHTML = `<strong class="code-expired-note">Your code expired ${friendly}.</strong>
             Request a fresh one — the new code is delivered by email.`;
         btn.hidden = false;
     } else {
@@ -648,26 +669,26 @@ document.getElementById("rotate-btn").addEventListener("click", async () => {
         const d = await r.json().catch(() => ({}));
         if (r.ok) {
             msg.textContent = "Rotated. Check your email for the new link — this one stops working shortly.";
-            msg.style.color = "#15803d";
+            msg.style.color = "var(--ok-soft-text)";
             btn.textContent = "Rotated ✓";
             // Leave button disabled — the old token is already invalid.
         } else if (r.status === 429) {
             msg.textContent = "Too many rotations — try again in an hour.";
-            msg.style.color = "#b91c1c";
+            msg.style.color = "var(--bad-soft-text)";
             btn.disabled = false;
         } else if (r.status === 403) {
             msg.textContent = "Blocked (origin check failed). Open the dashboard URL directly in your browser.";
-            msg.style.color = "#b91c1c";
+            msg.style.color = "var(--bad-soft-text)";
             btn.disabled = false;
         } else {
             msg.textContent = `Couldn't rotate (${r.status}).`;
-            msg.style.color = "#b91c1c";
+            msg.style.color = "var(--bad-soft-text)";
             btn.disabled = false;
         }
         msg.hidden = false;
     } catch {
         msg.textContent = "Network error — try again.";
-        msg.style.color = "#b91c1c";
+        msg.style.color = "var(--bad-soft-text)";
         msg.hidden = false;
         btn.disabled = false;
     }
@@ -684,21 +705,21 @@ document.getElementById("resend-btn").addEventListener("click", async () => {
         const d = await r.json().catch(() => ({}));
         if (r.ok) {
             msg.textContent = "New code sent. Check your email.";
-            msg.style.color = "#15803d";
+            msg.style.color = "var(--ok-soft-text)";
         } else if (r.status === 429) {
             msg.textContent = "Too many requests — try again in an hour.";
-            msg.style.color = "#b91c1c";
+            msg.style.color = "var(--bad-soft-text)";
         } else if (r.status === 409) {
             msg.textContent = "Already verified — no code needed.";
-            msg.style.color = "#15803d";
+            msg.style.color = "var(--ok-soft-text)";
         } else {
             msg.textContent = `Couldn't send code (${r.status}).`;
-            msg.style.color = "#b91c1c";
+            msg.style.color = "var(--bad-soft-text)";
         }
         msg.hidden = false;
     } catch {
         msg.textContent = "Network error — try again.";
-        msg.style.color = "#b91c1c";
+        msg.style.color = "var(--bad-soft-text)";
         msg.hidden = false;
     } finally {
         btn.disabled = false;
@@ -731,10 +752,10 @@ function renderToday(today) {
     const status = document.getElementById("today-status");
     const hint = document.getElementById("today-hint");
     if (today.credited) {
-        status.innerHTML = "<strong style='color:#1a7f37'>&#10003; Credited</strong> &nbsp;0.5 CPE recorded for this session.";
+        status.innerHTML = "<strong class='today-credited'>&#10003; Credited</strong> &nbsp;0.5 CPE recorded for this session.";
         hint.hidden = true;
     } else if (today.state === "live") {
-        status.innerHTML = "<strong style='color:#9a6700'>&#9203; Waiting for qualifying message</strong>";
+        status.innerHTML = "<strong class='today-waiting'>&#9203; Waiting for qualifying message</strong>";
         hint.hidden = false;
         if (refreshTimer) clearTimeout(refreshTimer);
         refreshTimer = setTimeout(() => { refreshTimer = null; load(); }, 30000);
@@ -750,7 +771,7 @@ function renderToday(today) {
               (lastCredit ? ` (most recent ${lastCredit.session_date}).` : ".")
             : "";
         status.innerHTML =
-            "<strong style='color:#9a6700'>This session ended without credit.</strong> " +
+            "<strong class='today-missed'>This session ended without credit.</strong> " +
             "We didn't see your code in the chat for this briefing." + priorLine +
             " <br><span class='muted' style='font-size:12px;'>" +
             "If you believe you posted a qualifying message, open an appeal from the attendance calendar." +
