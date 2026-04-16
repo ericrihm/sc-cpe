@@ -194,6 +194,18 @@
             </p>
         </div>
 
+        <div class="card" id="rotate-card" hidden>
+            <h2>Dashboard link security</h2>
+            <p class="muted" style="font-size:12px;">
+                This dashboard URL is your account credential. If it leaked
+                (accidentally shared, screenshot posted, lost device), rotate
+                it here. We'll email a fresh URL to the address on file — this
+                page will stop working a few seconds later.
+            </p>
+            <button type="button" id="rotate-btn" style="margin-top:8px;">Rotate dashboard link</button>
+            <span id="rotate-msg" class="muted" hidden style="margin-left:8px;"></span>
+        </div>
+
         <div class="card" id="prefs-card" hidden>
             <h2>Certificate delivery</h2>
             <p class="muted" style="font-size:12px;">
@@ -246,6 +258,10 @@ async function load() {
     document.getElementById("body").hidden = false;
     document.getElementById("name").textContent = d.user.legal_name;
     document.getElementById("state").textContent = d.user.state;
+
+    // Rotate card is available to both pending and active users — either
+    // can have a leaked dashboard URL and need to invalidate it.
+    document.getElementById("rotate-card").hidden = false;
 
     if (d.user.state === "active") {
         const prefsCard = document.getElementById("prefs-card");
@@ -614,6 +630,43 @@ document.getElementById("prefs-radios").addEventListener("change", async (e) => 
         msg.textContent = "saved — next monthly run will respect this.";
     } catch (err) {
         msg.textContent = "failed: " + err.message;
+    }
+});
+
+document.getElementById("rotate-btn").addEventListener("click", async () => {
+    if (!confirm("Rotate your dashboard link now?\n\nWe'll email the new URL to the address on file. This page will stop working a few seconds later.")) return;
+    const btn = document.getElementById("rotate-btn");
+    const msg = document.getElementById("rotate-msg");
+    btn.disabled = true;
+    msg.hidden = true;
+    try {
+        const r = await fetch(`/api/me/${encodeURIComponent(token)}/rotate`,
+            { method: "POST" });
+        const d = await r.json().catch(() => ({}));
+        if (r.ok) {
+            msg.textContent = "Rotated. Check your email for the new link — this one stops working shortly.";
+            msg.style.color = "#15803d";
+            btn.textContent = "Rotated ✓";
+            // Leave button disabled — the old token is already invalid.
+        } else if (r.status === 429) {
+            msg.textContent = "Too many rotations — try again in an hour.";
+            msg.style.color = "#b91c1c";
+            btn.disabled = false;
+        } else if (r.status === 403) {
+            msg.textContent = "Blocked (origin check failed). Open the dashboard URL directly in your browser.";
+            msg.style.color = "#b91c1c";
+            btn.disabled = false;
+        } else {
+            msg.textContent = `Couldn't rotate (${r.status}).`;
+            msg.style.color = "#b91c1c";
+            btn.disabled = false;
+        }
+        msg.hidden = false;
+    } catch {
+        msg.textContent = "Network error — try again.";
+        msg.style.color = "#b91c1c";
+        msg.hidden = false;
+        btn.disabled = false;
     }
 });
 

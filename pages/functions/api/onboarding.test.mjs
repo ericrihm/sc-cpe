@@ -13,6 +13,7 @@ import { onRequestPost as recoverPost } from "./recover.js";
 import { onRequestGet as meGet } from "./me/[token].js";
 import { onRequestPost as deletePost } from "./me/[token]/delete.js";
 import { onRequestPost as resendPost } from "./me/[token]/resend-code.js";
+import { onRequestPost as rotatePost } from "./me/[token]/rotate.js";
 
 // ── helpers ───────────────────────────────────────────────────────────────
 
@@ -569,4 +570,89 @@ test("resend-code: unknown token → 404", async () => {
         request: req(`${BASE}/api/me/${SHORT_TOKEN}/resend-code`),
     });
     assert.equal(r.status, 404);
+});
+
+// ── me/[token]/rotate.js ──────────────────────────────────────────────────
+
+test("rotate: updates dashboard_token, queues email, returns no new token", async () => {
+    let updatedToken = null;
+    let queuedTo = null;
+    const db = mockDB([
+        {
+            match: /FROM users WHERE dashboard_token.*deleted_at IS NULL/s,
+            handler: () => ({ first: { id: FAKE_ULID, email: "alice@example.com", legal_name: "Alice Smith" } }),
+        },
+        {
+            match: /UPDATE users SET dashboard_token = \?1 WHERE id = \?2/,
+            handler: (_sql, binds) => { updatedToken = binds[0]; return { run: { meta: {} } }; },
+        },
+        {
+            match: /INSERT INTO email_outbox/,
+            handler: (_sql, binds) => { queuedTo = binds.find(b => String(b).includes("@")); return { run: { meta: {} } }; },
+        },
+        ...auditRules,
+    ]);
+    const r = await rotatePost({
+        params: { token: FAKE_TOKEN },
+        env: { DB: db, RATE_KV: kvPermissive },
+        request: req(`${BASE}/api/me/${FAKE_TOKEN}/rotate`),
+    });
+    assert.equal(r.status, 200);
+    const j = await r.json();
+    assert.ok(j.ok);
+    assert.ok(j.email_sent);
+    // Response body must NOT leak the new token (same philosophy as /register)
+    assert.equal(j.dashboard_url, undefined);
+    assert.equal(j.dashboard_token, undefined);
+    // UPDATE must have fired with a fresh 64-hex token
+    assert.ok(updatedToken, "UPDATE users SET dashboard_token must run");
+    assert.notEqual(updatedToken, FAKE_TOKEN, "new token must differ from old");
+    assert.match(updatedToken, /^[0-9a-f]{64}$/, "new token must be 64-hex");
+    // Email must be queued to the on-file address
+    assert.equal(queuedTo, "alice@example.com");
+});
+
+test("rotate: cross-origin request → 403 (CSRF gate)", async () => {
+    const r = await rotatePost({
+        params: { token: FAKE_TOKEN },
+        env: { DB: mockDB([]), RATE_KV: kvPermissive },
+        request: new Request(`${BASE}/api/me/${FAKE_TOKEN}/rotate`, {
+            method: "POST",
+            headers: { Origin: "https://attacker.example" },
+        }),
+    });
+    assert.equal(r.status, 403);
+    const j = await r.json();
+    assert.equal(j.error, "forbidden_origin");
+});
+
+test("rotate: unknown token → 404", async () => {
+    const db = mockDB([
+        {
+            match: /FROM users WHERE dashboard_token.*deleted_at IS NULL/s,
+            handler: () => ({ first: null }),
+        },
+    ]);
+    const r = await rotatePost({
+        params: { token: SHORT_TOKEN },
+        env: { DB: db, RATE_KV: kvPermissive },
+        request: req(`${BASE}/api/me/${SHORT_TOKEN}/rotate`),
+    });
+    assert.equal(r.status, 404);
+});
+
+test("rotate: rate limit trips when KV reports 3 prior hits this hour", async () => {
+    const kvAtLimit = { get: async () => "3", put: async () => {} };
+    const db = mockDB([
+        {
+            match: /FROM users WHERE dashboard_token.*deleted_at IS NULL/s,
+            handler: () => ({ first: { id: FAKE_ULID, email: "a@example.com", legal_name: "A" } }),
+        },
+    ]);
+    const r = await rotatePost({
+        params: { token: FAKE_TOKEN },
+        env: { DB: db, RATE_KV: kvAtLimit },
+        request: req(`${BASE}/api/me/${FAKE_TOKEN}/rotate`),
+    });
+    assert.equal(r.status, 429);
 });
