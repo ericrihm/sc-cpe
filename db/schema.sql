@@ -79,6 +79,11 @@ CREATE INDEX attendance_stream_idx ON attendance(stream_id);
 
 -- Issued certificates. UNIQUE(user_id, period_yyyymm) prevents double-issue.
 -- Issuer / name / signing cert fingerprint snapshotted at issuance.
+-- Column order reflects migration history: cert_kind and stream_id were
+-- appended via ALTER TABLE (migrations 003 + per-session work), and the
+-- stream_id FK lives inline because SQLite ALTER TABLE can't add a
+-- separate FOREIGN KEY clause. Keep in sync with the live sqlite_master
+-- representation or scripts/check_schema.sh --http reports drift.
 CREATE TABLE certs (
     id                    TEXT PRIMARY KEY,
     public_token          TEXT NOT NULL UNIQUE,
@@ -98,15 +103,14 @@ CREATE TABLE certs (
     revocation_reason     TEXT,
     revoked_at            TEXT,
     supersedes_cert_id    TEXT,
-    cert_kind             TEXT NOT NULL DEFAULT 'bundled',
-    stream_id             TEXT,
     generated_at          TEXT,
     delivered_at          TEXT,
     first_viewed_at       TEXT,
     created_at            TEXT NOT NULL,
+    cert_kind             TEXT NOT NULL DEFAULT 'bundled',
+    stream_id             TEXT REFERENCES streams(id),
     FOREIGN KEY (user_id) REFERENCES users(id),
     FOREIGN KEY (supersedes_cert_id) REFERENCES certs(id),
-    FOREIGN KEY (stream_id) REFERENCES streams(id),
     CHECK (state IN ('pending','generated','delivered','viewed_by_auditor','revoked','regenerated')),
     CHECK (length(public_token) >= 32)
 );
