@@ -23,6 +23,43 @@ the issuer.
 
 ---
 
+## Who runs this, and why trust it
+
+A CPE cert is only as good as the entity behind it. Three quick answers for
+the skeptical (which is most of this community, appropriately):
+
+- **Operator.** Simply Cyber LLC (United States). The source for this service
+  is public at [github.com/ericrihm/sc-cpe](https://github.com/ericrihm/sc-cpe)
+  — every line that decides who gets credit, every policy doc, every
+  deploy workflow. Branch protection + required CI + auto‑deploy means the
+  deployed bundle is the exact SHA you see on GitHub `main`.
+- **Domains.** You'll see three. The web + API live at
+  [sc-cpe-web.pages.dev](https://sc-cpe-web.pages.dev) (apex
+  `cpe.simplycyber.io` is reserved for future DNS wiring — until that lands,
+  `sc-cpe-web.pages.dev` is the canonical origin). Email (registration
+  codes, cert delivery, recovery, revocation notices) ships from
+  `certs@signalplane.co` via Resend, DKIM + SPF aligned with DMARC in
+  place; `signalplane.co` is the operator's verified email domain and hosts
+  the monitored `contact@`, `privacy@`, `security@` inboxes.
+- **Certificate integrity.** Each PDF is PAdES‑T signed with a dedicated
+  code‑signing key whose public fingerprint is printed on the cert
+  itself. The RFC‑3161 timestamp means the signature survives key
+  expiry. You can verify without talking to us: the
+  [verify portal](https://sc-cpe-web.pages.dev/verify.html) shows the
+  registered SHA‑256 and lets you drop the PDF in to compare client‑side,
+  or inspect the signature in any PAdES‑aware PDF reader.
+- **Audit integrity.** Every state transition — registration, attendance
+  credit, cert issue, delivery, revocation — writes an append‑only,
+  SHA‑256 hash‑chained row. `scripts/verify_audit_chain.py` replays the
+  whole chain against the live DB; a `UNIQUE INDEX` on `prev_hash` makes
+  forks structurally impossible.
+- **Security disclosure.** See
+  [security.txt](https://sc-cpe-web.pages.dev/.well-known/security.txt)
+  or email `security@signalplane.co` directly. 3‑day acknowledgement,
+  7‑day triage, 30‑day fix plan for P0/P1 findings.
+
+---
+
 ## What the certificate looks like
 
 ![Sample SC‑CPE certificate of attendance](docs/assets/sample-cert.png)
