@@ -24,9 +24,9 @@
     <h2>4. The Attendance Rule</h2>
     <p>A qualifying attendance is recorded when <strong>all</strong> of the following conditions are met:</p>
     <ul>
-        <li>Your registered YouTube channel posts at least one chat message containing three or more characters.</li>
-        <li>That message is posted during the <em>active window</em> of the live broadcast, defined as the period between the stream's <code>actualStartTime</code> and <code>actualEndTime</code> as reported by the YouTube Data API.</li>
-        <li>The message is posted within a mid-stream window — not in the first or last segment reserved to exclude pre-stream and post-stream chat noise (exact window parameters are set at the operator's discretion and may be adjusted to improve accuracy).</li>
+        <li>Your registered YouTube channel posts at least one chat message containing three or more characters with at least one letter or digit.</li>
+        <li>That message is posted while the broadcast is live, as reported by the YouTube Data API's <code>actualStartTime</code> and <code>actualEndTime</code> fields. A short pre-stream grace window (currently fifteen minutes) accommodates early viewers whose clients start chat slightly before the official start; messages posted more than fifteen minutes before <code>actualStartTime</code> do not qualify, and the rejection is visible on your dashboard so you know credit did not land.</li>
+        <li>Replay chat posted after the live broadcast ends does not qualify. YouTube closes live chat at <code>actualEndTime</code>, so this boundary is enforced by the platform itself rather than by a separate rule.</li>
         <li>Your YouTube channel is bound to an active, verified SC-CPE account at the time the message is posted.</li>
     </ul>
     <p>Each weekday broadcast awards at most 0.5 CPE credits per registered user, regardless of how many messages are posted. No credits are awarded for replayed, archived, or on-demand viewing.</p>
