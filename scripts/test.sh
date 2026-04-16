@@ -11,4 +11,5 @@ node --test \
     workers/poller/src/race-detection.test.mjs \
     workers/purge/src/heartbeat-staleness.test.mjs \
     scripts/test_chain_parity.mjs \
-    scripts/test_source_parity.mjs
+    scripts/test_source_parity.mjs \
+    scripts/test_audit_pii_scrub.mjs
