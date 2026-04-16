@@ -55,8 +55,12 @@ the skeptical (which is most of this community, appropriately):
   forks structurally impossible.
 - **Security disclosure.** See
   [security.txt](https://sc-cpe-web.pages.dev/.well-known/security.txt)
-  or email `security@signalplane.co` directly. 3‑day acknowledgement,
-  7‑day triage, 30‑day fix plan for P0/P1 findings.
+  or email `certs@signalplane.co` with `[SECURITY]` in the subject.
+  3‑day acknowledgement, 7‑day triage, 30‑day fix plan for P0/P1
+  findings. (All operator inbound mail goes to a single inbox at
+  launch; see [Privacy §13](https://sc-cpe-web.pages.dev/privacy.html#13)
+  for the full `[SECURITY]` / `[PRIVACY]` / `[ACCOUNT]` / `[CERT]`
+  prefix scheme.)
 - **Live service health.** [`/status.html`](https://sc-cpe-web.pages.dev/status.html)
   auto‑refreshes every 30s from `/api/health` and shows per‑cron
   staleness in plain English; [`/faq.html`](https://sc-cpe-web.pages.dev/faq.html)
