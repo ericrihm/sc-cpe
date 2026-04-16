@@ -1,0 +1,45 @@
+# SC-CPE security disclosure
+# Simply Cyber CPE (sc-cpe-web.pages.dev)
+#
+# This file follows RFC 9116. If your tooling shows a signature error, note
+# that we do not sign security.txt — the file is served over HTTPS from the
+# origin of record (sc-cpe-web.pages.dev) which is the authoritative
+# delivery channel for this policy.
+
+Contact: mailto:security@signalplane.co
+Expires: 2027-04-16T00:00:00.000Z
+Preferred-Languages: en
+Canonical: https://sc-cpe-web.pages.dev/.well-known/security.txt
+Policy: https://sc-cpe-web.pages.dev/privacy.html#security
+
+# What we care about (high-priority):
+#   - Anything that forges a certificate, bypasses revocation, or tampers
+#     with the hash-chained audit log.
+#   - Anything that lets one user's dashboard URL, verification code, or
+#     signed certificate end up attributed to another user.
+#   - Authentication / authorisation bypasses on /api/admin/* or
+#     /api/me/{token}/*.
+#   - Cross-site scripting / content injection that reaches the verify
+#     portal or the PDF issuer.
+#
+# What we care about less (please still report, but understand we may
+# defer): clickjacking on non-sensitive pages, best-practice header
+# nits without a concrete exploit path, theoretical timing attacks
+# against high-entropy tokens, denial-of-service without amplification.
+#
+# Response SLA:
+#   - Acknowledgement: within 3 business days.
+#   - Triage + initial assessment: within 7 business days.
+#   - Fix or mitigation plan: within 30 days for P0/P1 findings.
+#
+# We don't run a paid bug-bounty programme. We do publicly credit
+# researchers in the repo's CHANGELOG on fix-deploy (opt-in — say
+# "please credit me as X" in your initial email).
+#
+# Please do NOT:
+#   - Perform testing that exfiltrates other users' PII or destroys data.
+#   - Spam the registration, verification, or chat-code endpoints for
+#     volume testing (rate limits will trip and you will ruin our
+#     telemetry).
+#   - Publicly disclose before the fix ships, unless we've exceeded the
+#     SLA and you've given us at least 14 additional days to respond.
