@@ -93,3 +93,24 @@ jobs:
         working-directory: services/certs
         run: |
           python generate.py
+
+  alert-on-failure:
+    name: Discord alert on monthly-certs failure
+    needs: generate
+    if: failure()
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Notify Discord
+        env:
+          DISCORD_ALERT_WEBHOOK: ${{ secrets.DISCORD_ALERT_WEBHOOK }}
+        run: |
+          if [[ -z "${DISCORD_ALERT_WEBHOOK:-}" ]]; then
+            echo "DISCORD_ALERT_WEBHOOK unset — skipping"; exit 0
+          fi
+          payload=$(jq -cn \
+            --arg c ":rotating_light: **SC-CPE monthly-certs FAILED** on ${{ github.sha }} (period=${{ github.event.inputs.period_yyyymm || 'auto' }}). Month-end cert issuance did not complete. See Actions run ${{ github.run_id }}." \
+            '{content: $c, username: "SC-CPE Monthly"}')
+          curl -fsS --max-time 20 \
+            -H "Content-Type: application/json" \
+            -X POST -d "$payload" "$DISCORD_ALERT_WEBHOOK" >/dev/null

@@ -1,13 +1,14 @@
 name: watchdog
 
-# External liveness check. Polls /api/health every 15 minutes and alerts
-# Discord when any monitored source goes stale. Alert dedup state lives in
-# Cloudflare KV (via /api/watchdog-state) so we send one "down" message per
-# stale event and one "recovered" message when it clears — no spam.
-#
-# What counts as stale is computed server-side by /api/health, which is
-# window-aware: a silent poller outside the ET weekday 08:00-11:00 window
-# is not an incident.
+# External liveness + warnings check. Every 15 minutes:
+#   1. Poll /api/health for per-cron staleness.
+#   2. Poll /api/admin/ops-stats for runtime warnings (email queue stalled,
+#      cert-sign-pending stalled, Resend quota near cap, etc — anything
+#      flagged level=critical by computeWarnings() in ops-stats.js).
+# Alert dedup state lives in Cloudflare KV (/api/watchdog-state) so we send
+# one "down" message per event and one "recovered" per clear — no spam.
+# Heartbeat sources and warning codes share the same dedup namespace
+# (warning entries keyed "warn:<code>" to avoid collision).
 
 on:
   schedule:
@@ -30,6 +31,7 @@ jobs:
       HEALTH_URL: ${{ vars.HEALTH_URL }}
       WATCHDOG_STATE_URL: ${{ vars.WATCHDOG_STATE_URL }}
       WATCHDOG_SECRET: ${{ secrets.WATCHDOG_SECRET }}
+      ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
       DISCORD_ALERT_WEBHOOK: ${{ secrets.DISCORD_ALERT_WEBHOOK }}
     steps:
       - name: Check liveness and alert on transitions
@@ -90,5 +92,57 @@ jobs:
 
             else
               echo "$source: stale=$stale alerted=${already_alerted:-none} (no change)"
+            fi
+          done
+
+          # ── ops-stats warnings ────────────────────────────────────────
+          # Poll the admin ops-stats endpoint for level=critical runtime
+          # warnings (email_queue_stalled, certs_pending_stalled,
+          # resend_quota_95pct, etc). Same dedup state; keys prefixed
+          # "warn:" to avoid collision with heartbeat source names.
+          if [[ -z "${ADMIN_TOKEN:-}" ]]; then
+            echo "ADMIN_TOKEN unset — skipping ops-stats warnings poll"
+            exit 0
+          fi
+          ops_stats_url="${HEALTH_URL%/api/health}/api/admin/ops-stats"
+          ops=$(curl -fsS --max-time 20 \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            "$ops_stats_url" || echo "")
+          if [[ -z "$ops" ]]; then
+            echo "ops-stats poll failed — skipping warnings check"
+            exit 0
+          fi
+          echo "ops-stats.warnings count: $(echo "$ops" | jq '.warnings | length')"
+
+          # Current critical warnings (code|detail each line)
+          mapfile -t crit_lines < <(echo "$ops" | jq -r '.warnings[]? | select(.level=="critical") | "\(.code)|\(.detail)"')
+
+          # Fire alerts for any critical warning not yet alerted
+          for line in "${crit_lines[@]}"; do
+            IFS='|' read -r code detail <<< "$line"
+            dedup_key="warn:$code"
+            already_alerted=$(echo "$state" | jq -r --arg s "$dedup_key" '.alerted[$s] // ""')
+            if [[ -z "$already_alerted" ]]; then
+              echo "ALERT: warning $code — $detail"
+              post_discord ":rotating_light: **SC-CPE warning: $code** — $detail"
+              set_state "$dedup_key" "$(jq -cn --arg s "$dedup_key" '{source: $s}')"
+            else
+              echo "warn:$code alerted=$already_alerted (no change)"
+            fi
+          done
+
+          # Clear any previously-alerted warnings no longer in the critical list
+          mapfile -t prev_warn_keys < <(echo "$state" | jq -r '.alerted // {} | keys[] | select(startswith("warn:"))')
+          mapfile -t active_codes < <(echo "$ops" | jq -r '.warnings[]? | select(.level=="critical") | .code')
+          for k in "${prev_warn_keys[@]}"; do
+            code="${k#warn:}"
+            still_active=false
+            for ac in "${active_codes[@]}"; do
+              [[ "$ac" == "$code" ]] && still_active=true
+            done
+            if [[ "$still_active" == "false" ]]; then
+              echo "RECOVERED: warning $code cleared"
+              post_discord ":white_check_mark: **SC-CPE warning cleared: $code**"
+              set_state "$k" "$(jq -cn --arg s "$k" '{source: $s, clear: true}')"
             fi
           done
