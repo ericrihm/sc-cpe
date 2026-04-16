@@ -60,7 +60,15 @@ jobs:
             "$ORIGIN/api/admin/heartbeat-status" \
             | python3 -c "import json,sys; d=json.load(sys.stdin); print(next((s.get('age_seconds') or 99999 for s in d.get('sources',[]) if s.get('source')=='canary'), 99999))")
           echo "canary age: ${age}s"
-          if [[ "$age" -gt 4200 ]]; then
+          # age == 99999 means no canary heartbeat row exists at all —
+          # bootstrap case (this is the first run after smoke regained the
+          # ability to execute). Let the later "Write canary heartbeat" step
+          # seed it; the NEXT hourly run will assert against a real number.
+          # Any actual age > 70min (with the row present) still fails — that
+          # catches a silently-regressed beat endpoint.
+          if [[ "$age" -ge 99999 ]]; then
+            echo "canary heartbeat absent — bootstrapping on this run; next hourly run will enforce freshness"
+          elif [[ "$age" -gt 4200 ]]; then
             echo "canary heartbeat stale (>70min) — beat endpoint may have regressed" >&2
             exit 1
           fi
