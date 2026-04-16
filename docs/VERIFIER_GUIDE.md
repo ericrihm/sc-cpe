@@ -85,11 +85,11 @@ higher level of assurance than signature + hash-match:
 ## Questions, disputes, or suspected forgery
 
 - **Report suspected forgery or credential fraud:**
-  `security@signalplane.co` (see
+  `certs@signalplane.co with subject `[SECURITY]`` (see
   https://sc-cpe-web.pages.dev/.well-known/security.txt for the
   full disclosure policy and SLAs).
 - **Revocation request (e.g., you're a CE body that determined a cert
-  was issued in error):** `contact@signalplane.co`. Include the
+  was issued in error):** `certs@signalplane.co` with subject `[CERT]`. Include the
   cert's public token.
 - **Policy questions:** see https://sc-cpe-web.pages.dev/privacy.html
   and https://sc-cpe-web.pages.dev/terms.html.
