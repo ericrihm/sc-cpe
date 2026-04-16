@@ -46,6 +46,7 @@
     <button class="refresh" id="refresh">Refresh</button>
     <span class="muted" id="ts" style="margin-left:10px;font-size:12px;"></span>
     <div id="err"></div>
+    <div id="warnings" style="display:flex;flex-direction:column;gap:6px;margin:10px 0;"></div>
 
     <div class="section-h">Overview (last 24h)</div>
     <div class="grid" id="stats"></div>
@@ -105,6 +106,7 @@ async function load() {
       fetchJson("/api/admin/cert-feedback?rating=typo,wrong&limit=100"),
       fetchJson("/api/admin/toggles"),
     ]);
+    renderWarnings(stats);
     renderStats(stats);
     renderToggles(toggles);
     renderHeartbeats(hb);
@@ -117,6 +119,19 @@ async function load() {
       $("#app").style.display = "none";
       $("#login").style.display = "";
     }
+  }
+}
+function renderWarnings(s) {
+  const box = $("#warnings"); box.innerHTML = "";
+  for (const w of (s.warnings || [])) {
+    const row = document.createElement("div");
+    const isCritical = w.level === "critical";
+    row.style.cssText = `padding:8px 14px;border-radius:4px;font-size:13px;border:1px solid;` +
+      (isCritical
+        ? "background:#3a1818;border-color:#6b2a2a;color:#ffb4b4;"
+        : "background:#3a2f18;border-color:#6b5a2a;color:#ffe4a4;");
+    row.innerHTML = `<strong>${isCritical ? "CRITICAL" : "warn"}</strong> · <code style="font-size:11px;">${w.code}</code> — ${w.detail}`;
+    box.appendChild(row);
   }
 }
 function renderToggles(d) {
