@@ -51,7 +51,7 @@ export async function onRequestGet({ request, env }) {
         "SELECT COUNT(*) AS n FROM users WHERE deleted_at IS NULL AND (email LIKE '%@example.com' OR email LIKE '%@example.org' OR email LIKE '%@test.invalid')",
     ).first();
 
-    return json({
+    const payload = {
         ok: true,
         now: new Date().toISOString(),
         since_24h: since24h,
@@ -88,5 +88,85 @@ export async function onRequestGet({ request, env }) {
             attendance: fixtureAttendance?.n ?? 0,
             users: fixtureUsers?.n ?? 0,
         },
-    });
+    };
+    payload.warnings = computeWarnings(payload);
+    return json(payload);
+}
+
+// Launch-day budget + health warnings. Pure function so the admin
+// dashboard and any future external monitor can render from the same
+// source. Each warning is {level: "warn"|"critical", code, detail}.
+//
+// Thresholds are tuned for the free-tier infrastructure (Resend 3k/day,
+// Cloudflare D1 free limits). Update the constants if we upgrade a tier.
+export function computeWarnings(s) {
+    const w = [];
+    const push = (level, code, detail) => w.push({ level, code, detail });
+
+    // Resend free tier: 3000 emails/day. Warn at 80%, critical at 95%.
+    const RESEND_DAILY_QUOTA = 3000;
+    const sent = s.email_outbox.sent_24h;
+    if (sent >= RESEND_DAILY_QUOTA * 0.95) {
+        push("critical", "resend_quota_95pct",
+            `${sent}/${RESEND_DAILY_QUOTA} Resend emails in last 24h — approaching daily quota`);
+    } else if (sent >= RESEND_DAILY_QUOTA * 0.8) {
+        push("warn", "resend_quota_80pct",
+            `${sent}/${RESEND_DAILY_QUOTA} Resend emails in last 24h`);
+    }
+
+    // Queue age > 10min = email-sender looks stalled (runs every 2min).
+    const qAge = s.email_outbox.oldest_queued_age_seconds;
+    if (qAge != null && qAge > 1800) {
+        push("critical", "email_queue_stalled",
+            `Oldest queued email is ${Math.floor(qAge / 60)} min old — email-sender may be down`);
+    } else if (qAge != null && qAge > 600) {
+        push("warn", "email_queue_aging",
+            `Oldest queued email is ${Math.floor(qAge / 60)} min old`);
+    }
+
+    // Queue depth warnings (sender drains ~750/hour — burst above this floods).
+    if (s.email_outbox.queued > 500) {
+        push("critical", "email_queue_deep",
+            `${s.email_outbox.queued} queued — exceeds single-hour drain capacity`);
+    } else if (s.email_outbox.queued > 100) {
+        push("warn", "email_queue_elevated", `${s.email_outbox.queued} queued`);
+    }
+
+    // Any permanently-failed email is worth noticing.
+    if (s.email_outbox.failed > 0) {
+        push("warn", "email_failures",
+            `${s.email_outbox.failed} email(s) in 'failed' state — non-transient delivery errors`);
+    }
+
+    // Pending certs: cron runs every 2h. > 4h old = cron stalled.
+    const cpAge = s.certs.oldest_pending_age_seconds;
+    if (cpAge != null && cpAge > 12 * 3600) {
+        push("critical", "certs_pending_stalled",
+            `Oldest pending cert is ${Math.floor(cpAge / 3600)}h old — cert-sign-pending may be down`);
+    } else if (cpAge != null && cpAge > 4 * 3600) {
+        push("warn", "certs_pending_aging",
+            `Oldest pending cert is ${Math.floor(cpAge / 3600)}h old`);
+    }
+
+    // Signup abuse signal: high pending ratio (signups without verifications).
+    // Only fires past a minimum volume to avoid noisy early-stage warnings.
+    if (s.users.pending > 100 && s.users.active > 0 && s.users.pending > 5 * s.users.active) {
+        push("warn", "signup_abuse_pattern",
+            `${s.users.pending} pending vs ${s.users.active} active — unusually high unverified signup rate`);
+    }
+
+    // Open appeals: anything open > 0 is worth an admin eyeball.
+    if (s.appeals_open > 0) {
+        push("warn", "appeals_open",
+            `${s.appeals_open} open appeal(s) awaiting admin review`);
+    }
+
+    // Fixture pollution in prod — test data leaked into production DB.
+    const fp = s.fixture_pollution;
+    if (fp.streams + fp.attendance + fp.users > 0) {
+        push("warn", "fixture_pollution",
+            `Test fixtures detected in DB: ${fp.streams} streams, ${fp.attendance} attendance, ${fp.users} users`);
+    }
+
+    return w;
 }
