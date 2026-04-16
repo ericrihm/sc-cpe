@@ -21,6 +21,13 @@ timestamp validate offline in any PAdES‑aware reader, and the
 `pdf_sha256` registry‑match adds a second check against issuer‑published
 records.
 
+### 60‑second quickstart
+
+1. Register at [sc-cpe-web.pages.dev](https://sc-cpe-web.pages.dev) — email + legal name (matches your professional certifications) + Turnstile. Your dashboard link + chat code arrive by email.
+2. Watch the Daily Threat Briefing live (ET 08:00–11:00, Mon–Fri) and post any message containing your code in the YouTube live chat.
+3. Credit lands within ~60s of your post, visible on your dashboard. Cert PDF ships per‑session on demand (~2h) or monthly bundled — whichever you picked.
+4. Drop the PDF onto [`/verify.html`](https://sc-cpe-web.pages.dev/verify.html) any time to confirm the SHA‑256 matches the registered hash client‑side.
+
 > **Status:** in production on Cloudflare. Smoke green, audit chain intact,
 > five fresh heartbeats, hourly synthetic canary, Discord alerting wired
 > across deploy-prod / smoke / watchdog / monthly-certs / cert-sign-pending
@@ -207,9 +214,22 @@ of evidence that survive long after the session ended:
    the window that was open, so you always know why credit didn't land.
 2. **Hash‑chained audit log.** Every state transition from registration
    through cert delivery is recorded in an append‑only, SHA‑256 chained
-   table. A `UNIQUE INDEX` on `prev_hash` makes forks structurally
-   impossible. `scripts/verify_audit_chain.py` replays the whole chain
-   against the live database.
+   table. A `UNIQUE INDEX` on `prev_hash` serialises concurrent writers
+   so accidental or racing forks fail at insert time rather than
+   silently branching. `scripts/verify_audit_chain.py` replays the
+   whole chain against the live database end‑to‑end; the admin endpoint
+   `/api/admin/audit-chain-verify` does the same walk live. The
+   canonical row serialisation is byte‑identical across Pages Functions,
+   Workers, and the Python cert signer — `scripts/test_chain_parity.mjs`
+   guards that invariant in CI. Signing keys are CA‑rooted; the public
+   cert fingerprint is embedded on every PDF so a verifier doesn't
+   need our help to check a signature.
+
+   ```
+   user_registered → code_matched → attendance_credited → cert_issued → email_sent
+          ▲                                                      ▲
+          └───────── prev_hash = sha256(canonicalAuditRow(tip)) ─┘
+   ```
 3. **PAdES‑T signature + RFC‑3161 timestamp.** Certs are signed with a
    dedicated CA‑rooted code‑signing key and bound to a trusted timestamp
    authority, so the signature outlives the signing key's validity
@@ -224,30 +244,6 @@ of evidence that survive long after the session ended:
 The underlying attendance row records `first_msg_id` and `first_msg_sha256`
 — retrievable via the verify URL — so an auditor can cross‑reference the
 cert against YouTube's own liveChatMessages record.
-
----
-
-## Trust model
-
-Every state change writes a row to `audit_log`. Each row includes the
-SHA‑256 of its predecessor — a classic hash chain. A `UNIQUE INDEX` on
-`prev_hash` serialises concurrent writers, so forks are structurally
-impossible.
-
-```
-user_registered → code_matched → attendance_credited → cert_issued → email_sent
-       ▲                                                     ▲
-       └──────── prev_hash = sha256(canonicalAuditRow(tip)) ─┘
-```
-
-- `scripts/verify_audit_chain.py` walks the entire chain end‑to‑end against
-  the D1 HTTP API. Last run: 22 rows, unique index present, no breaks.
-- `scripts/test_chain_parity.mjs` guards that the canonical‑row function
-  is byte‑identical across JS (Pages Functions + Workers) and Python
-  (cert signer + verifier). Any divergence breaks CI immediately.
-- Certs are signed with a dedicated CA‑rooted code‑signing key; the
-  public cert fingerprint is embedded on the PDF itself so a verifier
-  doesn't need our help to check a signature.
 
 ---
 
@@ -351,7 +347,7 @@ Prerequisites: Node 20+, Python 3.11+, `wrangler` logged in.
 
 ```bash
 scripts/install_hooks.sh                 # git hooks — runs test suite pre‑push
-bash scripts/test.sh                     # pure‑logic tests (93/93 currently)
+bash scripts/test.sh                     # pure‑logic tests (130/130 currently)
 scripts/check_schema.sh                  # diff live D1 schema vs repo
 ADMIN_TOKEN=... ORIGIN=https://sc-cpe-web.pages.dev \
   scripts/smoke_hardening.sh             # read‑only probe of deployed origin
