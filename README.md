@@ -298,19 +298,42 @@ python3 -m venv .venv-sample
 
 ## Deploying
 
-Pages auto‑deploy from GitHub is intentionally unwired today — every Pages
-deploy is manual. Workers deploy via wrangler; the Python cert cron runs
-on GitHub Actions.
+Pages + Workers ship automatically on every merge to `main` via
+[`.github/workflows/deploy-prod.yml`](.github/workflows/deploy-prod.yml):
+tests → Pages → Workers (`purge`, `poller`, `email-sender` in parallel) →
+post‑deploy hardening smoke. End‑to‑end ~2 min on a warm runner.
+
+`main` is branch‑protected: merges require a PR with `Node test suite`
+and `Secret scan (gitleaks)` green, no force‑push, no direct commits
+(admin break‑glass is available via `enforce_admins: false`). Auto‑merge
+is on — open a PR and `gh pr merge --auto --squash` lands it the moment
+CI goes green, triggering the deploy.
+
+Typical change flow:
 
 ```bash
-cd pages          && wrangler pages deploy .
-cd workers/purge  && wrangler deploy
-cd workers/poller && wrangler deploy
-cd workers/email-sender && wrangler deploy
+git checkout -b fix/whatever
+# ...edit...
+git commit -m "fix(x): thing"
+git push -u origin fix/whatever
+gh pr create --fill
+gh pr merge --auto --squash
 ```
 
-After any deploy, run the smoke suite. The hourly `smoke.yml` canary also
-catches regressions within an hour.
+The Python cert cron (`services/certs/generate.py`) runs on its own
+schedule in `.github/workflows/{monthly-certs,cert-sign-pending}.yml`,
+independent of the web deploy.
+
+The hourly `smoke.yml` canary keeps running between deploys as an
+ongoing health probe — it doubles the coverage that `deploy-prod`'s
+post‑deploy smoke provides at release time.
+
+**Break-glass direct deploy** (rare: signing infra regression, CI-blocking
+bug). `enforce_admins: false` means admin pushes to `main` bypass the PR
+gate, and the push trigger still fires `deploy-prod`. Prefer toggling
+protection off in Settings → Branches if the emergency is that CI itself
+is red — otherwise just fix-and-push. Re-engage protection immediately
+after.
 
 ---
 
