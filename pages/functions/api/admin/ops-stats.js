@@ -16,7 +16,9 @@ export async function onRequestGet({ request, env }) {
         usersTotal, usersActive, usersPending,
         attendance24h, certs24h, certsTotal,
         appealsOpen,
-        outboxQueued, outboxFailed,
+        outboxQueued, outboxFailed, outboxSent24h,
+        outboxOldestQueued, outboxOldestFailed,
+        certsPending, certsOldestPending,
         auditTip,
     ] = await Promise.all([
         env.DB.prepare("SELECT COUNT(*) AS n FROM users WHERE deleted_at IS NULL").first(),
@@ -28,8 +30,16 @@ export async function onRequestGet({ request, env }) {
         env.DB.prepare("SELECT COUNT(*) AS n FROM appeals WHERE state = 'open'").first(),
         env.DB.prepare("SELECT COUNT(*) AS n FROM email_outbox WHERE state = 'queued'").first(),
         env.DB.prepare("SELECT COUNT(*) AS n FROM email_outbox WHERE state = 'failed'").first(),
+        env.DB.prepare("SELECT COUNT(*) AS n FROM email_outbox WHERE state = 'sent' AND sent_at > ?1").bind(since24h).first(),
+        env.DB.prepare("SELECT MIN(created_at) AS ts FROM email_outbox WHERE state = 'queued'").first(),
+        env.DB.prepare("SELECT MIN(created_at) AS ts FROM email_outbox WHERE state = 'failed'").first(),
+        env.DB.prepare("SELECT COUNT(*) AS n FROM certs WHERE state = 'pending'").first(),
+        env.DB.prepare("SELECT MIN(created_at) AS ts FROM certs WHERE state = 'pending'").first(),
         env.DB.prepare("SELECT id, ts, prev_hash FROM audit_log ORDER BY ts DESC, id DESC LIMIT 1").first(),
     ]);
+
+    const nowMs = Date.now();
+    const ageSecs = (iso) => iso ? Math.max(0, Math.floor((nowMs - new Date(iso).getTime()) / 1000)) : null;
 
     const fixtureStreams = await env.DB.prepare(
         "SELECT COUNT(*) AS n FROM streams WHERE id LIKE '01KTEST%' OR yt_video_id LIKE 'TEST%'",
@@ -59,6 +69,16 @@ export async function onRequestGet({ request, env }) {
         email_outbox: {
             queued: outboxQueued?.n ?? 0,
             failed: outboxFailed?.n ?? 0,
+            sent_24h: outboxSent24h?.n ?? 0,
+            // Oldest-age surfaces backlog aging before count alone would:
+            // 50 queued for 30 seconds is fine, 3 queued for an hour is a
+            // silent outage in email-sender. Admin dashboard flags this.
+            oldest_queued_age_seconds: ageSecs(outboxOldestQueued?.ts),
+            oldest_failed_age_seconds: ageSecs(outboxOldestFailed?.ts),
+        },
+        certs: {
+            pending: certsPending?.n ?? 0,
+            oldest_pending_age_seconds: ageSecs(certsOldestPending?.ts),
         },
         audit_tip: auditTip
             ? { id: auditTip.id, ts: auditTip.ts, prev_hash: auditTip.prev_hash }

@@ -139,7 +139,23 @@ async function drain(env) {
         }
     }
 
-    return { attempted: rows.length, sent, failed };
+    // Post-tick backlog numbers get baked into the heartbeat detail so
+    // operators see "150 queued / oldest 4200s old" in the admin view and
+    // `stale_heartbeats` digest. These are the earliest signal that Resend
+    // rate-limits are biting or the sender is under-provisioned.
+    const [{ n: queuedAfter = 0 } = {}, oldestRow = {}] = await Promise.all([
+        env.DB.prepare("SELECT COUNT(*) AS n FROM email_outbox WHERE state = 'queued'").first().catch(() => ({})),
+        env.DB.prepare("SELECT MIN(created_at) AS ts FROM email_outbox WHERE state = 'queued'").first().catch(() => ({})),
+    ]);
+    const oldestAgeSec = oldestRow?.ts
+        ? Math.max(0, Math.floor((Date.now() - new Date(oldestRow.ts).getTime()) / 1000))
+        : null;
+
+    return {
+        attempted: rows.length, sent, failed,
+        queued_after: queuedAfter,
+        oldest_queued_age_seconds: oldestAgeSec,
+    };
 }
 
 async function sendViaResend(env, row) {
