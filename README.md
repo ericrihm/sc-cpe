@@ -65,9 +65,13 @@ by hand doesn't scale past a few dozen people. SC‑CPE does it end‑to‑end:
   auditor could still confirm every cert was issued when and to whom we
   claim — using only the cert, the signing public cert, and the published
   audit chain hash.
-- **Private by default.** Chat logs purge daily. PII never leaves
-  Cloudflare. Dashboard tokens are per‑user; admin endpoints use bearer
-  tokens (CSRF‑immune by construction).
+- **Private by default.** Chat logs purge daily (capped + resumable so a
+  flooded prefix can't stall the worker). PII never leaves Cloudflare.
+  The append‑only audit log writes only hashes, enums, and counts —
+  never raw emails, admin free‑text reasons, or search queries — so
+  account deletion remains meaningful years after the fact. Dashboard
+  tokens are per‑user; admin endpoints use bearer tokens (CSRF‑immune
+  by construction).
 - **Small, boring, cheap.** Single D1 database, three Workers, one Pages
   site. Estimated at cents/month for the expected volume.
 
@@ -77,8 +81,11 @@ by hand doesn't scale past a few dozen people. SC‑CPE does it end‑to‑end:
 
 ```
  1.  Register at  /register.html
-     → one‑time sign‑up with email + Turnstile. You get a dashboard
-       token (URL‑only, 72h to first use) and a personal 6‑char chat code.
+     → one‑time sign‑up with email + Turnstile. Your dashboard link and
+       personal 6‑char chat code are emailed to the address you entered —
+       the HTTP response never contains them, so email possession is the
+       only activation gate (a Turnstile‑solver who knows your address
+       cannot hijack the registration).
 
  2.  Watch the stream and post your code in YouTube live chat.
      → The poller (runs every minute, 08:00‑11:00 ET Mon–Fri) ingests
@@ -97,8 +104,11 @@ by hand doesn't scale past a few dozen people. SC‑CPE does it end‑to‑end:
 
  5.  Verify any cert anytime.
      → /verify.html?t=PUBLIC_TOKEN returns the recipient, sessions,
-       and audit chain position. Anyone — including your CE auditor —
-       can check it without talking to us.
+       and audit chain position. Drop the PDF onto the page in step 2
+       and the browser recomputes its SHA‑256 client‑side and compares
+       to the registered hash — a lookalike PDF with a leaked token
+       fails the match. Anyone — including your CE auditor — can check
+       without talking to us; the file never leaves the browser.
 ```
 
 **0.5 CEU / CPE per 30‑minute session** · up to ~20 sessions/month · per‑session
@@ -272,7 +282,7 @@ Prerequisites: Node 20+, Python 3.11+, `wrangler` logged in.
 
 ```bash
 scripts/install_hooks.sh                 # git hooks — runs test suite pre‑push
-bash scripts/test.sh                     # pure‑logic tests (59/59 currently)
+bash scripts/test.sh                     # pure‑logic tests (93/93 currently)
 scripts/check_schema.sh                  # diff live D1 schema vs repo
 ADMIN_TOKEN=... ORIGIN=https://sc-cpe-web.pages.dev \
   scripts/smoke_hardening.sh             # read‑only probe of deployed origin
