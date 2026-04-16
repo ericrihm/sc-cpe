@@ -10,7 +10,10 @@ independently — without contacting the issuer.
 An SC-CPE certificate proves that the named recipient's registered
 YouTube channel posted at least one qualifying chat message during each
 Daily Threat Briefing on the stated date(s), during the live broadcast
-window. One 30-minute briefing = 0.5 CPE / CEU.
+window. Each qualifying briefing yields 0.5 CPE / CEU — the stream
+runs ~1 hour of wall-clock, but the CPE-countable instructional
+portion is scoped to ~30 minutes (opens, ads, and audience Q&A are
+not instructional minutes under ISC2 / ISACA / CompTIA accounting).
 
 ## Three-step verification
 
@@ -100,6 +103,7 @@ higher level of assurance than signature + hash-match:
 > Simply Cyber Daily Threat Briefing. The certificate is
 > cryptographically signed (PAdES-T with RFC-3161 timestamp), anchored
 > to an append-only hash-chained audit log, and independently verifiable
-> at https://sc-cpe-web.pages.dev/verify.html. One 30-minute briefing
-> yields 0.5 CPE / CEU in the "webinar / web-based training" category.
-> Issued by Simply Cyber LLC.
+> at https://sc-cpe-web.pages.dev/verify.html. Each live attendance
+> qualifies for 0.5 CPE / CEU in the "webinar / web-based training"
+> category, reflecting the ~30 minutes of instructional content per
+> briefing. Issued by Simply Cyber LLC.
