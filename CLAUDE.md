@@ -134,9 +134,14 @@ ADMIN_TOKEN="$(tr -d '\n' < ~/.cloudflare/sc-cpe-admin-token)" \
 - **Input validation at boundaries only.** Trust internal calls; validate
   user input in the endpoint that receives it.
 
-## Known gaps (as of 2026-04-15)
+## Known gaps (as of 2026-04-16)
 
 - Pages auto-deploy from GitHub is unwired (dashboard action, not code).
+  Planned: Option B from the 2026-04-16 brainstorm — one `deploy-prod.yml`
+  GH Actions workflow deploying Pages + Workers together behind required
+  CI checks, narrow-scope `CLOUDFLARE_DEPLOY_TOKEN`, and a protected
+  `production` environment. Preconditions still open: mint the deploy token,
+  protect `main`, disable CF preview URLs (current bindings are prod).
 - **Out-of-band leaked secrets** (chat/screenshots, NOT git history) —
   verified clean against full git history with gitleaks 8.21.2 +
   `git log -S` regex on 2026-04-15. Rotation status:
@@ -149,14 +154,22 @@ ADMIN_TOKEN="$(tr -d '\n' < ~/.cloudflare/sc-cpe-admin-token)" \
       secret and CF Pages production env; Pages redeployed to pick up.
       New value at `~/.cloudflare/sc-cpe-watchdog-secret`. Verified via
       200 response from `/api/watchdog-state`.
-    - CF API tokens `cfat_cjNGGSBM...`/`cfut_AxNjVmVf...` — **still to
-      rotate** via Cloudflare dashboard (revoke + reissue + update
-      `~/.cloudflare/signalplane.env`).
+    - CF API tokens `cfat_cjNGGSBM...`/`cfut_AxNjVmVf...` — **rotated
+      2026-04-16**. Replaced by a single narrow-scope `sc-cpe-gha-api`
+      token (D1 Edit only, scoped to the `sc-cpe` database). New value at
+      `~/.cloudflare/signalplane.env` and GH secret `CLOUDFLARE_API_TOKEN`.
+      Verified via `/user/tokens/verify` (active) and a direct D1 query
+      (31 schema rows). Old tokens revoked in the CF dashboard.
 - `signalplane.co` has DKIM (Resend) + SPF but **no DMARC record**.
   Recommend `v=DMARC1; p=none; rua=mailto:...` for observability; not a
   blocker since DKIM-aligned Resend delivers fine today.
 - Weekly digest is Mon-only on UTC day boundary — may drift vs. US weekday
   expectation around DST; not an issue until it is.
+- `scripts/check_schema.sh` canonicalise was broken pre-2026-04-16
+  (heredoc on `python3 -` consumed stdin as the script source, so
+  `sys.stdin.read()` returned `""` and every drift comparison was `"" == ""`
+  — a silent pass). Fixed + schema.sql reconciled with live on 2026-04-16;
+  first actual green run via workflow_dispatch.
 
 ## Where to look for more context
 
