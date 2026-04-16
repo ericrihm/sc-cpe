@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SC-CPE — FAQ &amp; Known Issues</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  .faq-q { margin-top: 22px; }
+  .faq-q h3 { margin-bottom: 6px; }
+  .known { border-left: 4px solid #e0b43a; padding: 4px 12px; background: #fdf7e5; margin: 10px 0; }
+  .canned { background: #f4f6f8; border: 1px solid #d1d5db; padding: 12px 16px; border-radius: 4px; margin: 8px 0; font-family: ui-sans-serif, system-ui, sans-serif; }
+</style>
+</head>
+<body>
+<main class="narrow">
+  <h1>FAQ &amp; Known Issues</h1>
+  <p class="lead">Plain answers to the questions people actually ask. If
+  yours isn't here, email <a href="mailto:contact@signalplane.co">contact@signalplane.co</a>
+  and we'll add it.</p>
+
+  <h2>Attendance</h2>
+
+  <div class="faq-q">
+    <h3>I posted my code in chat but didn't get credit. Why?</h3>
+    <p>Most common reasons, in order:</p>
+    <ul>
+      <li><strong>You posted outside the live window.</strong> Credit is
+        only given for chat posted while the briefing is live (with a
+        15-minute pre-stream grace). Your dashboard shows a "posted
+        outside window" notice if this is what happened.</li>
+      <li><strong>Your YouTube channel was already bound to a different
+        SC-CPE account.</strong> One channel per account. Check with
+        <a href="/preflight.html">the preflight tool</a> before posting.</li>
+      <li><strong>The message didn't contain three letters or digits.</strong>
+        A message of just the 8-character code is fine; a single emoji
+        is not.</li>
+      <li><strong>The poller missed that stream.</strong> Rare but
+        possible. File an <em>appeal</em> from your dashboard —
+        admin-reconciled credits don't auto-link your YouTube channel
+        but the credit will still show up.</li>
+    </ul>
+  </div>
+
+  <div class="faq-q">
+    <h3>I attended but my laptop crashed / YouTube glitched mid-stream.</h3>
+    <p>As long as you posted one qualifying chat message while the
+    stream was live, you're credited for the full session. Attendance
+    is a binary signal, not a time-in-seat measure.</p>
+  </div>
+
+  <div class="faq-q">
+    <h3>Why 0.5 CPE per session?</h3>
+    <p>Continuing-education programs (ISC2, ISACA, CompTIA) count one
+    full CPE per hour of instruction. The briefing runs roughly 30
+    minutes, so each session yields 0.5 CPE. Over a typical month of
+    ~20 weekday briefings, that's <strong>10 CPE</strong> with no
+    extra effort.</p>
+  </div>
+
+  <div class="faq-q">
+    <h3>Can I use more than one YouTube channel?</h3>
+    <p>No. One SC-CPE account is bound to exactly one YouTube channel —
+    the one you posted your verification code from. This keeps attendance
+    records attributable and prevents one person from stacking credit
+    via multiple accounts.</p>
+  </div>
+
+  <h2>Certificates</h2>
+
+  <div class="faq-q">
+    <h3>Per-session vs. monthly bundle — which should I pick?</h3>
+    <p><strong>Monthly bundle</strong> (default) is best for most users.
+    One PDF per month listing every session you attended, plus total
+    hours. Easiest to upload to (ISC)² / ISACA / CompTIA CE portals.</p>
+    <p>Pick <strong>per-session</strong> if your employer's CPE audit
+    requires one certificate per activity (uncommon). Or pick <strong>both</strong>
+    if you want the monthly bundle AND an on-demand per-session PDF for
+    any briefing. Per-session certs are signed within 2 hours of request.</p>
+  </div>
+
+  <div class="faq-q">
+    <h3>What does an SC-CPE certificate actually prove?</h3>
+    <p>See the <a href="/terms.html#4">Attendance Rule in the Terms</a>
+    for the authoritative wording. Plain-English summary:</p>
+    <div class="canned">
+      <strong>SC-CPE certifies that a named recipient, identified by
+      their bound YouTube channel, posted at least one qualifying chat
+      message during each live Daily Threat Briefing on the date(s)
+      listed, during the broadcast's active window. The message content
+      is hash-logged but not persisted, so certificate integrity does
+      not depend on message-content retention.</strong>
+    </div>
+    <p>The cert is PAdES-T signed with the SC-CPE dedicated signing key,
+    anchored to an RFC-3161 timestamp authority, and hash-linked into an
+    append-only audit chain. Third parties can verify without talking to
+    us via <a href="/verify.html">/verify.html</a>.</p>
+  </div>
+
+  <div class="faq-q">
+    <h3>I'm a CE-portal auditor. What's the shortest-possible answer on what this is?</h3>
+    <div class="canned">
+      Proof of live attendance at a cybersecurity-focused educational
+      webinar. The attendee's identity is established through a YouTube
+      channel binding (one-per-account) verified by an out-of-band code
+      exchange. The certificate is PAdES-T signed and independently
+      verifiable via the SHA-256 printed on the cert — the issuer
+      (Simply Cyber LLC) does not need to be contacted. Credits map
+      1:1 with (ISC)² Group B / ISACA CPE / CompTIA CEU.
+    </div>
+  </div>
+
+  <div class="faq-q">
+    <h3>My cert shows "REVOKED". What happened?</h3>
+    <p>An admin revoked it. The public verify page shows an opaque
+    reason (e.g., <code>issued_in_error</code>, <code>superseded</code>,
+    <code>subject_request</code>, <code>key_compromise</code>) so a
+    relying party has enough signal without us exposing the underlying
+    detail. If you think it was revoked in error, email
+    <a href="mailto:contact@signalplane.co">contact@signalplane.co</a>.</p>
+  </div>
+
+  <div class="faq-q">
+    <h3>Will (ISC)² / ISACA / CompTIA actually accept this?</h3>
+    <p>They accept self-attested continuing education under their
+    respective CPE programs, and the SC-CPE cert has every field their
+    portals ask for: name, issuer, date(s), hours, signature. We cannot
+    guarantee acceptance — that's ultimately your certification body's
+    policy call — but the cert format matches the category these
+    programs define. See §5 of the <a href="/terms.html#5">Terms</a>
+    for the acceptance disclaimer.</p>
+  </div>
+
+  <h2>Account &amp; security</h2>
+
+  <div class="faq-q">
+    <h3>I clicked &quot;Register&quot; but got nothing. Where's my email?</h3>
+    <ul>
+      <li>Check spam — the sender is <code>certs@signalplane.co</code> which
+        may look unfamiliar. Whitelist it.</li>
+      <li>Delivery typically lands within 2 minutes of registration.
+        If it's been &gt; 10 minutes, check <a href="/status.html">/status.html</a>
+        to see whether the email-sender cron is stale.</li>
+      <li>You can re-register with the same email — we'll overwrite the
+        pending code with a fresh one.</li>
+    </ul>
+  </div>
+
+  <div class="faq-q">
+    <h3>My dashboard URL got screenshotted / forwarded. What do I do?</h3>
+    <p>Open your dashboard and click <strong>Rotate dashboard link</strong>.
+    We'll email a new URL to the address on file; the old link stops
+    working a few seconds later. No PII or cert data is lost in rotation —
+    it's a pure URL change.</p>
+  </div>
+
+  <div class="faq-q">
+    <h3>How do I delete my account?</h3>
+    <p>From your dashboard: <strong>Delete my account</strong>. We
+    scrub your email, legal name, and YouTube channel binding
+    immediately, rotate your dashboard token so the old URL stops
+    working, and hard-delete residual identifiers within 30 days.</p>
+    <p><strong>One carve-out:</strong> certificates we already issued
+    are kept indefinitely with their name-at-issuance snapshot, because
+    third parties rely on them to verify past CPE submissions. See the
+    <a href="/privacy.html#4">Privacy Policy §4</a> for the GDPR
+    Art. 17(3)(e) evidentiary detail.</p>
+  </div>
+
+  <div class="faq-q">
+    <h3>Why does email come from <code>signalplane.co</code> instead of <code>simplycyber.io</code>?</h3>
+    <p><code>signalplane.co</code> is the operator's email domain,
+    DKIM + SPF verified with Resend, DMARC in place.
+    <code>simplycyber.io</code> is the community brand and will host
+    the app's permanent DNS once <code>cpe.simplycyber.io</code> is
+    wired. Splitting the two keeps brand and infrastructure separate —
+    the email channel can be revoked without touching the community
+    identity.</p>
+  </div>
+
+  <h2>Known issues</h2>
+
+  <div class="known">
+    <strong>Apex domain not wired yet.</strong> The canonical origin
+    remains <code>sc-cpe-web.pages.dev</code> until
+    <code>cpe.simplycyber.io</code> DNS is in place. Both will work
+    once the apex lands; for now, bookmark the <code>pages.dev</code>
+    URL.
+  </div>
+
+  <div class="known">
+    <strong>DMARC policy is starting at <code>p=quarantine</code>.</strong>
+    This is the recommended first step while we observe reports. It
+    will tighten to <code>p=reject</code> after 2 weeks of clean
+    receiver telemetry. Deliverability is unaffected either way.
+  </div>
+
+  <div class="known">
+    <strong>Recovery email SLA is best-effort at launch.</strong>
+    The outbox drainer runs every 2 minutes. Under burst load
+    (&gt; ~500 queued) recovery mail may arrive later than the
+    5-minute target. The backlog surfaces on
+    <a href="/status.html">/status.html</a>; if you're waiting and the
+    page says delays are in effect, that explains it.
+  </div>
+
+  <p class="muted" style="margin-top:32px;font-size:12px;">
+    Missing something? Open an issue at
+    <a href="https://github.com/ericrihm/sc-cpe/issues">github.com/ericrihm/sc-cpe/issues</a>
+    or email <a href="mailto:contact@signalplane.co">contact@signalplane.co</a>.
+  </p>
+  <p><a href="/">&larr; Back to registration</a></p>
+</main>
+</body>
+</html>
