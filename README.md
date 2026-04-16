@@ -170,8 +170,11 @@ by hand doesn't scale past a few dozen people. SC‑CPE does it end‑to‑end:
        without talking to us; the file never leaves the browser.
 ```
 
-**0.5 CEU / CPE per 30‑minute session** · up to ~20 sessions/month · per‑session
-or bundled (or both) · full reissue flow if your name or email is wrong.
+**0.5 CEU / CPE per qualifying briefing** (the stream runs ~1h;
+Simply Cyber scopes the instructional portion to ~30 min, which maps
+cleanly to 0.5 credit under ISC2 / ISACA / CompTIA accounting) · up
+to ~20 briefings/month · per‑session or bundled (or both) · full
+reissue flow if your name or email is wrong.
 
 Your YouTube channel auto‑links the first time the poller matches your code in
 a live briefing chat. If credits are granted manually (admin reconciliation —
