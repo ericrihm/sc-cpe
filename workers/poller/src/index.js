@@ -318,7 +318,7 @@ async function processAttendance(env, session, items, now) {
         });
         return;
     }
-    const windowOpenMs = startMs + rule.pre_start_grace_min * 60_000;
+    const windowOpenMs = startMs - rule.pre_start_grace_min * 60_000;
 
     const channelIds = [...new Set(
         items.map(m => m.authorDetails?.channelId).filter(Boolean)

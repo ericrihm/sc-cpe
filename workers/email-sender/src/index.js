@@ -36,8 +36,7 @@ export default {
         if (request.method !== "POST") {
             return new Response("method not allowed", { status: 405 });
         }
-        const auth = request.headers.get("Authorization") || "";
-        if (!env.ADMIN_TOKEN || auth !== `Bearer ${env.ADMIN_TOKEN}`) {
+        if (!await verifyBearer(request, env)) {
             return new Response("unauthorized", { status: 401 });
         }
         const summary = await tick(env);
@@ -177,4 +176,22 @@ async function sendViaResend(env, row) {
     const data = await resp.json();
     if (!data?.id) throw new Error("resend_response_missing_id");
     return data.id;
+}
+
+async function verifyBearer(request, env) {
+    const expected = env.ADMIN_TOKEN;
+    if (!expected) return false;
+    const h = request.headers.get("Authorization") || "";
+    const m = /^Bearer\s+(.+)$/i.exec(h);
+    if (!m) return false;
+    const enc = new TextEncoder();
+    const keyMaterial = crypto.getRandomValues(new Uint8Array(32));
+    const key = await crypto.subtle.importKey(
+        "raw", keyMaterial, { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
+    );
+    const a = new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode(m[1])));
+    const b = new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode(expected)));
+    let diff = 0;
+    for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+    return diff === 0;
 }
