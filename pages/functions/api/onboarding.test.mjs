@@ -138,7 +138,7 @@ test("register: existing active user → 409 without token", async () => {
     assert.ok(j.recover_url, "should point to /recover.html");
 });
 
-test("register: new user → 200 with dashboard_url and code", async () => {
+test("register: new user → 200 must NOT leak dashboard_token or verification_code", async () => {
     const db = mockDB([
         {
             match: /FROM users WHERE lower\(email\)/,
@@ -166,11 +166,13 @@ test("register: new user → 200 with dashboard_url and code", async () => {
     assert.equal(r.status, 200);
     const j = await r.json();
     assert.ok(j.ok);
-    assert.ok(j.dashboard_url, "should return dashboard_url");
-    assert.ok(j.verification_code, "should return verification_code");
+    assert.ok(j.email_sent, "must signal that activation is email-only");
+    assert.equal(j.dashboard_url, undefined, "must NOT return dashboard_url (email-possession gate)");
+    assert.equal(j.verification_code, undefined, "must NOT return verification_code (email-possession gate)");
+    assert.equal(j.dashboard_token, undefined, "must NOT return dashboard_token in any form");
 });
 
-test("register: existing pending user re-registers → 200 updates code", async () => {
+test("register: existing pending user re-registers → 200 must NOT leak dashboard_token or code", async () => {
     let updateCalled = false;
     const db = mockDB([
         {
@@ -200,6 +202,10 @@ test("register: existing pending user re-registers → 200 updates code", async 
     assert.ok(updateCalled, "should UPDATE the existing pending user row");
     const j = await r.json();
     assert.ok(j.ok);
+    assert.ok(!JSON.stringify(j).includes(FAKE_TOKEN),
+        "response body must not leak pre-existing dashboard_token");
+    assert.equal(j.dashboard_url, undefined);
+    assert.equal(j.verification_code, undefined);
 });
 
 // ── verify/[token].js ─────────────────────────────────────────────────────

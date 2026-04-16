@@ -116,12 +116,11 @@ export async function onRequestPost({ request, env }) {
             idempotencyKey: `register:${existing.id}:${code}`,
         });
 
-        return json({
-            ok: true,
-            dashboard_url: `/dashboard.html?t=${existing.dashboard_token}`,
-            verification_code: code,
-            expires_at: expiresAt,
-        });
+        // Do NOT return dashboard_url or verification_code. Possession of the
+        // email inbox is the activation gate — otherwise a Turnstile-solving
+        // attacker who knows a victim's email gets the dashboard token and
+        // can bind a chat-posted code to the victim's account.
+        return json({ ok: true, email_sent: true, expires_at: expiresAt });
     }
 
     const userId = ulid();
@@ -149,12 +148,7 @@ export async function onRequestPost({ request, env }) {
         idempotencyKey: `register:${userId}:${code}`,
     });
 
-    return json({
-        ok: true,
-        dashboard_url: `/dashboard.html?t=${dashboardToken}`,
-        verification_code: code,
-        expires_at: expiresAt,
-    });
+    return json({ ok: true, email_sent: true, expires_at: expiresAt });
 }
 
 async function uniqueCode(env) {
