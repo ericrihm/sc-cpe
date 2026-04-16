@@ -44,15 +44,19 @@
             <p>A valid token alone proves a certificate was issued, not that <em>the PDF in front of you</em> is that certificate. Drop the PDF here to compare its SHA-256 against the registered hash. The file never leaves your browser.</p>
             <label id="drop" class="dropzone">
                 <input type="file" id="pdf-input" accept="application/pdf" hidden>
-                <span id="drop-label">Drag a PDF here, or click to choose</span>
+                <span id="drop-label">Tap to choose a PDF, or drag one here</span>
             </label>
             <p id="match-result" class="muted small"></p>
         </div>
     </section>
 </main>
 <style>
-.dropzone { display:block; border:2px dashed var(--drop-border); border-radius:6px;
-    padding:22px; text-align:center; cursor:pointer; background:var(--drop-bg); color:var(--fg); }
+.dropzone { display:flex; align-items:center; justify-content:center;
+    min-height: 64px;                /* ≥44px touch target + visible affordance */
+    border:2px dashed var(--drop-border); border-radius:6px;
+    padding:16px 14px; text-align:center; cursor:pointer;
+    background:var(--drop-bg); color:var(--fg);
+    touch-action: manipulation; }
 .dropzone.drag { background:var(--drop-active-bg); border-color:var(--accent); }
 .match-ok { color:var(--ok-soft-text); font-weight:600; }
 .match-bad { color:var(--bad-soft-text); font-weight:600; }

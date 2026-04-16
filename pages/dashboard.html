@@ -67,13 +67,21 @@
 .cert-period { font-weight: 600; font-size: 15px; color: var(--fg-strong); }
 .cert-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
 .cert-actions {
-    display: flex; gap: 8px; align-items: center; margin-top: 10px;
+    display: flex; gap: 8px; align-items: stretch; margin-top: 10px;
     flex-wrap: wrap;
 }
+@media (max-width: 480px) {
+    /* On phones, let each action take the full width so buttons don't
+       collapse to half-row width and create awkward two-column wrap. */
+    .cert-actions > * { flex: 1 1 100%; }
+    .cert-actions .cert-verify { text-align: center; }
+}
 .cert-verify {
-    display: inline-block; padding: 5px 10px; font-size: 13px;
+    display: inline-block; padding: 8px 12px; font-size: 14px;
+    min-height: 44px; line-height: 28px;          /* touch target */
     border: 1px solid var(--accent); border-radius: 4px; color: var(--accent);
     text-decoration: none; background: var(--card);
+    touch-action: manipulation;
 }
 .cert-verify:hover { background: var(--accent-soft-bg); }
 .pill {
@@ -128,9 +136,13 @@
 .att-meta { font-size: 12px; color: var(--muted); margin-top: 4px; }
 .att-actions { margin-top: 10px; }
 .att-ps-btn {
-    font-size: 12px; padding: 5px 10px; border-radius: 4px;
+    font-size: 13px; padding: 8px 12px; min-height: 44px; border-radius: 4px;
     border: 1px solid var(--accent); color: var(--accent); background: var(--card);
     cursor: pointer;
+    touch-action: manipulation;
+}
+@media (max-width: 480px) {
+    .att-ps-btn { width: 100%; }        /* full-width on phones */
 }
 .att-ps-btn:hover { background: var(--accent-soft-bg); }
 .att-ps-btn:disabled { opacity: 0.6; cursor: not-allowed; }
