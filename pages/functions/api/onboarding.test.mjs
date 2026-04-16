@@ -74,6 +74,33 @@ const BASE = "https://sc-cpe-web.pages.dev";
 
 // ── register.js ───────────────────────────────────────────────────────────
 
+test("register: kill switch set → 503", async () => {
+    const killedKv = { get: async (k) => k === "kill:register" ? "1" : null, put: async () => {} };
+    const r = await registerPost({
+        env: { DB: mockDB([]), RATE_KV: killedKv },
+        request: new Request(`${BASE}/api/register`, {
+            method: "POST",
+            body: JSON.stringify({ email: "a@example.com", legal_name: "A B",
+                legal_name_attested: true, age_attested_13plus: true }),
+        }),
+    });
+    assert.equal(r.status, 503);
+    const j = await r.json();
+    assert.equal(j.error, "service_temporarily_unavailable");
+});
+
+test("recover: kill switch set → 503", async () => {
+    const killedKv = { get: async (k) => k === "kill:recover" ? "1" : null, put: async () => {} };
+    const r = await recoverPost({
+        env: { DB: mockDB([]), RATE_KV: killedKv },
+        request: new Request(`${BASE}/api/recover`, {
+            method: "POST", headers: { Origin: BASE },
+            body: JSON.stringify({ email: "a@example.com" }),
+        }),
+    });
+    assert.equal(r.status, 503);
+});
+
 test("register: invalid email returns 400", async () => {
     const r = await registerPost({
         env: { DB: mockDB([]), RATE_KV: kvPermissive },
@@ -176,7 +203,12 @@ test("register: new user → 200 must NOT leak dashboard_token or verification_c
 test("register: rate limit trips when KV reports 10 prior hits this hour", async () => {
     // Defence-in-depth past Turnstile: a solver farm at 10+ Turnstiles/IP/hour
     // gets rate-limited here and stops piling rows into email_outbox + D1.
-    const kvAtLimit = { get: async () => "10", put: async () => {} };
+    // Kill-switch key must return null (not "10") or we'd 503 before reaching
+    // the rate-limit branch — that's what exercises a different code path.
+    const kvAtLimit = {
+        get: async (k) => k.startsWith("kill:") ? null : "10",
+        put: async () => {},
+    };
     const r = await registerPost({
         env: { DB: mockDB([]), RATE_KV: kvAtLimit },
         request: new Request(`${BASE}/api/register`, {
