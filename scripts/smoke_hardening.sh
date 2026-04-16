@@ -60,6 +60,29 @@ else
     echo "  FAIL chain reports divergence or error"; fail=$((fail+1))
 fi
 
+echo "== watchdog-state: no length oracle =="
+# Lock in the constant-time fix: short and same-length-but-wrong must both
+# return 401. If a future refactor reintroduces an early-exit on length
+# mismatch, this catches it.
+WD_URL="$ORIGIN/api/watchdog-state"
+check "missing secret → 401" 401 "$(code "$WD_URL")"
+check "short wrong → 401" 401 "$(code -H 'X-Watchdog-Secret: short' "$WD_URL")"
+SAME_LEN_WRONG=$(printf '%.0s0' $(seq 1 64))
+check "same-length wrong → 401" 401 "$(code -H "X-Watchdog-Secret: $SAME_LEN_WRONG" "$WD_URL")"
+
+echo "== download/[token]: rejects garbage tokens =="
+# /api/download/[token] is the cert delivery surface — possession of a
+# 64-hex public_token is the credential. Short tokens 400, valid-shape but
+# unknown tokens 404 (no DB-shape leak in either case).
+check "short token → 400" 400 "$(code "$ORIGIN/api/download/short")"
+SHAPE_OK_BUT_UNKNOWN=$(printf '%.0s0' $(seq 1 64))
+check "valid-shape unknown → 404" 404 "$(code "$ORIGIN/api/download/$SHAPE_OK_BUT_UNKNOWN")"
+
+echo "== heartbeat-status: admin-gated =="
+HB_URL="$ORIGIN/api/admin/heartbeat-status"
+check "no auth → 401" 401 "$(code "$HB_URL")"
+check "valid bearer → 200" 200 "$(code -H "Authorization: Bearer $ADMIN_TOKEN" "$HB_URL")"
+
 echo "== fixture pollution guardrail =="
 stats=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" "$ORIGIN/api/admin/ops-stats")
 pollution=$(echo "$stats" | grep -oE '"fixture_pollution":\{[^}]*\}')
