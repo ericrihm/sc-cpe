@@ -8,6 +8,7 @@ node --test \
     pages/functions/_heartbeat.test.mjs \
     pages/functions/api/endpoints.test.mjs \
     pages/functions/api/onboarding.test.mjs \
+    pages/functions/api/health.test.mjs \
     workers/poller/src/race-detection.test.mjs \
     workers/purge/src/heartbeat-staleness.test.mjs \
     workers/purge/src/purge-expired.test.mjs \

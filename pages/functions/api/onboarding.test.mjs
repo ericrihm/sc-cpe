@@ -172,6 +172,23 @@ test("register: new user → 200 must NOT leak dashboard_token or verification_c
     assert.equal(j.dashboard_token, undefined, "must NOT return dashboard_token in any form");
 });
 
+test("register: rate limit trips when KV reports 10 prior hits this hour", async () => {
+    // Defence-in-depth past Turnstile: a solver farm at 10+ Turnstiles/IP/hour
+    // gets rate-limited here and stops piling rows into email_outbox + D1.
+    const kvAtLimit = { get: async () => "10", put: async () => {} };
+    const r = await registerPost({
+        env: { DB: mockDB([]), RATE_KV: kvAtLimit },
+        request: new Request(`${BASE}/api/register`, {
+            method: "POST",
+            body: JSON.stringify({ email: "alice@example.com", legal_name: "Alice Smith",
+                legal_name_attested: true, age_attested_13plus: true }),
+        }),
+    });
+    assert.equal(r.status, 429);
+    const j = await r.json();
+    assert.equal(j.error, "rate_limited");
+});
+
 test("register: existing pending user re-registers → 200 must NOT leak dashboard_token or code", async () => {
     let updateCalled = false;
     const db = mockDB([
