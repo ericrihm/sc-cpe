@@ -284,6 +284,19 @@ export async function isAdmin(env, request) {
     return diff === 0;
 }
 
+export async function constantTimeEqual(a, b) {
+    const enc = new TextEncoder();
+    const keyMaterial = crypto.getRandomValues(new Uint8Array(32));
+    const key = await crypto.subtle.importKey(
+        "raw", keyMaterial, { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
+    );
+    const da = new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode(a)));
+    const db = new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode(b)));
+    let diff = 0;
+    for (let i = 0; i < da.length; i++) diff |= da[i] ^ db[i];
+    return diff === 0;
+}
+
 export async function verifyTurnstile(env, token, ip) {
     if (!env.TURNSTILE_SECRET_KEY) {
         // Dev/local: allow if secret isn't configured, but log it.
