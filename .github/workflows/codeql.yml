@@ -1,0 +1,54 @@
+name: codeql
+
+# Static analysis via CodeQL. Runs on every PR to main and weekly on a
+# Monday cron. JS covers pages/functions + workers/*; Python covers
+# services/certs. gitleaks already runs in ci.yml for secret scanning —
+# CodeQL layers in taint-flow and logic-bug detection that gitleaks
+# doesn't do.
+#
+# Findings land in the repo's Security tab (Code scanning alerts).
+# High-severity findings fail the PR check; medium + low are advisory.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 4 * * 1"  # Mon 04:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, python]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@9887d98ae49f1f598651b556d8c8f02f3ea065cb  # v3.27.0
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@9887d98ae49f1f598651b556d8c8f02f3ea065cb  # v3.27.0
+
+      - name: Perform analysis
+        uses: github/codeql-action/analyze@9887d98ae49f1f598651b556d8c8f02f3ea065cb  # v3.27.0
+        with:
+          category: /language:${{ matrix.language }}
