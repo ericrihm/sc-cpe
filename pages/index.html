@@ -7,6 +7,8 @@
 <link rel="stylesheet" href="/style.css">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <meta name="theme-color" content="#0b3d5c">
+<meta name="color-scheme" content="light dark">
+<script src="/theme.js"></script>
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 <body>
@@ -35,7 +37,7 @@
             <input type="checkbox" name="tos" required>
             I accept the <a href="/terms.html">Terms of Service</a> and <a href="/privacy.html">Privacy Policy</a>.
         </label>
-        <div class="cf-turnstile" data-sitekey="0x4AAAAAAC9lHHxbfTKNzdFN" data-theme="light"></div>
+        <div class="cf-turnstile" data-sitekey="0x4AAAAAAC9lHHxbfTKNzdFN" data-theme="auto"></div>
         <button type="submit">Register</button>
     </form>
 
@@ -43,7 +45,7 @@
 
     <section id="ok" hidden>
         <h2>Check your email</h2>
-        <p>We sent your verification code and dashboard link to the address you entered. The email arrives within a minute or two — check spam if you don't see it.</p>
+        <p>We sent your verification code and dashboard link to the address you entered. Email typically arrives within a few minutes; during launch-period bursts it may take longer. If nothing has landed after 10 minutes, check <a href="/status.html">/status.html</a> for current email-delivery health and check spam.</p>
         <p>Your code expires: <span id="expires"></span></p>
         <p class="muted">We deliberately don't show the code here: possession of your inbox is the only way to activate the account, so a bot that knows your address can't register on your behalf.</p>
     </section>

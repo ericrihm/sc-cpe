@@ -7,6 +7,8 @@
 <link rel="stylesheet" href="/style.css">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <meta name="theme-color" content="#0b3d5c">
+<meta name="color-scheme" content="light dark">
+<script src="/theme.js"></script>
 </head>
 <body>
 <main class="narrow">
@@ -49,11 +51,11 @@
     </section>
 </main>
 <style>
-.dropzone { display:block; border:2px dashed #8a94a3; border-radius:6px;
-    padding:22px; text-align:center; cursor:pointer; background:#f4f6f8; }
-.dropzone.drag { background:#e3ebf3; border-color:#0b3d5c; }
-.match-ok { color:#0a6c2a; font-weight:600; }
-.match-bad { color:#a7161a; font-weight:600; }
+.dropzone { display:block; border:2px dashed var(--drop-border); border-radius:6px;
+    padding:22px; text-align:center; cursor:pointer; background:var(--drop-bg); color:var(--fg); }
+.dropzone.drag { background:var(--drop-active-bg); border-color:var(--accent); }
+.match-ok { color:var(--ok-soft-text); font-weight:600; }
+.match-bad { color:var(--bad-soft-text); font-weight:600; }
 </style>
 <script>
 let expectedPdfSha = null;
