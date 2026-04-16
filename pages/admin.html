@@ -116,6 +116,13 @@ async function load() {
 }
 function renderStats(s) {
   const g = $("#stats"); g.innerHTML = "";
+  // Backlog aging thresholds: email backlog > 10min = stale (sender runs
+  // every 2min; anything past 5× that is a real signal). Cert pending > 4h =
+  // stale (cert-sign-pending cron runs every 2h, so 2× = 4h).
+  const queuedAge = s.email_outbox.oldest_queued_age_seconds;
+  const queuedCls = (queuedAge != null && queuedAge > 600) ? "stale" : "";
+  const certPendAge = s.certs?.oldest_pending_age_seconds;
+  const certPendCls = (certPendAge != null && certPendAge > 4 * 3600) ? "stale" : "";
   g.append(
     card("Users (active)", s.users.active),
     card("Users pending", s.users.pending),
@@ -123,8 +130,10 @@ function renderStats(s) {
     card("Certs total", s.certs_total),
     card("Attendance 24h", s.last_24h.attendance),
     card("Open appeals", s.appeals_open, s.appeals_open > 0 ? "warn" : ""),
-    card("Email queued", s.email_outbox.queued),
+    card("Email queued", `${s.email_outbox.queued}${queuedAge != null ? ` · oldest ${fmtAge(queuedAge)}` : ""}`, queuedCls),
     card("Email failed", s.email_outbox.failed, s.email_outbox.failed > 0 ? "stale" : ""),
+    card("Email sent 24h", s.email_outbox.sent_24h ?? 0),
+    card("Certs pending", `${s.certs?.pending ?? 0}${certPendAge != null ? ` · oldest ${fmtAge(certPendAge)}` : ""}`, certPendCls),
   );
 }
 function renderHeartbeats(d) {
