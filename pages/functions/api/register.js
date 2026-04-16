@@ -1,8 +1,14 @@
 import {
     ulid, randomCode, randomToken, json, now, audit, clientIp, ipHash,
     isValidEmail, isValidName, verifyTurnstile, queueEmail,
-    escapeHtml, emailShell, sha256Hex,
+    escapeHtml, emailShell, sha256Hex, rateLimit,
 } from "../_lib.js";
+
+// Defence-in-depth against a Turnstile-solver farm. Turnstile is the first
+// gate (~$0.002/solve on grey-market solvers), this is the second — 10
+// successful Turnstiles per IP per hour is plenty for any legit user (code
+// expires after 72h; you rarely re-register more than once a day).
+const MAX_REGISTRATIONS_PER_HOUR = 10;
 
 const SITE_BASE = "https://sc-cpe-web.pages.dev";
 
@@ -64,6 +70,11 @@ export async function onRequestPost({ request, env }) {
 
     const captcha = await verifyTurnstile(env, turnstileToken, clientIp(request));
     if (!captcha.ok) return json({ error: "captcha_failed", detail: captcha.reason }, 403);
+
+    const ipH = await ipHash(clientIp(request));
+    const hourBucket = new Date().toISOString().slice(0, 13); // "YYYY-MM-DDTHH"
+    const rl = await rateLimit(env, `register:${ipH}:${hourBucket}`, MAX_REGISTRATIONS_PER_HOUR);
+    if (!rl.ok) return json(rl.body, rl.status);
 
     const existing = await env.DB.prepare(
         "SELECT id, state, dashboard_token FROM users WHERE lower(email) = ?1 AND deleted_at IS NULL"
