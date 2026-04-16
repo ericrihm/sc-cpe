@@ -6,16 +6,20 @@ verifiable continuing‑education certificates for everyone who shows up to the
 
 Works for the programs most of the community is renewing:
 
-| Program | Credit unit | Per session | This cert satisfies |
+| Program | Credit unit | Per session | Typical submission category |
 | --- | --- | --- | --- |
-| **CompTIA** (Security+, CySA+, Network+, PenTest+, CASP+ …) | **CEU** | **0.5 CEU** | Proof of attendance for the CE portal — name, date(s), hours, provider, signature |
-| **ISC2** (CISSP, SSCP, CCSP, …) | CPE | 0.5 CPE (Group B) | Ditto — upload under "Education" |
+| **CompTIA** (Security+, CySA+, Network+, PenTest+, CASP+ …) | **CEU** | **0.5 CEU** | Formatted for CE-portal proof-of-attendance: name, date(s), hours, provider, signature |
+| **ISC2** (CISSP, SSCP, CCSP, …) | CPE | 0.5 CPE (Group B) | Ditto — typically uploaded under "Education" |
 | **ISACA** (CISM, CISA, CRISC, …) | CPE | 0.5 CPE | Ditto — "group training / web‑based" |
+
+Acceptance is ultimately the certification body's decision — see Terms §5.
 
 Attend the livestream → post your per‑user code in chat → get a signed
 PDF certificate **per session, per month, or both**. Every step is
-hash‑chained and independently auditable years later without trusting
-the issuer.
+hash‑chained and verifiable years later: the PDF signature + RFC‑3161
+timestamp validate offline in any PAdES‑aware reader, and the
+`pdf_sha256` registry‑match adds a second check against issuer‑published
+records.
 
 > **Status:** in production on Cloudflare. Smoke green, audit chain intact,
 > five fresh heartbeats, hourly synthetic canary, Discord alerting wired
@@ -64,8 +68,9 @@ the skeptical (which is most of this community, appropriately):
 - **Audit integrity.** Every state transition — registration, attendance
   credit, cert issue, delivery, revocation — writes an append‑only,
   SHA‑256 hash‑chained row. `scripts/verify_audit_chain.py` replays the
-  whole chain against the live DB; a `UNIQUE INDEX` on `prev_hash` makes
-  forks structurally impossible.
+  whole chain against the live DB; a `UNIQUE INDEX` on `prev_hash`
+  serialises concurrent writers so accidental or racing chain forks
+  fail at insert time rather than silently branching.
 - **Security disclosure.** See
   [security.txt](https://sc-cpe-web.pages.dev/.well-known/security.txt)
   or email `certs@signalplane.co` with `[SECURITY]` in the subject.
@@ -119,11 +124,13 @@ by hand doesn't scale past a few dozen people. SC‑CPE does it end‑to‑end:
 
 - **Zero manual ops.** A poller watches the YouTube live chat, a monthly
   cron issues PDFs, a Worker drains the outbox.
-- **Verifiable without us.** Each cert carries an RFC‑3161 timestamp and a
-  hash‑chained audit trail. If Simply Cyber vanished tomorrow, an
-  auditor could still confirm every cert was issued when and to whom we
-  claim — using only the cert, the signing public cert, and the published
-  audit chain hash.
+- **Verifiable without us (partially).** Each cert carries a PAdES‑T
+  signature and an RFC‑3161 timestamp — those validate in any
+  PAdES‑aware PDF reader with no issuer contact required, so a
+  recipient can always confirm the PDF was signed by the SC‑CPE key
+  and hasn't been modified since. Registry‑match verification (via
+  `/verify.html` or `/api/crl.json`) is the second layer and relies on
+  issuer‑operated records remaining available.
 - **Private by default.** Chat logs purge daily (capped + resumable so a
   flooded prefix can't stall the worker). PII never leaves Cloudflare.
   The append‑only audit log writes only hashes, enums, and counts —
