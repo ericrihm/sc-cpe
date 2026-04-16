@@ -45,18 +45,20 @@ jobs:
         # Catches the case where smoke itself passes but canary-beat silently
         # regressed. Smoke is hourly, so the prior beat should be <70min old.
         # Skipped on manual dispatch runs (they may fire off-cadence).
+        #
+        # IMPORTANT: the python must be a single line. A multi-line heredoc
+        # inside a YAML block literal silently breaks the whole workflow:
+        # lines at column 0 terminate the `run: |` block, and GitHub rejects
+        # the workflow with a 0-second-duration failure AND no steps execute
+        # (so Discord alerts on failure never fire). See commit history on
+        # this file if you're tempted to re-expand this — 2026-04-15 to
+        # 2026-04-16 the hourly canary was dead and nobody noticed.
         if: github.event_name != 'workflow_dispatch'
         run: |
           age=$(curl -fsS --max-time 20 \
             -H "Authorization: Bearer $ADMIN_TOKEN" \
-            "$ORIGIN/api/admin/heartbeat-status" | \
-            python3 -c 'import json,sys
-d=json.load(sys.stdin)
-for s in d.get("sources",[]):
-    if s["source"]=="canary":
-        print(s.get("age_seconds") or 99999); break
-else:
-    print(99999)')
+            "$ORIGIN/api/admin/heartbeat-status" \
+            | python3 -c "import json,sys; d=json.load(sys.stdin); print(next((s.get('age_seconds') or 99999 for s in d.get('sources',[]) if s.get('source')=='canary'), 99999))")
           echo "canary age: ${age}s"
           if [[ "$age" -gt 4200 ]]; then
             echo "canary heartbeat stale (>70min) — beat endpoint may have regressed" >&2
