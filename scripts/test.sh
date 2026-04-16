@@ -10,6 +10,7 @@ node --test \
     pages/functions/api/onboarding.test.mjs \
     workers/poller/src/race-detection.test.mjs \
     workers/purge/src/heartbeat-staleness.test.mjs \
+    workers/purge/src/purge-expired.test.mjs \
     scripts/test_chain_parity.mjs \
     scripts/test_source_parity.mjs \
     scripts/test_audit_pii_scrub.mjs
