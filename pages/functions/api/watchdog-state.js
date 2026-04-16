@@ -1,4 +1,4 @@
-import { json } from "../_lib.js";
+import { json, constantTimeEqual } from "../_lib.js";
 
 // Alert dedup state for the external GH Actions watchdog. Writing to
 // Cloudflare KV lets us be idempotent across runner invocations without
@@ -18,14 +18,14 @@ import { json } from "../_lib.js";
 const KV_KEY = "watchdog:alerted";
 
 export async function onRequestGet({ request, env }) {
-    const auth = requireSecret(request, env);
+    const auth = await requireSecret(request, env);
     if (auth) return auth;
     const state = (await readState(env)) || {};
     return json({ alerted: state }, 200);
 }
 
 export async function onRequestPost({ request, env }) {
-    const auth = requireSecret(request, env);
+    const auth = await requireSecret(request, env);
     if (auth) return auth;
 
     let body;
@@ -47,20 +47,14 @@ export async function onRequestPost({ request, env }) {
     return json({ ok: true, alerted: state }, 200);
 }
 
-function requireSecret(request, env) {
+async function requireSecret(request, env) {
     if (!env.WATCHDOG_SECRET) {
         return json({ error: "watchdog_secret_not_configured" }, 503);
     }
     const provided = request.headers.get("X-Watchdog-Secret") || "";
-    if (provided.length !== env.WATCHDOG_SECRET.length) {
+    if (!await constantTimeEqual(provided, env.WATCHDOG_SECRET)) {
         return json({ error: "unauthorized" }, 401);
     }
-    // Constant-time compare.
-    let diff = 0;
-    for (let i = 0; i < provided.length; i++) {
-        diff |= provided.charCodeAt(i) ^ env.WATCHDOG_SECRET.charCodeAt(i);
-    }
-    if (diff !== 0) return json({ error: "unauthorized" }, 401);
     return null;
 }
 
