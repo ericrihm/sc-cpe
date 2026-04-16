@@ -397,45 +397,92 @@ async function runSecurityAlerts(env, nowIso) {
 // Exported for tests.
 export { staleHeartbeats };
 
-async function purgeExpired(env, now) {
+// Purge throttles. Protect the worker from a spam-inflated R2 prefix that
+// would otherwise loop forever and repeatedly time out the cron:
+//   - PURGE_MAX_OBJECTS_PER_STREAM: hard cap per stream per invocation; on
+//     hit, raw_r2_key stays set and the next run resumes (R2 delete is
+//     idempotent, so partial progress is never lost).
+//   - PURGE_WALL_BUDGET_MS: cross-stream wall-clock budget; ensures we
+//     finish heartbeats + audits before the Worker subrequest limit.
+//   - PURGE_MAX_STREAMS_PER_RUN: caps the streams pulled per invocation so
+//     the LIST query itself can't blow up the budget on day 1 after a
+//     backfill.
+const PURGE_MAX_OBJECTS_PER_STREAM = 10_000;
+const PURGE_WALL_BUDGET_MS = 20_000;
+const PURGE_MAX_STREAMS_PER_RUN = 50;
+const R2_DELETE_BATCH = 1000;
+
+async function purgeOneStream(env, stream, budget) {
+    const prefix = stream.raw_r2_key;
+    let cursor = undefined;
+    let deleted = 0;
+    let hitCap = false;
+
+    while (true) {
+        if (budget.remainingMs() <= 0) { hitCap = true; break; }
+        if (deleted >= PURGE_MAX_OBJECTS_PER_STREAM) { hitCap = true; break; }
+        const pageLimit = Math.min(
+            R2_DELETE_BATCH,
+            PURGE_MAX_OBJECTS_PER_STREAM - deleted,
+        );
+        const listing = await env.RAW_CHAT.list({ prefix, cursor, limit: pageLimit });
+        const keys = (listing.objects || []).map(o => o.key);
+        if (keys.length === 0) break;
+        await env.RAW_CHAT.delete(keys);
+        deleted += keys.length;
+        cursor = listing.truncated ? listing.cursor : undefined;
+        if (!cursor) break;
+    }
+    return { deleted, hitCap };
+}
+
+export async function purgeExpired(env, now, opts = {}) {
+    const wallBudgetMs = opts.wallBudgetMs ?? PURGE_WALL_BUDGET_MS;
+    const maxStreams = opts.maxStreamsPerRun ?? PURGE_MAX_STREAMS_PER_RUN;
+    const clock = opts.clock ?? (() => Date.now());
+    const startMs = clock();
+    const budget = { remainingMs: () => wallBudgetMs - (clock() - startMs) };
+
     const rs = await env.DB.prepare(`
         SELECT id, yt_video_id, scheduled_date, raw_r2_key, raw_purge_after
         FROM streams
         WHERE raw_r2_key IS NOT NULL
           AND raw_purge_after IS NOT NULL
           AND raw_purge_after < ?1
-    `).bind(now).all();
+        ORDER BY raw_purge_after ASC
+        LIMIT ?2
+    `).bind(now, maxStreams).all();
 
     const streams = rs.results || [];
     let totalObjects = 0;
     let purgedStreams = 0;
+    let partialStreams = 0;
 
     for (const s of streams) {
-        const prefix = s.raw_r2_key;
-        let cursor = undefined;
-        let count = 0;
-        do {
-            const listing = await env.RAW_CHAT.list({ prefix, cursor, limit: 1000 });
-            for (const obj of listing.objects) {
-                await env.RAW_CHAT.delete(obj.key);
-                count++;
-            }
-            cursor = listing.truncated ? listing.cursor : undefined;
-        } while (cursor);
+        if (budget.remainingMs() <= 0) break;
+        const { deleted, hitCap } = await purgeOneStream(env, s, budget);
 
-        await env.DB.prepare(
-            "UPDATE streams SET raw_r2_key = NULL, raw_purge_after = NULL WHERE id = ?1"
-        ).bind(s.id).run();
+        if (!hitCap) {
+            await env.DB.prepare(
+                "UPDATE streams SET raw_r2_key = NULL, raw_purge_after = NULL WHERE id = ?1"
+            ).bind(s.id).run();
+            purgedStreams++;
+        } else {
+            partialStreams++;
+        }
 
         await audit(env, "cron", null, "raw_chat_purged", "stream", s.id, null, {
-            prefix, objects_deleted: count, purge_after: s.raw_purge_after,
+            prefix: s.raw_r2_key, objects_deleted: deleted,
+            purge_after: s.raw_purge_after, partial: hitCap,
         });
 
-        totalObjects += count;
-        purgedStreams++;
+        totalObjects += deleted;
     }
 
-    return { streams: purgedStreams, objects: totalObjects };
+    return {
+        streams: purgedStreams, partial_streams: partialStreams,
+        objects: totalObjects,
+    };
 }
 
 async function heartbeat(env, source, status, detail) {
