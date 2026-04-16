@@ -18,8 +18,21 @@ hash‑chained and independently auditable years later without trusting
 the issuer.
 
 > **Status:** in production on Cloudflare. Smoke green, audit chain intact,
-> five fresh heartbeats, hourly synthetic canary.
+> five fresh heartbeats, hourly synthetic canary, Discord alerting wired
+> across deploy-prod / smoke / watchdog / monthly-certs / cert-sign-pending
+> / schema-drift.
 > Live at **https://sc-cpe-web.pages.dev**.
+>
+> Validated today: auth flow, CSRF gates, rate limits, audit-chain
+> integrity, verify-portal PDF-hash match, email queue drain, deploy
+> rollback documentation, Discord alert pipe (real failure → real ping,
+> round-trip ~60s).
+> In-flight polish: hands-on mobile + screen-reader accessibility pass,
+> the first live-briefing evidentiary proof run is scheduled for the
+> next ET-weekday 08:00–11:00 briefing, apex `cpe.simplycyber.io` DNS
+> wiring. None gate the existing service — certificates issued now
+> carry the same signature, same audit chain, same verifiability as
+> every certificate issued after those items ship.
 
 ---
 
