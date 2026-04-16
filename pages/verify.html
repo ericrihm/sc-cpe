@@ -34,14 +34,37 @@
                 <dt id="rev-dt" hidden>Revocation</dt><dd id="rev-dd" hidden></dd>
             </dl>
         </div>
+
+        <div class="card" id="match-card" hidden>
+            <h3>Step 2 — confirm the PDF matches</h3>
+            <p>A valid token alone proves a certificate was issued, not that <em>the PDF in front of you</em> is that certificate. Drop the PDF here to compare its SHA-256 against the registered hash. The file never leaves your browser.</p>
+            <label id="drop" class="dropzone">
+                <input type="file" id="pdf-input" accept="application/pdf" hidden>
+                <span id="drop-label">Drag a PDF here, or click to choose</span>
+            </label>
+            <p id="match-result" class="muted small"></p>
+        </div>
     </section>
 </main>
+<style>
+.dropzone { display:block; border:2px dashed #8a94a3; border-radius:6px;
+    padding:22px; text-align:center; cursor:pointer; background:#f4f6f8; }
+.dropzone.drag { background:#e3ebf3; border-color:#0b3d5c; }
+.match-ok { color:#0a6c2a; font-weight:600; }
+.match-bad { color:#a7161a; font-weight:600; }
+</style>
 <script>
+let expectedPdfSha = null;
+
 async function lookup(token) {
     const res = document.getElementById("result");
     const panel = document.getElementById("panel");
     res.hidden = false;
     panel.className = "card";
+    document.getElementById("match-card").hidden = true;
+    document.getElementById("match-result").textContent = "";
+    document.getElementById("match-result").className = "muted small";
+    expectedPdfSha = null;
     document.getElementById("status").textContent = "Looking up…";
     for (const id of ["issuer","recipient","period","cpe","sessions","issued","pdfsha","signsha"]) {
         document.getElementById(id).textContent = "";
@@ -63,7 +86,7 @@ async function lookup(token) {
     }
     panel.className = "card " + (d.state === "revoked" ? "bad" : "ok");
     document.getElementById("status").textContent =
-        d.state === "revoked" ? "REVOKED" : "Valid certificate";
+        d.state === "revoked" ? "REVOKED" : "Token is registered — confirm the PDF below";
     document.getElementById("issuer").textContent = d.issuer || "";
     document.getElementById("recipient").textContent = d.recipient || "";
     document.getElementById("period").textContent =
@@ -78,8 +101,57 @@ async function lookup(token) {
         document.getElementById("rev-dd").hidden = false;
         document.getElementById("rev-dd").textContent =
             `${d.revoked_at} — ${d.revocation_reason || ""}`;
+    } else if (d.pdf_sha256) {
+        expectedPdfSha = d.pdf_sha256.toLowerCase();
+        document.getElementById("match-card").hidden = false;
     }
 }
+
+async function sha256Hex(arrayBuffer) {
+    const h = await crypto.subtle.digest("SHA-256", arrayBuffer);
+    return [...new Uint8Array(h)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function verifyPdf(file) {
+    const out = document.getElementById("match-result");
+    out.className = "muted small";
+    out.textContent = "Computing SHA-256…";
+    try {
+        const buf = await file.arrayBuffer();
+        const got = await sha256Hex(buf);
+        if (!expectedPdfSha) {
+            out.textContent = "No registered PDF hash to compare against.";
+            return;
+        }
+        if (got === expectedPdfSha) {
+            out.className = "match-ok";
+            out.textContent = "\u2713 This PDF matches the certificate registered under that token.";
+        } else {
+            out.className = "match-bad";
+            out.textContent = "\u26A0 This PDF does NOT match. The token is registered, but the PDF you uploaded is not the one we issued. Computed: " + got;
+        }
+    } catch (e) {
+        out.className = "match-bad";
+        out.textContent = "Could not read the file: " + (e && e.message || "unknown error");
+    }
+}
+
+const pdfInput = document.getElementById("pdf-input");
+const drop = document.getElementById("drop");
+pdfInput.addEventListener("change", (e) => {
+    if (e.target.files && e.target.files[0]) verifyPdf(e.target.files[0]);
+});
+["dragenter","dragover"].forEach(ev => drop.addEventListener(ev, (e) => {
+    e.preventDefault(); drop.classList.add("drag");
+}));
+["dragleave","drop"].forEach(ev => drop.addEventListener(ev, (e) => {
+    e.preventDefault(); drop.classList.remove("drag");
+}));
+drop.addEventListener("drop", (e) => {
+    e.preventDefault();
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) verifyPdf(f);
+});
 
 document.getElementById("f").addEventListener("submit", (e) => {
     e.preventDefault();
