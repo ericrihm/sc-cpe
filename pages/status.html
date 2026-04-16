@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SC-CPE — Status</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  .status-hero { padding: 18px 24px; border-radius: 6px; margin: 12px 0 20px; font-weight: 600; }
+  .status-hero.ok { background: #0e3a1a; border: 1px solid #1e6b3a; color: #9beab2; }
+  .status-hero.stale { background: #3a1818; border: 1px solid #6b2a2a; color: #ffb4b4; }
+  .status-hero.loading { background: #1e2833; border: 1px solid #2a3644; color: #95a4b3; }
+  .src-row { display: flex; align-items: center; gap: 14px; padding: 10px 14px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 6px; }
+  .src-row.stale { background: #fff3f3; border-color: #e0b4b4; }
+  .src-name { font-family: monospace; font-weight: 600; width: 180px; }
+  .src-badge { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; padding: 3px 8px; border-radius: 10px; }
+  .src-badge.ok { background: #dbf4e4; color: #0a6c2a; }
+  .src-badge.stale { background: #fbd4d4; color: #a7161a; }
+  .src-badge.offduty { background: #e8e8e8; color: #555; }
+  .src-meta { color: #6b7a8a; font-size: 12px; margin-left: auto; font-family: monospace; }
+  .foot { color: #888; font-size: 12px; margin-top: 24px; }
+</style>
+</head>
+<body>
+<main class="narrow">
+  <h1>SC-CPE — Service Status</h1>
+  <p class="lead">Automated. Polled every 30 seconds from <code>/api/health</code>. If something below is red, the relevant cron or worker is not beating within its expected cadence.</p>
+
+  <div id="hero" class="status-hero loading">checking…</div>
+
+  <h2>Components</h2>
+  <div id="sources"></div>
+
+  <p class="foot" id="foot"></p>
+  <p class="foot">For longer-form incident updates, see the <a href="https://github.com/ericrihm/sc-cpe/issues?q=label%3Aincident">incidents label</a> on the SC-CPE repo. For ongoing issues that affect your account, contact <a href="mailto:contact@signalplane.co">contact@signalplane.co</a>.</p>
+  <p><a href="/">&larr; Back</a></p>
+</main>
+<script>
+const FRIENDLY = {
+  poller: {
+    label: "YouTube chat poller",
+    help: "Credits attendance while the Daily Threat Briefing is live. Only on duty ET Mon–Fri 08:00–11:00.",
+  },
+  purge: {
+    label: "Daily chat purge",
+    help: "Cleans raw chat logs from R2. Runs once a day.",
+  },
+  email_sender: {
+    label: "Email delivery",
+    help: "Drains registration, recovery, and monthly certificate emails. Runs every 2 minutes.",
+  },
+  security_alerts: {
+    label: "Security alerts digest",
+    help: "Scans the audit log daily for anything suspicious. Piggybacks on the purge cron.",
+  },
+  canary: {
+    label: "Hourly canary",
+    help: "External synthetic smoke from GitHub Actions. Beats every hour.",
+  },
+};
+function fmtAge(s) {
+  if (s == null) return "—";
+  if (s < 60) return s + "s";
+  if (s < 3600) return Math.floor(s/60) + "m " + (s%60) + "s";
+  return Math.floor(s/3600) + "h " + Math.floor((s%3600)/60) + "m";
+}
+async function refresh() {
+  const hero = document.getElementById("hero");
+  try {
+    const r = await fetch("/api/health", { cache: "no-store" });
+    const d = await r.json();
+    hero.className = "status-hero " + (d.any_stale ? "stale" : "ok");
+    hero.textContent = d.any_stale
+      ? "Some components are stale — see below"
+      : "All systems operational";
+    const box = document.getElementById("sources"); box.innerHTML = "";
+    for (const s of d.sources) {
+      const row = document.createElement("div");
+      row.className = "src-row" + (s.stale ? " stale" : "");
+      const fri = FRIENDLY[s.source] || { label: s.source, help: "" };
+      const badgeCls = !s.expected ? "offduty" : s.stale ? "stale" : "ok";
+      const badgeText = !s.expected ? "off duty" : s.stale ? "stale" : "ok";
+      row.innerHTML =
+        `<div class="src-name">${fri.label}</div>` +
+        `<span class="src-badge ${badgeCls}">${badgeText}</span>` +
+        `<div style="flex:1;font-size:12px;color:#555;">${fri.help}</div>` +
+        `<div class="src-meta">last ${s.last_beat_at ? fmtAge(s.age_seconds) + " ago" : "never"}</div>`;
+      box.appendChild(row);
+    }
+    document.getElementById("foot").textContent =
+      "Last checked " + new Date(d.now).toLocaleString() +
+      " · poll window active: " + (d.poll_window_active ? "yes" : "no");
+  } catch (e) {
+    hero.className = "status-hero stale";
+    hero.textContent = "Could not fetch status — the status endpoint itself may be down.";
+    document.getElementById("foot").textContent = "Error: " + (e && e.message || e);
+  }
+}
+refresh();
+setInterval(refresh, 30_000);
+</script>
+</body>
+</html>
