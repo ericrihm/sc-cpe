@@ -248,6 +248,25 @@
             </p>
         </div>
 
+        <div class="card" id="remember-card" hidden style="border-left:4px solid var(--accent);">
+            <h2 style="margin-top:0;">Remember this device?</h2>
+            <p class="muted" style="font-size:13px;margin:0 0 8px;">
+                Save your session so you can return to this dashboard without
+                the email link. Only use this on a personal device you trust.
+            </p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button type="button" id="remember-yes-btn">Yes, remember me</button>
+                <button type="button" id="remember-no-btn" style="background:transparent;color:var(--fg);border:1px solid var(--border);">No thanks</button>
+            </div>
+        </div>
+
+        <div class="card" id="signout-card" hidden>
+            <p class="muted" style="margin:0;font-size:13px;">
+                This device remembers your dashboard.
+                <button type="button" id="signout-btn" style="background:transparent;border:none;color:var(--accent);cursor:pointer;font-size:13px;padding:0;text-decoration:underline;">Forget this device</button>
+            </p>
+        </div>
+
         <div class="card" id="rotate-card" hidden>
             <h2>Dashboard link security</h2>
             <p class="muted" style="font-size:12px;">

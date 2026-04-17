@@ -1,13 +1,52 @@
+var STORAGE_KEY = "sc_cpe_session";
+var SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+
+function getSavedSession() {
+    try {
+        var raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return null;
+        var s = JSON.parse(raw);
+        if (!s.token || !s.saved_at) return null;
+        if (Date.now() - s.saved_at > SESSION_MAX_AGE_MS) {
+            localStorage.removeItem(STORAGE_KEY);
+            return null;
+        }
+        return s;
+    } catch (e) { return null; }
+}
+
+function saveSession(t, name) {
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+            token: t, name: name, saved_at: Date.now(),
+        }));
+    } catch (e) {}
+}
+
+function clearSession() {
+    try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+}
+
 var token = new URLSearchParams(location.search).get("t");
+if (!token) {
+    var saved = getSavedSession();
+    if (saved) token = saved.token;
+}
 var err = document.getElementById("err");
 
 async function load() {
-    if (!token) { err.textContent = "missing token in URL"; err.hidden = false; document.getElementById("skel").hidden = true; return; }
+    if (!token) {
+        err.innerHTML = 'No dashboard token found. <a href="/recover.html">Recover your link</a> or <a href="/">register</a>.';
+        err.hidden = false;
+        document.getElementById("skel").hidden = true;
+        return;
+    }
     var r = await fetch("/api/me/" + encodeURIComponent(token));
     if (!r.ok) {
-        err.textContent = r.status === 404
-            ? "dashboard not found \u2014 check the link in your email"
-            : "error loading dashboard (" + r.status + ")";
+        if (r.status === 404) clearSession();
+        err.innerHTML = r.status === 404
+            ? 'Dashboard not found. The link may have been rotated. <a href="/recover.html">Recover it here</a>.'
+            : "Error loading dashboard (" + r.status + ").";
         err.hidden = false;
         document.getElementById("skel").hidden = true;
         return;
@@ -18,6 +57,20 @@ async function load() {
     document.getElementById("name").textContent = d.user.legal_name;
     document.getElementById("state").textContent = d.user.state;
     userState = d.user.state;
+
+    var hasSaved = !!getSavedSession();
+    var rememberCard = document.getElementById("remember-card");
+    var signoutCard = document.getElementById("signout-card");
+    if (hasSaved) {
+        saveSession(token, d.user.legal_name);
+        if (signoutCard) signoutCard.hidden = false;
+    } else if (rememberCard) {
+        rememberCard.hidden = false;
+    }
+
+    if (token && !new URLSearchParams(location.search).get("t")) {
+        history.replaceState(null, "", "/dashboard");
+    }
 
     document.getElementById("rotate-card").hidden = false;
 
@@ -449,6 +502,7 @@ document.getElementById("rotate-btn").addEventListener("click", async function (
             { method: "POST" });
         var d = await r.json().catch(function () { return {}; });
         if (r.ok) {
+            clearSession();
             msg.textContent = "Rotated. Check your email for the new link \u2014 this one stops working shortly.";
             msg.style.color = "var(--ok-soft-text)";
             btn.textContent = "Rotated \u2713";
@@ -926,6 +980,24 @@ document.getElementById("copy-text-btn").addEventListener("click", async functio
     try {
         await navigator.clipboard.writeText(text);
     } catch (e) {}
+});
+
+// --- Remember this device ---
+document.getElementById("remember-yes-btn").addEventListener("click", function () {
+    saveSession(token, document.getElementById("name").textContent);
+    document.getElementById("remember-card").hidden = true;
+    document.getElementById("signout-card").hidden = false;
+    if (!new URLSearchParams(location.search).get("t")) {
+        history.replaceState(null, "", "/dashboard");
+    }
+});
+document.getElementById("remember-no-btn").addEventListener("click", function () {
+    document.getElementById("remember-card").hidden = true;
+});
+document.getElementById("signout-btn").addEventListener("click", function () {
+    clearSession();
+    document.getElementById("signout-card").hidden = true;
+    document.getElementById("remember-card").hidden = false;
 });
 
 // --- Leaderboard opt-in ---

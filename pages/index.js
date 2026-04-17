@@ -1,3 +1,19 @@
+(function () {
+    try {
+        var raw = localStorage.getItem("sc_cpe_session");
+        if (!raw) return;
+        var s = JSON.parse(raw);
+        if (!s.token || !s.saved_at) return;
+        if (Date.now() - s.saved_at > 30 * 24 * 60 * 60 * 1000) return;
+        var card = document.getElementById("return-card");
+        if (card) {
+            var nameEl = document.getElementById("return-name");
+            if (nameEl && s.name) nameEl.textContent = s.name;
+            card.hidden = false;
+        }
+    } catch (e) {}
+})();
+
 var ERROR_COPY = {
     invalid_email: "That email address doesn\u2019t look right.",
     invalid_name: "Legal name must be 2\u2013100 letters.",
