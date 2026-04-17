@@ -70,6 +70,27 @@ https://sc-cpe-web.pages.dev/api/crl.json — machine-readable, same data.
   matches the category these programs define. We cannot guarantee
   acceptance — that remains each body's policy call.
 
+## ISACA audit-evidence fields
+
+ISACA requires seven fields on CPE documentation for audit compliance.
+SC-CPE certificates include all seven:
+
+1. **Attendee name** — `recipient_name` on the cert face
+2. **Sponsoring organization** — Simply Cyber LLC (issuer line)
+3. **Activity title** — Simply Cyber Daily Threat Briefing
+4. **Activity description** — printed on the cert; covers threats,
+   vulnerabilities, risk management, security operations, incident
+   response, and governance
+5. **Activity date(s)** — individual or date range
+6. **CPE hours awarded** — credit pill on the cert
+7. **Organizational attestation** — PAdES-T digital signature with
+   signing-cert SHA-256 fingerprint
+
+Starting January 2027, ISACA classifies CPE into certification-aligned
+(90 CPE minimum) and professional-aligned (30 CPE maximum). The Daily
+Threat Briefing content maps to certification-aligned domains for CISA,
+CISM, CRISC, and CGEIT.
+
 ## Audit chain
 
 Every state transition in SC-CPE — registration, chat-code match,

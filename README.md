@@ -10,9 +10,17 @@ Works for the programs most of the community is renewing:
 | --- | --- | --- | --- |
 | **CompTIA** (Security+, CySA+, Network+, PenTest+, CASP+ …) | **CEU** | **0.5 CEU** | Formatted for CE-portal proof-of-attendance: name, date(s), hours, provider, signature |
 | **ISC2** (CISSP, SSCP, CCSP, …) | CPE | 0.5 CPE (Group B) | Ditto — typically uploaded under "Education" |
-| **ISACA** (CISM, CISA, CRISC, …) | CPE | 0.5 CPE | Ditto — "group training / web‑based" |
+| **ISACA** (CISM, CISA, CRISC, CGEIT, CDPSE …) | CPE | 0.5 CPE | All 7 ISACA audit‑evidence fields present (name, org, title, description, date, hours, attestation) |
 
 Acceptance is ultimately the certification body's decision — see Terms §5.
+
+> **ISACA 2027 note:** Starting January 2027, ISACA splits CPE into
+> *certification‑aligned* (90 CPE minimum) and *professional‑aligned*
+> (30 CPE maximum) categories. The Daily Threat Briefing covers threats,
+> risk management, security operations, and governance — all
+> certification‑aligned domains for CISA, CISM, CRISC, and CGEIT.
+> SC‑CPE certificates already include the activity description field
+> needed for domain‑relevance verification under the new rules.
 
 Attend the livestream → post your per‑user code in chat → get a signed
 PDF certificate **per session, per month, or both**. Every step is
@@ -23,8 +31,8 @@ records.
 
 ### 60‑second quickstart
 
-1. Register at [sc-cpe-web.pages.dev](https://sc-cpe-web.pages.dev) — email + legal name (matches your professional certifications) + Turnstile. Your dashboard link + chat code arrive by email.
-2. Watch the Daily Threat Briefing live (ET 08:00–11:00, Mon–Fri) and post any message containing your code in the YouTube live chat.
+1. Register at [sc-cpe-web.pages.dev](https://sc-cpe-web.pages.dev) — email + legal name (matches your professional certifications) + Turnstile. Your dashboard link + chat code arrive by email (subject: *"Simply Cyber CPE — your verification code"* from `noreply@signalplane.co`).
+2. Watch the Daily Threat Briefing live (ET 08:00–11:00, Mon–Fri) and post any message containing your 6‑character code in the YouTube live chat. The dashboard walks you through each step with a numbered guide.
 3. Credit lands within ~60s of your post, visible on your dashboard. Cert PDF ships per‑session on demand (~2h) or monthly bundled — whichever you picked.
 4. Drop the PDF onto [`/verify.html`](https://sc-cpe-web.pages.dev/verify.html) any time to confirm the SHA‑256 matches the registered hash client‑side.
 
@@ -34,16 +42,22 @@ records.
 > / schema-drift.
 > Live at **https://sc-cpe-web.pages.dev**.
 >
-> Validated today: auth flow, CSRF gates, rate limits, audit-chain
-> integrity, verify-portal PDF-hash match, email queue drain, deploy
-> rollback documentation, Discord alert pipe (real failure → real ping,
-> round-trip ~60s).
-> In-flight polish: hands-on mobile + screen-reader accessibility pass,
-> the first live-briefing evidentiary proof run is scheduled for the
-> next ET-weekday 08:00–11:00 briefing, apex `cpe.simplycyber.io` DNS
-> wiring. None gate the existing service — certificates issued now
-> carry the same signature, same audit chain, same verifiability as
-> every certificate issued after those items ship.
+> Recent updates:
+> - **ISACA audit compliance:** certificates now include all 7 fields
+>   ISACA requires for CPE audit evidence, including activity description
+>   for domain‑relevance checks (ready for the Jan 2027 split).
+> - **Dashboard onboarding redesign:** pending users see a step-by-step
+>   numbered guide (find code → post in chat → done), exact email
+>   subject/sender to search for, color-coded status pills, and a
+>   live‑stream nudge when the briefing is on.
+> - **Canary self‑healing:** the hourly smoke workflow now writes the
+>   canary heartbeat before the freshness assertion, so a stale canary
+>   self‑heals on the next passing run instead of death‑spiraling.
+> - **Mobile polish:** responsive fixes for touch targets, iOS safe‑area,
+>   checkbox wrap, and desktop width constraints.
+>
+> In-flight: apex `cpe.simplycyber.io` DNS wiring. Does not gate the
+> existing service.
 
 ---
 
@@ -105,7 +119,10 @@ the skeptical (which is most of this community, appropriately):
 
 Everything a CompTIA CE Portal submission (or ISC2 / ISACA upload) asks for
 is on the face of the document: **recipient name, issuer, activity title,
-date(s) attended, hours earned, signature, and a public verify URL + QR**.
+activity description, date(s) attended, hours earned, digital signature,
+and a public verify URL + QR**. The activity description satisfies ISACA's
+7‑field audit‑evidence requirement and supports domain‑relevance checks
+under the 2027 certification‑aligned/professional‑aligned split.
 
 ## Two ways to get your cert
 
