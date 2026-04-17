@@ -25,8 +25,10 @@ CREATE TABLE users (
     verified_at           TEXT,
     deleted_at            TEXT,
     CHECK (state IN ('pending_verification','active','inactive','banned','deleted','expired')),
+    show_on_leaderboard   INTEGER NOT NULL DEFAULT 0,
     CHECK (legal_name_attested IN (0,1)),
-    CHECK (age_attested_13plus IN (0,1))
+    CHECK (age_attested_13plus IN (0,1)),
+    CHECK (show_on_leaderboard IN (0,1))
 );
 CREATE UNIQUE INDEX users_email_unique ON users(lower(email)) WHERE deleted_at IS NULL;
 CREATE UNIQUE INDEX users_channel_unique ON users(yt_channel_id) WHERE yt_channel_id IS NOT NULL AND state = 'active';

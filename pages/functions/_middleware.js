@@ -3,10 +3,11 @@
 // user-facing flows share one policy.
 //
 // Design notes:
-// - CSP allows 'unsafe-inline' because existing templates use inline <style>
-//   blocks and small inline <script> tags; migrating to nonces would be a
-//   separate refactor. 'unsafe-inline' still blocks the most common XSS
-//   vector (injected <script src="evil">) via script-src 'self'.
+// - All inline scripts have been extracted to external files, so script-src
+//   no longer needs 'unsafe-inline'. style-src retains 'unsafe-inline'
+//   because HTML templates use style= attributes extensively; removing those
+//   would be a larger refactor with minimal security benefit since style
+//   injection is not an XSS vector.
 // - Turnstile (https://challenges.cloudflare.com) is explicitly allowed —
 //   it's loaded on index.html and recover.html for bot mitigation.
 // - frame-ancestors 'none' replaces X-Frame-Options (modern browsers prefer
@@ -15,9 +16,9 @@
 
 const CSP = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com",
+    "script-src 'self' https://challenges.cloudflare.com https://cdnjs.cloudflare.com",
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data:",
+    "img-src 'self' data: blob:",
     "font-src 'self'",
     "connect-src 'self'",
     "frame-src https://challenges.cloudflare.com",

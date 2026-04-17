@@ -143,19 +143,30 @@ async function drain(env) {
     // operators see "150 queued / oldest 4200s old" in the admin view and
     // `stale_heartbeats` digest. These are the earliest signal that Resend
     // rate-limits are biting or the sender is under-provisioned.
-    const [{ n: queuedAfter = 0 } = {}, oldestRow = {}] = await Promise.all([
-        env.DB.prepare("SELECT COUNT(*) AS n FROM email_outbox WHERE state = 'queued'").first().catch(() => ({})),
-        env.DB.prepare("SELECT MIN(created_at) AS ts FROM email_outbox WHERE state = 'queued'").first().catch(() => ({})),
+    let queueError = null;
+    const [countResult, oldestResult] = await Promise.allSettled([
+        env.DB.prepare("SELECT COUNT(*) AS n FROM email_outbox WHERE state = 'queued'").first(),
+        env.DB.prepare("SELECT MIN(created_at) AS ts FROM email_outbox WHERE state = 'queued'").first(),
     ]);
+    if (countResult.status === 'rejected') {
+        queueError = countResult.reason?.message || 'queue_count_query_failed';
+    }
+    if (oldestResult.status === 'rejected' && !queueError) {
+        queueError = oldestResult.reason?.message || 'queue_oldest_query_failed';
+    }
+    const queuedAfter = countResult.status === 'fulfilled' ? (countResult.value?.n ?? 0) : 0;
+    const oldestRow = oldestResult.status === 'fulfilled' ? (oldestResult.value ?? {}) : {};
     const oldestAgeSec = oldestRow?.ts
         ? Math.max(0, Math.floor((Date.now() - new Date(oldestRow.ts).getTime()) / 1000))
         : null;
 
-    return {
+    const result = {
         attempted: rows.length, sent, failed,
         queued_after: queuedAfter,
         oldest_queued_age_seconds: oldestAgeSec,
     };
+    if (queueError) result.queue_query_error = queueError;
+    return result;
 }
 
 async function sendViaResend(env, row) {
@@ -169,21 +180,29 @@ async function sendViaResend(env, row) {
     const text = payload.text_body;
     if (!html && !text) throw new Error("payload_missing_body");
 
-    const resp = await fetch(RESEND_URL, {
-        method: "POST",
-        headers: {
-            "Authorization": `Bearer ${env.RESEND_API_KEY}`,
-            "Content-Type": "application/json",
-            "Idempotency-Key": row.idempotency_key,
-        },
-        body: JSON.stringify({
-            from: env.FROM_EMAIL,
-            to: [row.to_email],
-            subject: row.subject,
-            html,
-            text,
-        }),
-    });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10_000);
+    let resp;
+    try {
+        resp = await fetch(RESEND_URL, {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${env.RESEND_API_KEY}`,
+                "Content-Type": "application/json",
+                "Idempotency-Key": row.idempotency_key,
+            },
+            body: JSON.stringify({
+                from: env.FROM_EMAIL,
+                to: [row.to_email],
+                subject: row.subject,
+                html,
+                text,
+            }),
+            signal: controller.signal,
+        });
+    } finally {
+        clearTimeout(timer);
+    }
 
     if (resp.status >= 400) {
         const body = (await resp.text()).slice(0, 500);

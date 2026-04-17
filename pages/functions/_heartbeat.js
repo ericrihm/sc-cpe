@@ -15,6 +15,7 @@ export const EXPECTED_CADENCE_S = {
     security_alerts: 90000, // piggybacks on purge
     email_sender: 300,      // cron=*/2min continuous
     canary: 3600,           // hourly synthetic smoke
+    monthly_digest: 2678400, // ~31 days; fires 1st of month
 };
 
 // True when `now` falls inside the poller's ET weekday window. Vars come from

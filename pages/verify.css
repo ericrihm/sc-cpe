@@ -1,0 +1,10 @@
+.dropzone { display:flex; align-items:center; justify-content:center;
+    min-height: 64px;
+    border:2px dashed var(--drop-border); border-radius:6px;
+    padding:16px 14px; text-align:center; cursor:pointer;
+    background:var(--drop-bg); color:var(--fg);
+    touch-action: manipulation; }
+.dropzone.drag { background:var(--drop-active-bg); border-color:var(--accent); }
+.match-ok { color:var(--ok-soft-text); font-weight:600; }
+.match-bad { color:var(--bad-soft-text); font-weight:600; }
+.verify-hero { font-size: 14px; color: var(--muted); line-height: 1.6; margin: 0 0 20px; }

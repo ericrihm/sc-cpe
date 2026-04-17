@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>SC-CPE Achievement Badge</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<meta name="theme-color" content="#0b3d5c">
+<meta property="og:title" content="SC-CPE Achievement Badge">
+<meta property="og:description" content="CPE credits earned attending Simply Cyber's Daily Threat Briefing, verified via cryptographic audit chain.">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="SC-CPE Achievement Badge">
+<meta name="twitter:description" content="CPE credits earned attending Simply Cyber's Daily Threat Briefing.">
+<script src="/theme.js"></script>
+<style>
+.badge-wrap { text-align: center; margin: 2rem 0; }
+.badge-wrap img { max-width: 100%; height: auto; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,0.18); }
+.share-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin: 1.5rem 0; }
+.share-row a, .share-row button {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 10px 18px; min-height: 44px; font-size: 14px; font-weight: 600;
+    border-radius: 6px; text-decoration: none; cursor: pointer;
+    touch-action: manipulation;
+}
+.btn-linkedin { background: #0077b5; color: #fff; border: 0; }
+.btn-linkedin:hover { background: #005e93; filter: none; }
+.btn-x { background: #000; color: #fff; border: 0; }
+.btn-x:hover { background: #333; filter: none; }
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin: 1.5rem 0; }
+.stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; text-align: center; }
+.stat-val { font-size: 2rem; font-weight: 700; color: var(--fg-strong); }
+.stat-label { font-size: 12px; color: var(--muted); margin-top: 2px; }
+</style>
+</head>
+<body>
+<main class="narrow">
+    <h1>SC-CPE Achievement Badge</h1>
+    <div id="err" class="err" hidden></div>
+    <div id="body" hidden>
+        <div class="badge-wrap">
+            <img id="badge-img" alt="SC-CPE Achievement Badge">
+        </div>
+        <div class="stats-grid">
+            <div class="stat-card"><div class="stat-val" id="stat-cpe">--</div><div class="stat-label">CPE earned</div></div>
+            <div class="stat-card"><div class="stat-val" id="stat-streak">--</div><div class="stat-label">Day streak</div></div>
+            <div class="stat-card"><div class="stat-val" id="stat-sessions">--</div><div class="stat-label">Sessions</div></div>
+        </div>
+        <div class="share-row">
+            <a id="share-linkedin" class="btn-linkedin" target="_blank" rel="noopener">Share on LinkedIn</a>
+            <a id="share-x" class="btn-x" target="_blank" rel="noopener">Share on X</a>
+        </div>
+        <p class="muted" style="text-align:center;font-size:12px;">
+            Verified via cryptographic audit chain.
+            <a href="https://simplycyber.io" target="_blank" rel="noopener">Simply Cyber</a>
+        </p>
+    </div>
+</main>
+<script>
+const token = new URLSearchParams(location.search).get("t");
+const errEl = document.getElementById("err");
+
+async function load() {
+    if (!token) { errEl.textContent = "Missing badge token in URL."; errEl.hidden = false; return; }
+
+    const badgeUrl = `/api/badge/${encodeURIComponent(token)}`;
+    const r = await fetch(badgeUrl);
+    if (!r.ok) {
+        errEl.textContent = r.status === 404
+            ? "Badge not found."
+            : `Error loading badge (${r.status}).`;
+        errEl.hidden = false;
+        return;
+    }
+
+    const svgText = await r.text();
+    const blob = new Blob([svgText], { type: "image/svg+xml" });
+    const blobUrl = URL.createObjectURL(blob);
+    document.getElementById("badge-img").src = blobUrl;
+
+    // Update OG image meta tag dynamically
+    const ogImg = document.querySelector('meta[property="og:image"]');
+    if (!ogImg) {
+        const meta = document.createElement("meta");
+        meta.setAttribute("property", "og:image");
+        meta.setAttribute("content", location.origin + badgeUrl);
+        document.head.appendChild(meta);
+    }
+    const twImg = document.querySelector('meta[name="twitter:image"]');
+    if (!twImg) {
+        const meta = document.createElement("meta");
+        meta.setAttribute("name", "twitter:image");
+        meta.setAttribute("content", location.origin + badgeUrl);
+        document.head.appendChild(meta);
+    }
+
+    // Parse stats from SVG text
+    const cpeMatch = svgText.match(/>(\d+\.\d+)<\/text>\s*<text[^>]*>CPE earned/);
+    const streakMatch = svgText.match(/>(\d+)<\/text>\s*<text[^>]*>day streak/);
+    const sessionsMatch = svgText.match(/>(\d+)<\/text>\s*<text[^>]*>sessions/);
+
+    const cpe = cpeMatch ? cpeMatch[1] : "0.0";
+    const streak = streakMatch ? streakMatch[1] : "0";
+    const sessions = sessionsMatch ? sessionsMatch[1] : "0";
+
+    document.getElementById("stat-cpe").textContent = cpe;
+    document.getElementById("stat-streak").textContent = streak;
+    document.getElementById("stat-sessions").textContent = sessions;
+
+    const pageUrl = location.href;
+    const shareText = `I've earned ${cpe} CPE credits attending Simply Cyber's Daily Threat Briefing! Verified via cryptographic audit chain. #SimplyCyber #CPE`;
+
+    document.getElementById("share-linkedin").href =
+        `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(pageUrl)}`;
+    document.getElementById("share-x").href =
+        `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(pageUrl)}`;
+
+    document.getElementById("body").hidden = false;
+}
+load();
+</script>
+</body>
+</html>

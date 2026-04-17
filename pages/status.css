@@ -1,0 +1,14 @@
+.status-hero { padding: 18px 24px; border-radius: 6px; margin: 12px 0 20px; font-weight: 600; }
+.status-hero.ok      { background: var(--ok-soft-bg);      border: 1px solid var(--ok-soft-border);      color: var(--ok-soft-text); }
+.status-hero.stale   { background: var(--bad-soft-bg);     border: 1px solid var(--bad-soft-border);     color: var(--bad-soft-text); }
+.status-hero.loading { background: var(--neutral-soft-bg); border: 1px solid var(--neutral-soft-border); color: var(--neutral-soft-text); }
+.src-row { display: flex; align-items: center; gap: 14px; padding: 10px 14px; border: 1px solid var(--border); background: var(--card); border-radius: 4px; margin-bottom: 6px; }
+.src-row.stale { background: var(--bad-soft-bg); border-color: var(--bad-soft-border); }
+.src-name { font-family: monospace; font-weight: 600; width: 180px; }
+.src-badge { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; padding: 3px 8px; border-radius: 10px; }
+.src-badge.ok      { background: var(--ok-soft-bg);      color: var(--ok-soft-text); }
+.src-badge.stale   { background: var(--bad-soft-bg);     color: var(--bad-soft-text); }
+.src-badge.offduty { background: var(--neutral-soft-bg); color: var(--neutral-soft-text); }
+.src-help { flex: 1; font-size: 12px; color: var(--muted); }
+.src-meta { color: var(--muted); font-size: 12px; margin-left: auto; font-family: monospace; }
+.foot { color: var(--muted); font-size: 12px; margin-top: 24px; }
