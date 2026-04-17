@@ -3,8 +3,34 @@
 // and saves nextPageToken to D1 kv for the next firing to continue from.
 
 const YT = "https://www.googleapis.com/youtube/v3";
+const TOKEN_URL = "https://oauth2.googleapis.com/token";
 // Matches both old SC-CPE-XXXXXXXX and new SC-CPE{XXXX-XXXX} formats.
 const CODE_RE = /SC-CPE[-{]([0-9A-HJKMNP-TV-Z]{4})-?([0-9A-HJKMNP-TV-Z]{4})\}?/i;
+
+let cachedToken = null;
+let cachedTokenExpiry = 0;
+
+async function getAccessToken(env) {
+    if (!env.YOUTUBE_OAUTH_CLIENT_ID || !env.YOUTUBE_OAUTH_REFRESH_TOKEN) return null;
+    if (cachedToken && Date.now() < cachedTokenExpiry) return cachedToken;
+
+    const res = await fetch(TOKEN_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+            client_id: env.YOUTUBE_OAUTH_CLIENT_ID,
+            client_secret: env.YOUTUBE_OAUTH_CLIENT_SECRET,
+            refresh_token: env.YOUTUBE_OAUTH_REFRESH_TOKEN,
+            grant_type: "refresh_token",
+        }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(`OAuth token refresh failed: ${data.error} — ${data.error_description}`);
+
+    cachedToken = data.access_token;
+    cachedTokenExpiry = Date.now() + (data.expires_in - 60) * 1000;
+    return cachedToken;
+}
 function extractCode(match) { return (match[1] + match[2]).toUpperCase(); }
 
 // Exported for tests: given a YouTube liveChatMessages batch, return the set
@@ -97,9 +123,10 @@ async function tick(env, now) {
 }
 
 async function discoverLiveStream(env) {
-    const key = env.YOUTUBE_API_KEY;
+    const token = await getAccessToken(env);
     const channel = env.SC_CHANNEL_ID;
-    const search = await ytGet(`${YT}/search?part=id&channelId=${channel}&eventType=live&type=video&maxResults=2&key=${key}`);
+    const authParam = token ? "" : `&key=${env.YOUTUBE_API_KEY}`;
+    const search = await ytGet(`${YT}/search?part=id&channelId=${channel}&eventType=live&type=video&maxResults=2${authParam}`, token);
     const items = search.items || [];
     if (items.length === 0) return null;
     if (items.length > 1) {
@@ -108,7 +135,7 @@ async function discoverLiveStream(env) {
     }
     const videoId = items[0].id.videoId;
 
-    const videos = await ytGet(`${YT}/videos?part=liveStreamingDetails,snippet&id=${videoId}&key=${key}`);
+    const videos = await ytGet(`${YT}/videos?part=liveStreamingDetails,snippet&id=${videoId}${authParam}`, token);
     const v = (videos.items || [])[0];
     if (!v) return null;
     if (v.snippet.liveBroadcastContent !== "live") return null;
@@ -127,18 +154,19 @@ const FINALIZE_ERROR_STRIKES = 3;
 const FINALIZE_ELAPSED_MIN = 90;
 
 async function pollOnePage(env, session, now) {
-    const key = env.YOUTUBE_API_KEY;
+    const token = await getAccessToken(env);
+    const authParam = token ? "" : `&key=${env.YOUTUBE_API_KEY}`;
     const params = new URLSearchParams({
         liveChatId: session.live_chat_id,
         part: "snippet,authorDetails",
         maxResults: "2000",
-        key,
     });
+    if (!token) params.set("key", env.YOUTUBE_API_KEY);
     if (session.page_token) params.set("pageToken", session.page_token);
 
     let data;
     try {
-        data = await ytGet(`${YT}/liveChatMessages?${params}`);
+        data = await ytGet(`${YT}/liveChatMessages?${params}`, token);
     } catch (err) {
         const msg = String(err && err.message || err);
         const is403or404 = msg.includes(" 403") || msg.includes(" 404");
@@ -154,7 +182,7 @@ async function pollOnePage(env, session, now) {
 
         let confirmedEnded = false;
         try {
-            const v = await ytGet(`${YT}/videos?part=liveStreamingDetails&id=${session.video_id}&key=${key}`);
+            const v = await ytGet(`${YT}/videos?part=liveStreamingDetails&id=${session.video_id}${authParam}`, token);
             const end = v?.items?.[0]?.liveStreamingDetails?.actualEndTime;
             if (end) confirmedEnded = true;
         } catch { /* treat as inconclusive */ }
@@ -482,8 +510,10 @@ async function finalizeStream(env, session, now, reason) {
     }
 }
 
-async function ytGet(url) {
-    const res = await fetch(url);
+async function ytGet(url, accessToken) {
+    const headers = {};
+    if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
+    const res = await fetch(url, { headers });
     if (!res.ok) {
         const body = await res.text();
         throw new Error(`YT ${res.status}: ${body.slice(0, 500)}`);
