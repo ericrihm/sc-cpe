@@ -37,7 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
         with:
           node-version: "20"
@@ -51,7 +51,7 @@ jobs:
     timeout-minutes: 5
     environment: production
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       # Same retry-with-backoff pattern as the worker deploys below.
       - name: wrangler pages deploy
         id: pages_deploy
@@ -89,7 +89,7 @@ jobs:
       matrix:
         worker: [purge, poller, email-sender]
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
 
       # First attempt. continue-on-error so a transient CF Workers API
       # 503 (e.g. wrangler's pre-publish GET to /workers/services/...)
@@ -134,7 +134,7 @@ jobs:
       ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
       ALLOW_FIXTURES: ${{ vars.ALLOW_FIXTURES || '0' }}
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       - name: Wait for Pages propagation
         # Pages deploy returns before the edge fully picks up the new bundle.
         # ~20s is empirically enough for sc-cpe-web; bump if smoke flakes.
