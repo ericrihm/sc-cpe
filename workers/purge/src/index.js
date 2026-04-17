@@ -34,6 +34,11 @@ export default {
                 await heartbeat(env, "cert_nudge", "ok",
                     { at: now, ...out.cert_nudge });
             }
+            if (only === "all" || only === "monthly_digest") {
+                out.monthly_digest = await runMonthlyDigest(env, now);
+                await heartbeat(env, "monthly_digest", "ok",
+                    { at: now, ...out.monthly_digest });
+            }
             return new Response(JSON.stringify({ ok: true, now, ...out }),
                 { headers: { "content-type": "application/json" }});
         } catch (err) {
@@ -98,8 +103,167 @@ export default {
                 });
             }
         }
+
+        // Monthly user digest — fires on the 1st of each month. Queues a
+        // summary email for every active user who earned CPE last month.
+        if (new Date(now).getUTCDate() === 1) {
+            try {
+                const digest = await runMonthlyDigest(env, now);
+                await heartbeat(env, "monthly_digest", "ok", { at: now, ...digest });
+            } catch (err) {
+                await heartbeat(env, "monthly_digest", "error", {
+                    at: now, msg: String(err && err.message || err),
+                });
+            }
+        }
     },
 };
+
+async function runMonthlyDigest(env, nowIso) {
+    if (!env.SITE_BASE) {
+        return { skipped: "missing_site_base" };
+    }
+    const siteBase = env.SITE_BASE.replace(/\/$/, "");
+
+    const d = new Date(nowIso);
+    const py = d.getUTCMonth() === 0 ? d.getUTCFullYear() - 1 : d.getUTCFullYear();
+    const pm = d.getUTCMonth() === 0 ? 12 : d.getUTCMonth(); // 1-12
+    const periodYyyymm = `${py}${String(pm).padStart(2, "0")}`;
+    const periodStart = `${py}-${String(pm).padStart(2, "0")}-01`;
+    const periodEndDate = new Date(Date.UTC(py, pm, 0)); // last day of prior month
+    const periodEnd = periodEndDate.toISOString().slice(0, 10);
+    const months = ["January","February","March","April","May","June",
+        "July","August","September","October","November","December"];
+    const periodLabel = `${months[pm - 1]} ${py}`;
+
+    // All active users who earned CPE in the prior month
+    const rows = (await env.DB.prepare(`
+        SELECT u.id AS user_id, u.email, u.legal_name, u.dashboard_token,
+               u.email_prefs,
+               SUM(a.earned_cpe) AS month_cpe,
+               COUNT(a.stream_id) AS month_sessions
+          FROM users u
+          JOIN attendance a ON a.user_id = u.id
+          JOIN streams s ON s.id = a.stream_id
+         WHERE u.state = 'active'
+           AND u.deleted_at IS NULL
+           AND s.scheduled_date >= ?1
+           AND s.scheduled_date <= ?2
+      GROUP BY u.id
+    `).bind(periodStart, periodEnd).all()).results || [];
+
+    let queued = 0, skipped = 0;
+    for (const r of rows) {
+        try {
+            const prefs = JSON.parse(r.email_prefs || "{}") || {};
+            if (prefs.monthly_cert === false) { skipped++; continue; }
+
+            // Total CPE (all time)
+            const totalRow = await env.DB.prepare(
+                "SELECT SUM(earned_cpe) AS total FROM attendance WHERE user_id = ?1"
+            ).bind(r.user_id).first();
+            const totalCpe = totalRow?.total || 0;
+
+            // Current streak
+            const attRows = (await env.DB.prepare(`
+                SELECT s.scheduled_date
+                  FROM attendance a JOIN streams s ON s.id = a.stream_id
+                 WHERE a.user_id = ?1
+              ORDER BY s.scheduled_date DESC
+            `).bind(r.user_id).all()).results || [];
+            const streak = computeStreak(attRows);
+
+            // Certs issued in the period
+            const certRow = await env.DB.prepare(
+                "SELECT COUNT(*) AS n FROM certs WHERE user_id = ?1 AND period_yyyymm = ?2 AND state != 'regenerated'"
+            ).bind(r.user_id, periodYyyymm).first();
+            const certsIssued = certRow?.n || 0;
+
+            const dashUrl = `${siteBase}/dashboard.html?t=${r.dashboard_token}`;
+            const subject = `Your SC-CPE Monthly Summary \u2014 ${periodLabel}`;
+            const text =
+                `Hi ${r.legal_name || "there"},\n\n` +
+                `Here's your SC-CPE summary for ${periodLabel}:\n\n` +
+                `  CPE earned this month:  ${r.month_cpe}\n` +
+                `  Total CPE earned:       ${totalCpe}\n` +
+                `  Sessions attended:      ${r.month_sessions}\n` +
+                `  Current streak:         ${streak} day${streak !== 1 ? "s" : ""}\n` +
+                `  Certificates issued:    ${certsIssued}\n\n` +
+                `Dashboard: ${dashUrl}\n\n` +
+                `See you at the next Daily Threat Briefing!\n` +
+                `\u2014 Simply Cyber CPE\n`;
+            const html = emailShell({
+                title: `Monthly Summary \u2014 ${periodLabel}`,
+                preheader: `${r.month_cpe} CPE earned in ${periodLabel}`,
+                bodyHtml:
+                    `<p>Hi ${escapeHtml(r.legal_name || "there")},</p>` +
+                    `<p>Here's your SC-CPE summary for <strong>${escapeHtml(periodLabel)}</strong>:</p>` +
+                    `<table style="border-collapse:collapse;width:100%;margin:16px 0;">` +
+                    `<tr><td style="padding:8px 12px;border-bottom:1px solid #e6eaee;color:#5b6473;">CPE earned this month</td><td style="padding:8px 12px;border-bottom:1px solid #e6eaee;font-weight:700;">${r.month_cpe}</td></tr>` +
+                    `<tr><td style="padding:8px 12px;border-bottom:1px solid #e6eaee;color:#5b6473;">Total CPE earned</td><td style="padding:8px 12px;border-bottom:1px solid #e6eaee;font-weight:700;">${totalCpe}</td></tr>` +
+                    `<tr><td style="padding:8px 12px;border-bottom:1px solid #e6eaee;color:#5b6473;">Sessions attended</td><td style="padding:8px 12px;border-bottom:1px solid #e6eaee;font-weight:700;">${r.month_sessions}</td></tr>` +
+                    `<tr><td style="padding:8px 12px;border-bottom:1px solid #e6eaee;color:#5b6473;">Current streak</td><td style="padding:8px 12px;border-bottom:1px solid #e6eaee;font-weight:700;">${streak} day${streak !== 1 ? "s" : ""}</td></tr>` +
+                    `<tr><td style="padding:8px 12px;color:#5b6473;">Certificates issued</td><td style="padding:8px 12px;font-weight:700;">${certsIssued}</td></tr>` +
+                    `</table>` +
+                    `<p><a href="${dashUrl}" style="display:inline-block;padding:12px 24px;background:#0b3d5c;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">View dashboard</a></p>` +
+                    `<p style="color:#777;font-size:13px;">See you at the next Daily Threat Briefing!</p>`,
+            });
+
+            await env.DB.prepare(`
+                INSERT INTO email_outbox
+                  (id, user_id, template, to_email, subject, payload_json,
+                   idempotency_key, state, attempts, created_at)
+                VALUES (?1, ?2, 'monthly_digest', ?3, ?4, ?5, ?6, 'queued', 0, ?7)
+            `).bind(
+                ulid(), r.user_id, r.email, subject,
+                JSON.stringify({ html_body: html, text_body: text }),
+                `monthly_digest:${r.user_id}:${periodYyyymm}`, nowIso,
+            ).run();
+            queued++;
+        } catch (err) {
+            if (/UNIQUE/i.test(String(err?.message || err))) {
+                skipped++;
+            } else {
+                throw err;
+            }
+        }
+    }
+    return { period: periodYyyymm, queued, skipped, candidates: rows.length };
+}
+
+function computeStreak(rows) {
+    const dates = [...new Set(rows.map(r => r.scheduled_date).filter(Boolean))].sort().reverse();
+    if (dates.length === 0) return 0;
+    let streak = 1;
+    for (let i = 1; i < dates.length; i++) {
+        const prev = new Date(dates[i - 1]);
+        const curr = new Date(dates[i]);
+        const diffDays = Math.round((prev - curr) / 86400000);
+        if (diffDays <= 3) { streak++; } else { break; }
+    }
+    return streak;
+}
+
+function emailShell({ title, preheader, bodyHtml }) {
+    const safeTitle = escapeHtml(title);
+    return `<!doctype html>
+<html><body style="margin:0;padding:0;background:#f4f6f8;font-family:Helvetica,Arial,sans-serif;color:#111;line-height:1.5;">
+<span style="display:none!important;opacity:0;color:transparent;height:0;width:0;overflow:hidden;">${escapeHtml(preheader || "")}</span>
+<div style="max-width:580px;margin:0 auto;background:#fff;">
+  <div style="background:#0b3d5c;padding:18px 24px;">
+    <div style="color:#fff;font-size:11pt;letter-spacing:0.18em;text-transform:uppercase;">Simply Cyber CPE</div>
+    <div style="color:#d4a73a;font-size:9pt;margin-top:2px;">${safeTitle}</div>
+  </div>
+  <div style="padding:24px;">
+    ${bodyHtml}
+  </div>
+  <div style="padding:16px 24px;border-top:1px solid #e6eaee;font-size:11px;color:#777;">
+    You're receiving this because you registered for Simply Cyber CPE.<br/>
+    Questions? Reply to this email.
+  </div>
+</div>
+</body></html>`;
+}
 
 // Prior month as YYYYMM string. Runs on the 8th, so "this month minus one".
 function priorPeriodYyyymm(nowIso) {
@@ -275,6 +439,7 @@ const EXPECTED_CADENCE_S = {
     security_alerts: 90000,
     email_sender: 300,
     canary: 3600,
+    monthly_digest: 2678400,
 };
 
 function staleHeartbeats(rows, nowMs) {

@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>SC-CPE — Community Leaderboard</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<meta name="theme-color" content="#0b3d5c">
+<script src="/theme.js"></script>
+<style>
+.lb-period { color: var(--muted); font-size: 14px; margin-bottom: 1rem; }
+.lb-table { width: 100%; border-collapse: collapse; }
+.lb-table th { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-weight: 600; padding: 8px 10px; border-bottom: 2px solid var(--border-strong); }
+.lb-table td { padding: 10px; border-bottom: 1px solid var(--border); font-size: 15px; }
+.lb-rank { font-weight: 700; color: var(--fg-strong); width: 40px; text-align: center; }
+.lb-rank-1 { color: #d4a73a; font-size: 18px; }
+.lb-rank-2 { color: #95a4b3; font-size: 17px; }
+.lb-rank-3 { color: #b87333; font-size: 17px; }
+.lb-name { font-weight: 600; }
+.lb-cpe { font-weight: 700; color: var(--fg-strong); }
+.lb-sessions { color: var(--muted); font-size: 13px; }
+.lb-empty { text-align: center; color: var(--muted); padding: 3rem 1rem; }
+</style>
+</head>
+<body>
+<main class="narrow">
+    <h1>Community Leaderboard</h1>
+    <p class="lead">Top CPE earners this month — opt in from your <a href="/">dashboard</a>.</p>
+    <p id="period" class="lb-period"></p>
+    <div id="err" class="err" hidden></div>
+    <table class="lb-table" id="lb-table" hidden>
+        <thead>
+            <tr><th>Rank</th><th>Name</th><th>CPE</th><th>Sessions</th></tr>
+        </thead>
+        <tbody id="lb-body"></tbody>
+    </table>
+    <p id="lb-empty" class="lb-empty" hidden>No one has opted in yet this month. Be the first!</p>
+    <p class="muted" style="margin-top:2rem;font-size:12px;">
+        <a href="/">Simply Cyber CPE</a> &mdash; verified via cryptographic audit chain.
+    </p>
+</main>
+<script>
+async function load() {
+    const errEl = document.getElementById("err");
+    try {
+        const r = await fetch("/api/leaderboard");
+        if (!r.ok) {
+            errEl.textContent = `Error loading leaderboard (${r.status}).`;
+            errEl.hidden = false;
+            return;
+        }
+        const d = await r.json();
+        const period = d.period;
+        if (period && /^\d{6}$/.test(period)) {
+            const months = ["January","February","March","April","May","June",
+                "July","August","September","October","November","December"];
+            const y = Number(period.slice(0, 4));
+            const m = Number(period.slice(4, 6)) - 1;
+            document.getElementById("period").textContent = `${months[m]} ${y}`;
+        }
+
+        const entries = d.entries || [];
+        if (entries.length === 0) {
+            document.getElementById("lb-empty").hidden = false;
+            return;
+        }
+
+        const tbody = document.getElementById("lb-body");
+        for (const e of entries) {
+            const tr = document.createElement("tr");
+            const rankCls = e.rank <= 3 ? ` lb-rank-${e.rank}` : "";
+            tr.innerHTML = `
+                <td class="lb-rank${rankCls}">${e.rank}</td>
+                <td class="lb-name">${esc(e.display_name)}</td>
+                <td class="lb-cpe">${Number(e.cpe_earned).toFixed(1)}</td>
+                <td class="lb-sessions">${e.sessions}</td>
+            `;
+            tbody.appendChild(tr);
+        }
+        document.getElementById("lb-table").hidden = false;
+    } catch (err) {
+        errEl.textContent = "Failed to load leaderboard.";
+        errEl.hidden = false;
+    }
+}
+
+function esc(s) {
+    return String(s).replace(/[&<>"']/g, c => ({
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;",
+    }[c]));
+}
+
+load();
+</script>
+</body>
+</html>
