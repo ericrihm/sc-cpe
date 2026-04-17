@@ -61,12 +61,12 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_DEPLOY_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: pages
-          command: pages deploy . --project-name sc-cpe-web --branch main --commit-dirty=true
+          command: pages deploy . --project-name sc-cpe-web --branch main --commit-message="${{ github.sha }}"
 
       - name: Wait before retry
         if: steps.pages_deploy.outcome == 'failure'
         run: |
-          echo "First wrangler pages deploy attempt failed — CF API may be flaky. Waiting 20s before retry."
+          echo "First wrangler pages deploy attempt failed -- CF API may be flaky. Waiting 20s before retry."
           sleep 20
 
       - name: wrangler pages deploy (retry)
@@ -76,7 +76,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_DEPLOY_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: pages
-          command: pages deploy . --project-name sc-cpe-web --branch main --commit-dirty=true
+          command: pages deploy . --project-name sc-cpe-web --branch main --commit-message="${{ github.sha }}"
 
   deploy-workers:
     name: Deploy Worker (${{ matrix.worker }})
