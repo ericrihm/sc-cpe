@@ -230,7 +230,7 @@
                         <div class="step-body">
                             <div class="step-title">Post it in YouTube live chat</div>
                             <div class="step-detail">
-                                During the Daily Threat Briefing livestream, paste your 6-character code
+                                During the Daily Threat Briefing livestream, paste your <code>SC-CPE{...}</code> code
                                 as a chat message. The system picks it up automatically within ~60 seconds.
                             </div>
                         </div>
@@ -879,7 +879,7 @@ document.getElementById("resend-btn").addEventListener("click", async () => {
             { method: "POST" });
         const d = await r.json().catch(() => ({}));
         if (r.ok) {
-            msg.innerHTML = '&#10003; New code sent — look for <strong>"Simply Cyber CPE — your new verification code"</strong> from noreply@signalplane.co';
+            msg.innerHTML = '&#10003; Code sent — look for <strong>"Simply Cyber CPE — your new verification code"</strong> from noreply@signalplane.co';
             msg.style.color = "var(--ok-soft-text)";
         } else if (r.status === 429) {
             msg.textContent = "Too many requests — try again in an hour.";
@@ -932,7 +932,7 @@ function renderToday(today) {
         hint.hidden = true;
     } else if (today.state === "live") {
         if (userState === "pending_verification") {
-            status.innerHTML = "<strong class='today-waiting'>&#128308; The briefing is live now!</strong> Post your 6-character verification code in the YouTube live chat to verify your account and get credit for this session.";
+            status.innerHTML = "<strong class='today-waiting'>&#128308; The briefing is live now!</strong> Post your <code>SC-CPE{...}</code> code in the YouTube live chat to verify your account and get credit for this session.";
         } else {
             status.innerHTML = "<strong class='today-waiting'>&#9203; Waiting for qualifying message</strong>";
         }

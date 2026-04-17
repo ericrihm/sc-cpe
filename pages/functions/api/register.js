@@ -1,5 +1,5 @@
 import {
-    ulid, randomCode, randomToken, json, now, audit, clientIp, ipHash,
+    ulid, randomCode, formatCode, randomToken, json, now, audit, clientIp, ipHash,
     isValidEmail, isValidName, verifyTurnstile, queueEmail,
     escapeHtml, emailShell, sha256Hex, rateLimit,
     killSwitched, killedResponse,
@@ -15,13 +15,14 @@ const SITE_BASE = "https://sc-cpe-web.pages.dev";
 
 function welcomeEmailBodies({ legalName, code, dashboardToken, expiresAt }) {
     const dashUrl = `${SITE_BASE}/dashboard.html?t=${dashboardToken}`;
-    const subject = `Simply Cyber CPE — your verification code: ${code}`;
+    const display = formatCode(code);
+    const subject = `Simply Cyber CPE — your verification code`;
     const text = (
         `Hi ${legalName},\n\n` +
         `Welcome to Simply Cyber CPE. To finish activating your account,\n` +
         `paste this code into a live chat message during the Daily Threat\n` +
         `Briefing on YouTube:\n\n` +
-        `    ${code}\n\n` +
+        `    ${display}\n\n` +
         `Our poller sees the code and links your YouTube channel to this\n` +
         `registration. The code expires ${expiresAt}.\n\n` +
         `Your dashboard (bookmark this — it is your access URL):\n` +
@@ -34,9 +35,9 @@ function welcomeEmailBodies({ legalName, code, dashboardToken, expiresAt }) {
 <p>Hi ${escapeHtml(legalName)},</p>
 <p>Welcome to <strong>Simply Cyber CPE</strong>. To finish activating your account,
 paste this code into a live chat message during the Daily Threat Briefing on YouTube:</p>
-<p style="font-family:Menlo,monospace;font-size:22pt;text-align:center;
-   background:#f4f6f8;padding:14px;border-radius:6px;letter-spacing:0.08em;">
-   ${escapeHtml(code)}
+<p style="font-family:Menlo,monospace;font-size:20pt;text-align:center;
+   background:#f4f6f8;padding:14px;border-radius:6px;letter-spacing:0.04em;">
+   ${escapeHtml(display)}
 </p>
 <p>Our poller sees the code in chat and links your YouTube channel to this
 registration. The code expires <strong>${escapeHtml(expiresAt)}</strong>.</p>
@@ -46,7 +47,7 @@ registration. The code expires <strong>${escapeHtml(expiresAt)}</strong>.</p>
 this email — the account stays inactive unless the code is used in chat.</p>`;
     const html = emailShell({
         title: "Verification code",
-        preheader: `Your verification code: ${code}`,
+        preheader: `Your code: ${display}`,
         bodyHtml,
     });
     return { subject, html, text };

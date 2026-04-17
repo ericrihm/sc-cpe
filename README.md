@@ -32,7 +32,7 @@ records.
 ### 60‑second quickstart
 
 1. Register at [sc-cpe-web.pages.dev](https://sc-cpe-web.pages.dev) — email + legal name (matches your professional certifications) + Turnstile. Your dashboard link + chat code arrive by email (subject: *"Simply Cyber CPE — your verification code"* from `noreply@signalplane.co`).
-2. Watch the Daily Threat Briefing live (ET 08:00–11:00, Mon–Fri) and post any message containing your 6‑character code in the YouTube live chat. The dashboard walks you through each step with a numbered guide.
+2. Watch the Daily Threat Briefing live (ET 08:00–11:00, Mon–Fri) and post your `SC-CPE{XXXX-XXXX}` code in the YouTube live chat. The dashboard walks you through each step with a numbered guide.
 3. Credit lands within ~60s of your post, visible on your dashboard. Cert PDF ships per‑session on demand (~2h) or monthly bundled — whichever you picked.
 4. Drop the PDF onto [`/verify.html`](https://sc-cpe-web.pages.dev/verify.html) any time to confirm the SHA‑256 matches the registered hash client‑side.
 
@@ -172,7 +172,7 @@ by hand doesn't scale past a few dozen people. SC‑CPE does it end‑to‑end:
 ```
  1.  Register at  /register.html
      → one‑time sign‑up with email + Turnstile. Your dashboard link and
-       personal 6‑char chat code are emailed to the address you entered —
+       personal chat code (format: `SC-CPE{XXXX-XXXX}`) are emailed to the address you entered —
        the HTTP response never contains them, so email possession is the
        only activation gate (a Turnstile‑solver who knows your address
        cannot hijack the registration).

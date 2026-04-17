@@ -17,6 +17,10 @@ export function randomCode() {
     return s;
 }
 
+export function formatCode(raw) {
+    return `SC-CPE{${raw.slice(0, 4)}-${raw.slice(4)}}`;
+}
+
 export function randomToken() {
     const rnd = crypto.getRandomValues(new Uint8Array(32));
     return [...rnd].map(b => b.toString(16).padStart(2, "0")).join("");
