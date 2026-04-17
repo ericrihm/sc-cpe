@@ -163,6 +163,38 @@
     background: var(--warn-soft-bg);
 }
 .window-warn .muted { color: var(--muted); }
+
+/* Pending verification — step-by-step onboarding */
+.steps { counter-reset: step; list-style: none; padding: 0; margin: 12px 0 0; }
+.steps li {
+    counter-increment: step;
+    display: flex; gap: 12px; align-items: flex-start;
+    padding: 10px 0; border-bottom: 1px solid var(--border);
+}
+.steps li:last-child { border-bottom: none; }
+.steps li::before {
+    content: counter(step);
+    flex-shrink: 0; width: 28px; height: 28px; line-height: 28px;
+    text-align: center; border-radius: 50%; font-weight: 700; font-size: 14px;
+    background: var(--accent); color: #fff;
+}
+.steps li .step-body { flex: 1; }
+.steps li .step-title { font-weight: 600; font-size: 14px; color: var(--fg-strong); }
+.steps li .step-detail { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.resend-box {
+    margin-top: 12px; padding: 12px; border-radius: 6px;
+    background: var(--card-alt, var(--hover-bg)); border: 1px solid var(--border);
+}
+.resend-box .resend-label { font-size: 13px; color: var(--fg-strong); font-weight: 600; }
+.resend-box .resend-hint { font-size: 11px; color: var(--muted); margin: 4px 0 8px; }
+#resend-btn {
+    padding: 10px 16px; min-height: 44px; font-size: 14px; font-weight: 600;
+    border: 2px solid var(--accent); border-radius: 6px;
+    background: var(--card); color: var(--accent); cursor: pointer;
+    touch-action: manipulation; width: 100%;
+}
+#resend-btn:hover { background: var(--accent-soft-bg); }
+#resend-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 </style>
 </head>
 <body>
@@ -182,14 +214,44 @@
         <div class="card">
             <h2 id="name"></h2>
             <p>Status: <strong id="state"></strong></p>
-            <p id="pending" hidden>
-                We emailed you a verification code. Post it in the
-                Simply Cyber Daily Threat Briefing live chat to bind your
-                YouTube account.<br/>
-                <span id="code-status"></span>
-                <button type="button" id="resend-btn" hidden style="margin-top:8px;">Re-send code by email</button>
-                <span id="resend-msg" class="muted" hidden></span>
-            </p>
+            <div id="pending" hidden>
+                <p id="code-status"></p>
+                <ol class="steps">
+                    <li>
+                        <div class="step-body">
+                            <div class="step-title">Find your code in email</div>
+                            <div class="step-detail">
+                                Look for <strong>"Simply Cyber CPE — your verification code"</strong>
+                                from <strong>noreply@signalplane.co</strong>. Check spam/promotions if you don't see it.
+                            </div>
+                        </div>
+                    </li>
+                    <li>
+                        <div class="step-body">
+                            <div class="step-title">Post it in YouTube live chat</div>
+                            <div class="step-detail">
+                                During the Daily Threat Briefing livestream, paste your 6-character code
+                                as a chat message. The system picks it up automatically within ~60 seconds.
+                            </div>
+                        </div>
+                    </li>
+                    <li>
+                        <div class="step-body">
+                            <div class="step-title">Done — you're verified</div>
+                            <div class="step-detail">
+                                Your YouTube account gets linked and attendance starts counting.
+                                This page updates automatically.
+                            </div>
+                        </div>
+                    </li>
+                </ol>
+                <div class="resend-box">
+                    <div class="resend-label">Can't find the email?</div>
+                    <div class="resend-hint">We'll send a fresh code to the email address you registered with. Old codes stop working when a new one is issued.</div>
+                    <button type="button" id="resend-btn" hidden>Send me a new code</button>
+                    <span id="resend-msg" class="muted" hidden></span>
+                </div>
+            </div>
             <p id="active" hidden>
                 <span id="link-line"></span>
                 <span id="channel-wrap" hidden>(<span id="channel" class="muted"></span>)</span>
@@ -294,6 +356,7 @@ async function load() {
     document.getElementById("body").hidden = false;
     document.getElementById("name").textContent = d.user.legal_name;
     document.getElementById("state").textContent = d.user.state;
+    userState = d.user.state;
 
     // Rotate card is available to both pending and active users — either
     // can have a leaked dashboard URL and need to invalidate it.
@@ -638,15 +701,17 @@ function renderCodeStatus(codeState, codeExpiresAt) {
           })
         : "";
     if (codeState === "active") {
-        status.innerHTML = `Your code expires <strong>${friendly}</strong>. Lost it?`;
+        status.innerHTML = `<span class="pill pill-green">Code active</span> expires <strong>${friendly}</strong>`;
         btn.hidden = false;
+        btn.textContent = "Send me a new code";
     } else if (codeState === "expired") {
-        status.innerHTML = `<strong class="code-expired-note">Your code expired ${friendly}.</strong>
-            Request a fresh one — the new code is delivered by email.`;
+        status.innerHTML = `<span class="pill pill-red">Code expired</span> <strong class="code-expired-note">expired ${friendly}</strong> — request a fresh one below.`;
         btn.hidden = false;
+        btn.textContent = "Send me a new code";
     } else {
-        status.textContent = "No active code on file. Request one below.";
+        status.innerHTML = `<span class="pill pill-amber">No code on file</span> Request one below to get started.`;
         btn.hidden = false;
+        btn.textContent = "Send me a code";
     }
 }
 
@@ -716,13 +781,13 @@ document.getElementById("resend-btn").addEventListener("click", async () => {
             { method: "POST" });
         const d = await r.json().catch(() => ({}));
         if (r.ok) {
-            msg.textContent = "New code sent. Check your email.";
+            msg.innerHTML = '&#10003; New code sent — look for <strong>"Simply Cyber CPE — your new verification code"</strong> from noreply@signalplane.co';
             msg.style.color = "var(--ok-soft-text)";
         } else if (r.status === 429) {
             msg.textContent = "Too many requests — try again in an hour.";
             msg.style.color = "var(--bad-soft-text)";
         } else if (r.status === 409) {
-            msg.textContent = "Already verified — no code needed.";
+            msg.textContent = "Already verified — no code needed. Refresh this page.";
             msg.style.color = "var(--ok-soft-text)";
         } else {
             msg.textContent = `Couldn't send code (${r.status}).`;
@@ -749,6 +814,7 @@ function escapeHtml(s) {
 // "credited" within one poller cycle. Stops polling once the stream
 // completes or the user is already credited.
 let refreshTimer = null;
+let userState = "active";
 function renderToday(today) {
     const card = document.getElementById("today-card");
     if (!today) {
@@ -767,8 +833,12 @@ function renderToday(today) {
         status.innerHTML = "<strong class='today-credited'>&#10003; Credited</strong> &nbsp;0.5 CPE recorded for this session.";
         hint.hidden = true;
     } else if (today.state === "live") {
-        status.innerHTML = "<strong class='today-waiting'>&#9203; Waiting for qualifying message</strong>";
-        hint.hidden = false;
+        if (userState === "pending_verification") {
+            status.innerHTML = "<strong class='today-waiting'>&#128308; The briefing is live now!</strong> Post your 6-character verification code in the YouTube live chat to verify your account and get credit for this session.";
+        } else {
+            status.innerHTML = "<strong class='today-waiting'>&#9203; Waiting for qualifying message</strong>";
+        }
+        hint.hidden = userState !== "pending_verification";
         if (refreshTimer) clearTimeout(refreshTimer);
         refreshTimer = setTimeout(() => { refreshTimer = null; load(); }, 30000);
         return;
