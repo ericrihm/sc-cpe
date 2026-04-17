@@ -3,7 +3,9 @@
 // and saves nextPageToken to D1 kv for the next firing to continue from.
 
 const YT = "https://www.googleapis.com/youtube/v3";
-const CODE_RE = /SC-CPE-([0-9A-HJKMNP-TV-Z]{8})/i;
+// Matches both old SC-CPE-XXXXXXXX and new SC-CPE{XXXX-XXXX} formats.
+const CODE_RE = /SC-CPE[-{]([0-9A-HJKMNP-TV-Z]{4})-?([0-9A-HJKMNP-TV-Z]{4})\}?/i;
+function extractCode(match) { return (match[1] + match[2]).toUpperCase(); }
 
 // Exported for tests: given a YouTube liveChatMessages batch, return the set
 // of codes that appeared from two or more distinct channels. Pure function,
@@ -15,7 +17,7 @@ export function detectContestedCodes(items) {
         const text = m?.snippet?.displayMessage || "";
         const match = CODE_RE.exec(text);
         if (!match) continue;
-        const code = match[1].toUpperCase();
+        const code = extractCode(match);
         const channelId = m?.authorDetails?.channelId;
         if (!channelId) continue;
         const seen = firstChannel.get(code);
@@ -226,7 +228,7 @@ async function processCodeMatches(env, session, items, now) {
         const text = m.snippet?.displayMessage || "";
         const match = CODE_RE.exec(text);
         if (!match) continue;
-        const code = match[1].toUpperCase();
+        const code = extractCode(match);
         const channelId = m.authorDetails?.channelId;
         if (!channelId) continue;
 
@@ -271,7 +273,7 @@ async function processCodeMatches(env, session, items, now) {
             ).bind(user.id).run();
             await audit(env, "poller", user.id, "code_race_detected", "user", user.id,
                 null, { code, channels: [...new Set(items
-                    .filter(x => CODE_RE.exec(x.snippet?.displayMessage || "")?.[1]?.toUpperCase() === code)
+                    .filter(x => { const m = CODE_RE.exec(x.snippet?.displayMessage || ""); return m && extractCode(m) === code; })
                     .map(x => x.authorDetails?.channelId).filter(Boolean))],
                     stream_id: session.stream_id });
             continue;
