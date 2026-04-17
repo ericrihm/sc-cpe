@@ -540,12 +540,13 @@ test("resend-code: missing Origin → 403 CSRF", async () => {
     assert.equal(j.error, "forbidden_origin");
 });
 
-test("resend-code: already active user → 409", async () => {
+test("resend-code: already active user with linked channel → 409", async () => {
     const db = mockDB([
         {
             match: /FROM users WHERE dashboard_token.*deleted_at IS NULL/s,
             handler: () => ({ first: { id: FAKE_ULID, email: "alice@example.com",
-                legal_name: "Alice", state: "active", dashboard_token: FAKE_TOKEN } }),
+                legal_name: "Alice", state: "active", dashboard_token: FAKE_TOKEN,
+                yt_channel_id: "UC1234567890" } }),
         },
     ]);
     const r = await resendPost({

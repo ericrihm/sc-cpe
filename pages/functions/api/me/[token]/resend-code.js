@@ -65,11 +65,11 @@ export async function onRequestPost({ params, request, env }) {
     const ipH = await ipHash(ip);
 
     const user = await env.DB.prepare(`
-        SELECT id, email, legal_name, state, dashboard_token
+        SELECT id, email, legal_name, state, dashboard_token, yt_channel_id
           FROM users WHERE dashboard_token = ?1 AND deleted_at IS NULL
     `).bind(token).first();
     if (!user) return json({ error: "not_found" }, 404);
-    if (user.state === "active") {
+    if (user.state === "active" && user.yt_channel_id) {
         return json({ error: "already_verified" }, 409);
     }
 

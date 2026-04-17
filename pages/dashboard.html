@@ -187,14 +187,14 @@
 }
 .resend-box .resend-label { font-size: 13px; color: var(--fg-strong); font-weight: 600; }
 .resend-box .resend-hint { font-size: 11px; color: var(--muted); margin: 4px 0 8px; }
-#resend-btn {
+#resend-btn, #link-resend-btn {
     padding: 10px 16px; min-height: 44px; font-size: 14px; font-weight: 600;
     border: 2px solid var(--accent); border-radius: 6px;
     background: var(--card); color: var(--accent); cursor: pointer;
     touch-action: manipulation; width: 100%;
 }
-#resend-btn:hover { background: var(--accent-soft-bg); }
-#resend-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+#resend-btn:hover, #link-resend-btn:hover { background: var(--accent-soft-bg); }
+#resend-btn:disabled, #link-resend-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 </style>
 </head>
 <body>
@@ -258,6 +258,51 @@
                 <span id="link-hint" class="muted" style="display:block;font-size:12px;margin-top:4px;" hidden></span>
             </p>
             <p id="verified-at-line" class="muted" style="font-size:12px;margin:4px 0 0;" hidden></p>
+        </div>
+
+        <div class="card" id="link-card" hidden style="border-left:4px solid var(--accent);">
+            <h2 style="margin-top:0;">Link your YouTube channel</h2>
+            <p class="muted" style="font-size:13px;margin:0 0 8px;">
+                Your account is active but your YouTube channel isn't linked yet.
+                Post your SC-CPE code in the live chat during the Daily Threat Briefing
+                to link it automatically. Your existing credits are unaffected.
+            </p>
+            <p id="link-code-status"></p>
+            <ol class="steps">
+                <li>
+                    <div class="step-body">
+                        <div class="step-title">Get your code</div>
+                        <div class="step-detail">
+                            Check your email for <strong>"Simply Cyber CPE — your verification code"</strong>
+                            from <strong>noreply@signalplane.co</strong>. Or use the button below to get a fresh one.
+                        </div>
+                    </div>
+                </li>
+                <li>
+                    <div class="step-body">
+                        <div class="step-title">Post it in YouTube live chat</div>
+                        <div class="step-detail">
+                            During the Daily Threat Briefing livestream (ET 08:00–11:00, Mon–Fri),
+                            paste your 6-character code as a chat message.
+                        </div>
+                    </div>
+                </li>
+                <li>
+                    <div class="step-body">
+                        <div class="step-title">Done — channel linked + credit earned</div>
+                        <div class="step-detail">
+                            The system auto-links your YouTube account and credits 0.5 CPE for
+                            that session. This page updates automatically.
+                        </div>
+                    </div>
+                </li>
+            </ol>
+            <div class="resend-box">
+                <div class="resend-label">Need your code?</div>
+                <div class="resend-hint">We'll email your SC-CPE code to the address you registered with.</div>
+                <button type="button" id="link-resend-btn">Send me my code</button>
+                <span id="link-resend-msg" class="muted" hidden></span>
+            </div>
         </div>
 
         <div class="card">
@@ -392,10 +437,12 @@ async function load() {
             channelWrap.hidden = false;
             hint.hidden = true;
         } else {
-            line.innerHTML = `Account <span class="pill pill-green" style="margin-left:4px;">Active</span>`;
+            line.innerHTML = `Account <span class="pill pill-green" style="margin-left:4px;">Active</span> <span class="pill pill-amber" style="margin-left:4px;">YouTube not linked</span>`;
             channelWrap.hidden = true;
-            hint.innerHTML = "YouTube channel not yet linked. Auto-linking happens the first time the poller matches your SC-CPE code in a live briefing chat. Admin-reconciled credits (e.g. when the poller missed a briefing) don&rsquo;t link a channel — post your code during the next live briefing and we&rsquo;ll attach it automatically. Your existing credits are unaffected either way.";
-            hint.hidden = false;
+            hint.hidden = true;
+            // Show linking instructions for active users without a channel
+            document.getElementById("link-card").hidden = false;
+            renderLinkCodeStatus(d.user.code_state, d.user.code_expires_at);
         }
 
         if (d.user.verified_at) {
@@ -715,6 +762,57 @@ function renderCodeStatus(codeState, codeExpiresAt) {
     }
 }
 
+function renderLinkCodeStatus(codeState, codeExpiresAt) {
+    const status = document.getElementById("link-code-status");
+    const btn = document.getElementById("link-resend-btn");
+    const friendly = codeExpiresAt
+        ? new Date(codeExpiresAt).toLocaleString(undefined, {
+            year: "numeric", month: "short", day: "numeric",
+            hour: "2-digit", minute: "2-digit",
+          })
+        : "";
+    if (codeState === "active") {
+        status.innerHTML = `<span class="pill pill-green">Code active</span> expires <strong>${friendly}</strong> — check your email for the code.`;
+        btn.textContent = "Send me a new code";
+    } else if (codeState === "expired") {
+        status.innerHTML = `<span class="pill pill-red">Code expired</span> — request a fresh one below.`;
+        btn.textContent = "Send me a new code";
+    } else {
+        status.innerHTML = `<span class="pill pill-amber">No code on file</span> — request one below.`;
+        btn.textContent = "Send me a code";
+    }
+}
+
+document.getElementById("link-resend-btn").addEventListener("click", async () => {
+    const btn = document.getElementById("link-resend-btn");
+    const msg = document.getElementById("link-resend-msg");
+    btn.disabled = true;
+    msg.hidden = true;
+    try {
+        const r = await fetch(`/api/me/${encodeURIComponent(token)}/resend-code`,
+            { method: "POST" });
+        const d = await r.json().catch(() => ({}));
+        if (r.ok) {
+            msg.innerHTML = '&#10003; Code sent — look for <strong>"Simply Cyber CPE — your new verification code"</strong> from noreply@signalplane.co';
+            msg.style.color = "var(--ok-soft-text)";
+            renderLinkCodeStatus("active", d.code_expires_at);
+        } else if (r.status === 429) {
+            msg.textContent = "Too many requests — try again in an hour.";
+            msg.style.color = "var(--bad-soft-text)";
+        } else {
+            msg.textContent = `Couldn't send code (${r.status}).`;
+            msg.style.color = "var(--bad-soft-text)";
+        }
+        msg.hidden = false;
+    } catch {
+        msg.textContent = "Network error — try again.";
+        msg.style.color = "var(--bad-soft-text)";
+        msg.hidden = false;
+    } finally {
+        btn.disabled = false;
+    }
+});
+
 document.getElementById("prefs-radios").addEventListener("change", async (e) => {
     const radio = e.target.closest('input[name="cert_style"]');
     if (!radio) return;
@@ -787,7 +885,7 @@ document.getElementById("resend-btn").addEventListener("click", async () => {
             msg.textContent = "Too many requests — try again in an hour.";
             msg.style.color = "var(--bad-soft-text)";
         } else if (r.status === 409) {
-            msg.textContent = "Already verified — no code needed. Refresh this page.";
+            msg.textContent = "Already verified and YouTube linked — no code needed. Refresh this page.";
             msg.style.color = "var(--ok-soft-text)";
         } else {
             msg.textContent = `Couldn't send code (${r.status}).`;
