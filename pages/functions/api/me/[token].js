@@ -16,7 +16,7 @@ export async function onRequestGet({ params, env, request }) {
     const user = await env.DB.prepare(`
         SELECT id, email, legal_name, yt_channel_id, yt_display_name_seen,
                verification_code, code_expires_at, state, email_prefs,
-               created_at, verified_at
+               show_on_leaderboard, created_at, verified_at
         FROM users WHERE dashboard_token = ?1 AND deleted_at IS NULL
     `).bind(token).first();
 
@@ -139,6 +139,7 @@ export async function onRequestGet({ params, env, request }) {
             code_state: codeState,
             code_expires_at: user.code_expires_at,
             email_prefs: emailPrefs,
+            show_on_leaderboard: !!user.show_on_leaderboard,
             created_at: user.created_at,
             verified_at: user.verified_at,
         },

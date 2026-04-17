@@ -14,6 +14,8 @@
   <a href="https://sc-cpe-web.pages.dev/verify.html"><img src="https://img.shields.io/badge/certs-PAdES--T%20signed-blue?style=flat" alt="PAdES-T Signed"></a>
 </p>
 
+**[See it in action: Verify a certificate](https://sc-cpe-web.pages.dev/verify.html)**
+
 ---
 
 ## What is this?
@@ -345,6 +347,11 @@ docs/
   VERIFIER_GUIDE.md    Third-party cert verification guide
 ```
 
+## Community
+
+Built for the [Simply Cyber](https://www.youtube.com/@SimplyCyber) community.
+Found a bug or have feedback? [Open an issue](https://github.com/ericrihm/sc-cpe/issues) or email certs@signalplane.co.
+
 ## License
 
-Internal. All rights reserved. Cert artefacts are retained under GDPR Art. 17(3)(e) as evidentiary records.
+MIT — see [LICENSE](LICENSE) for details. Cert artefacts are retained under GDPR Art. 17(3)(e) as evidentiary records.

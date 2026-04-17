@@ -90,6 +90,12 @@ function inPollWindow(now, env) {
 }
 
 async function tick(env, now) {
+    const breaker = await env.DB.prepare("SELECT v FROM kv WHERE k = 'circuit.youtube_quota'").first();
+    if (breaker) {
+        const state = JSON.parse(breaker.v);
+        if (new Date(state.resume_after) > now) return;
+    }
+
     const today = isoDate(now);
     const session = await loadSession(env, today);
 
@@ -175,7 +181,13 @@ async function pollOnePage(env, session, now) {
         // Quota exhaustion must never finalize — legit live stream would be
         // dropped mid-flight. Heartbeat carries the signal via the scheduled()
         // error path; rethrow so watchdog sees it.
-        if (/quotaExceeded/i.test(msg)) throw err;
+        if (/quotaExceeded/i.test(msg)) {
+            await kvSet(env, 'circuit.youtube_quota', {
+                tripped_at: now.toISOString(),
+                resume_after: new Date(now.getTime() + 15 * 60_000).toISOString(),
+            });
+            throw err;
+        }
 
         const strikes = (session.consecutive_fetch_errors || 0) + 1;
         const elapsedMin = (now.getTime() - new Date(session.actual_start_at).getTime()) / 60_000;
@@ -208,6 +220,9 @@ async function pollOnePage(env, session, now) {
             null, { strikes, elapsed_min: Math.round(elapsedMin), msg: msg.slice(0, 200) });
         return;
     }
+
+    // Successful fetch — clear quota circuit breaker if it was tripped.
+    await env.DB.prepare("DELETE FROM kv WHERE k = 'circuit.youtube_quota'").run();
 
     const items = data.items || [];
     const minInterval = parseInt(env.MIN_POLL_INTERVAL_MS, 10);
@@ -513,12 +528,18 @@ async function finalizeStream(env, session, now, reason) {
 async function ytGet(url, accessToken) {
     const headers = {};
     if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
-    const res = await fetch(url, { headers });
-    if (!res.ok) {
-        const body = await res.text();
-        throw new Error(`YT ${res.status}: ${body.slice(0, 500)}`);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 25_000);
+    try {
+        const res = await fetch(url, { headers, signal: controller.signal });
+        if (!res.ok) {
+            const body = await res.text();
+            throw new Error(`YT ${res.status}: ${body.slice(0, 500)}`);
+        }
+        return res.json();
+    } finally {
+        clearTimeout(timer);
     }
-    return res.json();
 }
 
 async function kvSet(env, k, obj) {
