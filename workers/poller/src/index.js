@@ -68,7 +68,7 @@ async function tick(env, now) {
     const session = await loadSession(env, today);
 
     if (session?.stream_id) {
-        if (session.state === "complete") return;
+        if (session.state === "complete" || session.state === "flagged") return;
         if (session.next_poll_at && new Date(session.next_poll_at) > now) return;
         await pollOnePage(env, session, now);
         return;
