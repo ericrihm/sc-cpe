@@ -15,25 +15,37 @@ pages/                Cloudflare Pages Functions — the public web surface
   functions/api/      JSON API
     admin/            bearer-token (ADMIN_TOKEN) gated endpoints
     me/[token]/       dashboard-token gated endpoints (CSRF-sensitive)
+    badge/[token].js  SVG badge endpoint
+    leaderboard.js    public leaderboard API
   _lib.js             shared helpers (audit, isAdmin, rateLimit, etc.)
   _heartbeat.js       staleness predicate shared with admin endpoint
   _middleware.js      security headers (CSP, HSTS, COOP, ...)
   admin.html          operator dashboard (heartbeats, stats, chain)
   dashboard.html      user dashboard (attendance, certs, feedback)
+  badge.html          public shareable badge page
+  leaderboard.html    opt-in community leaderboard
+  *.js / *.css        extracted from inline <script>/<style> (CSP hardening)
 workers/
   poller/             per-minute livestream chat poller (ET 08-11 weekdays)
-  purge/              daily R2 chat purge + security digest + weekly digest
+  purge/              daily R2 chat purge + security/weekly/monthly digest
   email-sender/       drains email_outbox via Resend
 services/certs/       Python PDF issuer (PAdES-T signed)
 db/
   schema.sql          authoritative schema (keep in sync with migrations)
   migrations/         append-only numbered migrations
 scripts/              smoke, schema check, audit verifier, tests
+  backup_d1.sh        weekly D1 export
+  get_oauth_token.mjs YouTube OAuth token setup helper
 .github/workflows/    CI: ci.yml (tests+gitleaks), smoke.yml (hourly),
                       watchdog.yml, monthly-certs.yml (bundled sweep),
                       cert-sign-pending.yml (2h pending-cert pickup),
-                      schema-drift.yml (weekly D1 vs schema.sql)
+                      schema-drift.yml (weekly D1 vs schema.sql),
+                      backup.yml (weekly D1 backup)
 .githooks/pre-push    runs scripts/test.sh before push
+docs/DESIGN.md        architecture decisions
+docs/PITCH.md         Simply Cyber team pitch
+CONTRIBUTING.md       community contribution guidelines
+LICENSE               MIT
 ```
 
 ## Invariants that MUST hold
@@ -74,6 +86,23 @@ scripts/              smoke, schema check, audit verifier, tests
    old row to `state='regenerated'` on successful delivery and logs action
    `cert_regenerated`. Never UPDATE a generated cert in place — always
    supersede.
+
+8. **CSP `script-src 'self'` — no inline JS.** All inline `<script>` blocks
+   have been extracted to external `.js` files. Any new page JS must go in
+   an external file. `style-src 'unsafe-inline'` is still allowed (inline
+   `style=` attributes throughout HTML).
+
+9. **YouTube poller supports OAuth (preferred) with API-key fallback.**
+   OAuth secrets: `YOUTUBE_OAUTH_CLIENT_ID`, `YOUTUBE_OAUTH_CLIENT_SECRET`,
+   `YOUTUBE_OAUTH_REFRESH_TOKEN`. Google Cloud project: `sc-yt-493317`.
+   Quota circuit breaker trips for 15 min on `quotaExceeded`, stored in
+   `kv` as `circuit.youtube_quota`.
+
+10. **Monthly digest runs on UTC day 1 via purge worker.** Added to
+    `EXPECTED_CADENCE_S` as `monthly_digest: 2678400`.
+
+11. **`show_on_leaderboard`** column on `users` (migration 004). Opt-in
+    boolean; `email_prefs` JSON column also stores `renewal_tracker` object.
 
 ## Testing
 
@@ -137,6 +166,15 @@ wrangler. Two modes:
   — fills rows inserted by the per-session endpoint or admin reissue.
   Never use the bundled path to fulfil these; it will INSERT a duplicate.
 
+Note: `deploy-prod.yml` uses `--commit-message=$SHA` instead of
+`--commit-dirty=true` to avoid CF Pages UTF-8 rejection on non-ASCII
+commit messages.
+
+YouTube OAuth token setup (one-time):
+```
+node scripts/get_oauth_token.mjs <client_secret.json>
+```
+
 The purge worker exposes a bearer-gated on-demand trigger:
 `POST https://sc-cpe-purge.ericrihm.workers.dev/?only=<block>` where
 `<block>` ∈ `purge|security_alerts|weekly_digest|cert_nudge|all`. Use it
@@ -163,17 +201,8 @@ ADMIN_TOKEN="$(tr -d '\n' < ~/.cloudflare/sc-cpe-admin-token)" \
 - **Input validation at boundaries only.** Trust internal calls; validate
   user input in the endpoint that receives it.
 
-## Known gaps (as of 2026-04-16)
+## Known gaps (as of 2026-04-17)
 
-- Pages auto-deploy — **landed 2026-04-16.** `.github/workflows/deploy-prod.yml`
-  runs tests → Pages → Workers (matrix) → smoke on every push to `main`.
-  Branch protection is active (required checks `Node test suite` +
-  `Secret scan (gitleaks)`, PR-required, no force-push, `enforce_admins: false`
-  for solo admin break-glass). Repo-wide auto-merge + delete-branch-on-merge
-  are on. CF deploy token is `sc-cpe-deploy`, scoped to Pages Edit +
-  Workers Scripts Edit only, stored in the `production` GH environment.
-  Still open: CF Pages PR previews remain disabled because current bindings
-  are prod — enabling them requires a separate `sc-cpe-preview` D1/R2/KV.
 - **Out-of-band leaked secrets** (chat/screenshots, NOT git history) —
   verified clean against full git history with gitleaks 8.21.2 +
   `git log -S` regex on 2026-04-15. Rotation status:
@@ -202,10 +231,24 @@ ADMIN_TOKEN="$(tr -d '\n' < ~/.cloudflare/sc-cpe-admin-token)" \
   `sys.stdin.read()` returned `""` and every drift comparison was `"" == ""`
   — a silent pass). Fixed + schema.sql reconciled with live on 2026-04-16;
   first actual green run via workflow_dispatch.
+- Deploy pipeline uses `--commit-message=$SHA` instead of
+  `--commit-dirty=true` to avoid CF Pages UTF-8 rejection on non-ASCII
+  commit messages.
+- YouTube OAuth setup complete 2026-04-17. Google Cloud project
+  `sc-yt-493317`, test user `ericrihm@gmail.com` added to OAuth consent
+  screen.
+- CSP `unsafe-inline` removed from `script-src` on 2026-04-17. All inline
+  scripts extracted to external files. `style-src 'unsafe-inline'` retained
+  — removing it requires refactoring all inline `style=` attributes.
+- Leaderboard migration (004) applied to prod on 2026-04-17.
+- CF Pages PR previews remain disabled — current bindings are prod;
+  enabling them requires a separate `sc-cpe-preview` D1/R2/KV.
 
 ## Where to look for more context
 
 - `docs/RUNBOOK.md` — operator-facing ops procedures
 - `docs/LTV.md` — legal/compliance reasoning (GDPR Art. 17(3)(e) carve-out)
+- `docs/DESIGN.md` — architecture decisions
+- `docs/PITCH.md` — Simply Cyber team pitch
 - `outputs/handoffs/` — session-end briefs; the most recent one is always
   the fastest way to understand "where we are right now"
