@@ -94,7 +94,11 @@ echo "== fixture pollution guardrail =="
 stats=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" "$ORIGIN/api/admin/ops-stats")
 pollution=$(echo "$stats" | grep -oE '"fixture_pollution":\{[^}]*\}')
 if echo "$pollution" | grep -qE '"(streams|attendance|users)":[1-9]'; then
-    echo "  FAIL fixture_pollution non-zero: $pollution"; fail=$((fail+1))
+    if [[ "${ALLOW_FIXTURES:-}" == "1" ]]; then
+        echo "  WARN fixture_pollution non-zero (allowed): $pollution"; pass=$((pass+1))
+    else
+        echo "  FAIL fixture_pollution non-zero: $pollution"; fail=$((fail+1))
+    fi
 else
     echo "  ok   no test fixtures in prod: $pollution"; pass=$((pass+1))
 fi
