@@ -235,7 +235,12 @@ async function processCodeMatches(env, session, items, now) {
         ).bind(code).first();
 
         if (!user) continue;
-        if (user.state !== "pending_verification") continue;
+        // Process codes from pending users (normal flow) and active users
+        // whose YouTube channel isn't linked yet (admin-reconciled credits
+        // set state='active' without binding a channel).
+        const needsLink = user.state === "pending_verification"
+            || (user.state === "active" && !user.yt_channel_id);
+        if (!needsLink) continue;
         if (new Date(user.code_expires_at) < now) {
             await audit(env, "poller", user.id, "code_expired_at_use", "user", user.id, null, { code });
             continue;
@@ -289,7 +294,7 @@ async function processCodeMatches(env, session, items, now) {
                 yt_display_name_seen = ?2,
                 state = 'active',
                 verification_code = NULL,
-                verified_at = ?3
+                verified_at = COALESCE(verified_at, ?3)
             WHERE id = ?4
         `).bind(
             channelId,
@@ -298,8 +303,9 @@ async function processCodeMatches(env, session, items, now) {
             user.id,
         ).run();
 
-        await audit(env, "poller", user.id, "user_verified", "user", user.id,
-            { state: "pending_verification" },
+        const action = user.state === "active" ? "channel_linked" : "user_verified";
+        await audit(env, "poller", user.id, action, "user", user.id,
+            { state: user.state, yt_channel_id: user.yt_channel_id || null },
             { state: "active", yt_channel_id: channelId, stream_id: session.stream_id });
     }
 }
