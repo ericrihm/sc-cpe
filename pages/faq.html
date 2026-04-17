@@ -31,8 +31,7 @@
         15-minute pre-stream grace). Your dashboard shows a "posted
         outside window" notice if this is what happened.</li>
       <li><strong>Your YouTube channel was already bound to a different
-        SC-CPE account.</strong> One channel per account. Check with
-        <a href="/preflight.html">the preflight tool</a> before posting.</li>
+        SC-CPE account.</strong> One channel per account.</li>
       <li><strong>The message didn't contain three letters or digits.</strong>
         A message of just the <code>SC-CPE{...}</code> code is fine; a single emoji
         is not.</li>
@@ -41,6 +40,15 @@
         admin-reconciled credits don't auto-link your YouTube channel
         but the credit will still show up.</li>
     </ul>
+  </div>
+
+  <div class="faq-q">
+    <h3>How do I file an appeal for missed credit?</h3>
+    <p>Open your dashboard and find the date in the attendance calendar.
+    Missed weekdays show an "appeal?" link. Click it, optionally describe
+    what happened, and submit. An admin reviews the appeal and either
+    grants or denies it. Granted appeals credit 0.5 CPE just like a
+    regular attendance.</p>
   </div>
 
   <div class="faq-q">
@@ -203,6 +211,68 @@
     identity.</p>
   </div>
 
+  <h2>Dashboard features</h2>
+
+  <div class="faq-q">
+    <h3>Can I access my dashboard without the email link every time?</h3>
+    <p>Yes. When you first open your dashboard, you'll see a
+    <strong>"Remember this device?"</strong> prompt. If you click
+    "Yes, remember me," the site saves your session in your browser's
+    local storage. Next time, just visit
+    <code>sc-cpe-web.pages.dev/dashboard</code> directly — no email
+    link needed.</p>
+    <p>The saved session expires after 30 days. You can clear it any
+    time by clicking <strong>"Forget this device"</strong> on the
+    dashboard. Only use this on a personal device you trust — on shared
+    or public computers, click "No thanks."</p>
+  </div>
+
+  <div class="faq-q">
+    <h3>What is the attendance streak?</h3>
+    <p>Your dashboard tracks consecutive weekdays you've attended
+    the Daily Threat Briefing. Weekends don't break the streak.
+    You'll see both your <strong>current streak</strong> and your
+    <strong>longest streak</strong>.</p>
+  </div>
+
+  <div class="faq-q">
+    <h3>What is the renewal tracker?</h3>
+    <p>If you're working toward a certification renewal deadline
+    (e.g., CISSP requires 120 CPE over 3 years), set up the renewal
+    tracker on your dashboard. Enter your cert name, deadline, and
+    CPE required — the dashboard shows a progress bar with how many
+    CPE you've earned so far and how many days remain.</p>
+  </div>
+
+  <div class="faq-q">
+    <h3>Can I download all my certificates at once?</h3>
+    <p>Yes. If you have two or more downloadable certificates, a
+    <strong>"Download All (ZIP)"</strong> button appears on your
+    dashboard. It bundles all your signed PDFs into a single ZIP
+    file.</p>
+  </div>
+
+  <h2>Leaderboard &amp; badges</h2>
+
+  <div class="faq-q">
+    <h3>How does the community leaderboard work?</h3>
+    <p>The <a href="/leaderboard.html">leaderboard</a> ranks users
+    by CPE earned in the current calendar month. It's entirely
+    <strong>opt-in</strong> — toggle "Show me on the leaderboard"
+    on your dashboard to appear. Only your first name and last
+    initial are shown (e.g., "Alex T."). Your email and full name
+    are never displayed.</p>
+  </div>
+
+  <div class="faq-q">
+    <h3>What is the achievement badge?</h3>
+    <p>Your badge is a shareable SVG image showing your CPE earned,
+    attendance streak, and total sessions. Share it on LinkedIn or
+    X directly from your dashboard via the <strong>"Share
+    achievement"</strong> button — or share the badge page URL
+    with anyone.</p>
+  </div>
+
   <h2>Known issues</h2>
 
   <div class="known">
@@ -214,10 +284,11 @@
   </div>
 
   <div class="known">
-    <strong>DMARC policy is starting at <code>p=quarantine</code>.</strong>
-    This is the recommended first step while we observe reports. It
-    will tighten to <code>p=reject</code> after 2 weeks of clean
-    receiver telemetry. Deliverability is unaffected either way.
+    <strong>DMARC record pending.</strong>
+    <code>signalplane.co</code> has DKIM and SPF in place. A DMARC
+    record (<code>p=none</code> for observability) will be added
+    shortly. Email deliverability is unaffected — DKIM-aligned
+    messages deliver fine without DMARC.
   </div>
 
   <div class="known">
@@ -234,7 +305,11 @@
     <a href="https://github.com/ericrihm/sc-cpe/issues">github.com/ericrihm/sc-cpe/issues</a>
     or email <a href="mailto:certs@signalplane.co">certs@signalplane.co</a>.
   </p>
-  <p><a href="/">&larr; Back to registration</a></p>
+  <p class="muted" style="font-size:0.85rem;">
+    <a href="/">Register</a> · <a href="/leaderboard.html">Leaderboard</a>
+    · <a href="/status.html">Status</a> · <a href="/terms.html">Terms</a>
+    &amp; <a href="/privacy.html">Privacy</a>
+  </p>
 </main>
 </body>
 </html>
