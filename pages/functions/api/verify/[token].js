@@ -38,6 +38,8 @@ export async function onRequestGet({ params, env, request }) {
         state: row.state,
         issuer: row.issuer_name_snapshot,
         recipient: row.recipient_name_snapshot,
+        activity_title: "Simply Cyber Daily Threat Briefing",
+        activity_description: "Live daily cybersecurity briefing covering current threats, vulnerabilities, and defensive strategies. Topics include risk management, security operations, incident response, and governance.",
         period_yyyymm: row.period_yyyymm,
         period_start: row.period_start,
         period_end: row.period_end,
