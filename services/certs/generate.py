@@ -447,6 +447,14 @@ def render_pdf(
     # because the QR stays crisp at any print scale.
     qr_svg = _qr_svg_data_uri(verify_url)
 
+    activity_description = (
+        "Live daily cybersecurity briefing covering current threats, "
+        "vulnerabilities, and defensive strategies. Topics include "
+        "risk management, security operations, incident response, "
+        "and governance — aligned with ISACA, ISC\u00b2, and CompTIA "
+        "continuing education domains."
+    )
+
     html_str = template.render(
         issuer_name=issuer_name,
         recipient_name=recipient_name,
@@ -455,6 +463,7 @@ def render_pdf(
         period_display=period_display,
         attended_line=attended_line,
         dates_line=dates_line,
+        activity_description=activity_description,
         cpe_total=cpe_total_str,
         sessions_count=sessions_count,
         cert_id_display=cert_id[:12],
