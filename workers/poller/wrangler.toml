@@ -27,5 +27,8 @@ binding = "RAW_CHAT"
 bucket_name = "sc-cpe-raw-chat"
 
 # Secrets (set with `wrangler secret put NAME`):
-#   YOUTUBE_API_KEY   - YT Data API v3 key
-#   SC_CHANNEL_ID     - Simply Cyber YouTube channel ID (UC...)
+#   SC_CHANNEL_ID                - Simply Cyber YouTube channel ID (UC...)
+#   YOUTUBE_OAUTH_CLIENT_ID      - Google OAuth client ID (preferred)
+#   YOUTUBE_OAUTH_CLIENT_SECRET  - Google OAuth client secret
+#   YOUTUBE_OAUTH_REFRESH_TOKEN  - long-lived refresh token (use scripts/get_oauth_token.mjs)
+#   YOUTUBE_API_KEY              - YT Data API v3 key (fallback if OAuth secrets not set)
