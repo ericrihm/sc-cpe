@@ -9,7 +9,14 @@ import { detectContestedCodes } from "./index.js";
 
 function msg(code, channelId) {
     return {
-        snippet: { displayMessage: `random chatter SC-CPE-${code} more text` },
+        snippet: { displayMessage: `random chatter SC-CPE{${code.slice(0,4)}-${code.slice(4)}} more text` },
+        authorDetails: { channelId },
+    };
+}
+
+function msgOldFormat(code, channelId) {
+    return {
+        snippet: { displayMessage: `SC-CPE-${code}` },
         authorDetails: { channelId },
     };
 }
@@ -31,10 +38,28 @@ test("two channels posting the same code → contested", () => {
 
 test("case-insensitive detection (attacker lowercases)", () => {
     const items = [
-        { snippet: { displayMessage: "SC-CPE-ABCDEFGH" },
+        { snippet: { displayMessage: "SC-CPE{ABCD-EFGH}" },
           authorDetails: { channelId: "UC_a" } },
-        { snippet: { displayMessage: "sc-cpe-abcdefgh" },
+        { snippet: { displayMessage: "sc-cpe{abcd-efgh}" },
           authorDetails: { channelId: "UC_b" } },
+    ];
+    const contested = detectContestedCodes(items);
+    assert.ok(contested.has("ABCDEFGH"));
+});
+
+test("old format SC-CPE-XXXXXXXX still matches (backwards compat)", () => {
+    const items = [
+        msgOldFormat("ABCDEFGH", "UC_a"),
+        msgOldFormat("ABCDEFGH", "UC_b"),
+    ];
+    const contested = detectContestedCodes(items);
+    assert.ok(contested.has("ABCDEFGH"));
+});
+
+test("mixed old and new format codes contest correctly", () => {
+    const items = [
+        msgOldFormat("ABCDEFGH", "UC_a"),
+        msg("ABCDEFGH", "UC_b"),
     ];
     const contested = detectContestedCodes(items);
     assert.ok(contested.has("ABCDEFGH"));
@@ -63,7 +88,7 @@ test("mixed batch: one contested, one clean", () => {
 test("missing channelId is ignored (no phantom collisions)", () => {
     const items = [
         msg("ABCDEFGH", "UC_user_1"),
-        { snippet: { displayMessage: "SC-CPE-ABCDEFGH" }, authorDetails: {} },
+        { snippet: { displayMessage: "SC-CPE{ABCD-EFGH}" }, authorDetails: {} },
     ];
     const contested = detectContestedCodes(items);
     assert.equal(contested.size, 0);
