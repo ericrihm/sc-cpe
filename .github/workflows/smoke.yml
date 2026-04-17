@@ -33,6 +33,7 @@ jobs:
       ORIGIN: ${{ vars.SMOKE_ORIGIN }}  # e.g. https://cpe.simplycyber.io
       ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
       DISCORD_ALERT_WEBHOOK: ${{ secrets.DISCORD_ALERT_WEBHOOK }}
+      ALLOW_FIXTURES: ${{ vars.ALLOW_FIXTURES || '0' }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
       - name: Run smoke suite
