@@ -221,6 +221,10 @@ ADMIN_TOKEN="$(tr -d '\n' < ~/.cloudflare/sc-cpe-admin-token)" \
       `~/.cloudflare/signalplane.env` and GH secret `CLOUDFLARE_API_TOKEN`.
       Verified via `/user/tokens/verify` (active) and a direct D1 query
       (31 schema rows). Old tokens revoked in the CF dashboard.
+    - `ADMIN_TOKEN` — **rotated 2026-04-22**. Updated GH Actions secret,
+      CF Pages production env, and purge worker secret. Pages redeployed.
+      New value at `~/.cloudflare/sc-cpe-admin-token`. Verified via purge
+      worker `?only=link_enrichment` (200 OK).
 - `signalplane.co` has DKIM (Resend) + SPF but **no DMARC record**.
   Recommend `v=DMARC1; p=none; rua=mailto:...` for observability; not a
   blocker since DKIM-aligned Resend delivers fine today.
@@ -243,6 +247,12 @@ ADMIN_TOKEN="$(tr -d '\n' < ~/.cloudflare/sc-cpe-admin-token)" \
 - Leaderboard migration (004) applied to prod on 2026-04-17.
 - CF Pages PR previews remain disabled — current bindings are prod;
   enabling them requires a separate `sc-cpe-preview` D1/R2/KV.
+- Show Links Archive (migration 005) deployed 2026-04-22. Poller
+  extracts URLs from host/mod chat; purge worker enriches with titles
+  daily. Public page at `/links.html`, API at `/api/links`.
+- Poller had zero messages scanned for Apr 15-21 streams (all flagged).
+  No raw chat in R2 for those dates; links archive starts from first
+  show after 2026-04-22 deploy.
 
 ## Where to look for more context
 
