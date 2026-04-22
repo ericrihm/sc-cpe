@@ -16,7 +16,7 @@ export async function onRequestGet({ env, request }) {
             SELECT s.scheduled_date
               FROM streams s
              WHERE s.id IN (SELECT stream_id FROM show_links)
-               AND s.state IN ('live','complete')
+               AND s.state IN ('live','complete','flagged')
           ORDER BY s.scheduled_date DESC
              LIMIT 1
         `).first();
@@ -31,7 +31,7 @@ export async function onRequestGet({ env, request }) {
         SELECT id, title, yt_video_id
           FROM streams
          WHERE scheduled_date = ?1
-           AND state IN ('live','complete')
+           AND state IN ('live','complete','flagged')
          LIMIT 1
     `).bind(date).first();
 
@@ -60,7 +60,7 @@ export async function onRequestGet({ env, request }) {
         SELECT DISTINCT s.scheduled_date
           FROM streams s
          WHERE s.id IN (SELECT stream_id FROM show_links)
-           AND s.state IN ('live','complete')
+           AND s.state IN ('live','complete','flagged')
       ORDER BY s.scheduled_date DESC
          LIMIT 60
     `).all();
