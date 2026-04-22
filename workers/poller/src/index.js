@@ -461,7 +461,8 @@ async function extractShowLinks(env, session, items, now) {
         const urls = text.match(URL_RE);
         if (!urls) continue;
 
-        for (const raw of urls) {
+        for (let raw of urls) {
+            raw = raw.replace(/[.,;:!?]+$/, "");
             let parsed;
             try { parsed = new URL(raw); } catch { continue; }
 

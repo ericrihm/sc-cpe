@@ -596,8 +596,9 @@ async function enrichShowLinks(env, nowIso) {
                 redirect: "follow",
             });
             clearTimeout(timer);
-            if (res.ok) {
-                const html = await res.text();
+            const ct = res.headers.get("content-type") || "";
+            if (res.ok && ct.includes("text/html")) {
+                const html = (await res.text()).slice(0, 200_000);
                 const ogTitle = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)
                     || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']/i);
                 const pageTitle = html.match(/<title[^>]*>([^<]+)<\/title>/i);
