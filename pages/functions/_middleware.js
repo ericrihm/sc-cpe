@@ -9,7 +9,7 @@
 //   would be a larger refactor with minimal security benefit since style
 //   injection is not an XSS vector.
 // - Turnstile (https://challenges.cloudflare.com) is explicitly allowed —
-//   it's loaded on index.html and recover.html for bot mitigation.
+//   it's loaded on index.html, dashboard.html, and admin pages for bot mitigation.
 // - frame-ancestors 'none' replaces X-Frame-Options (modern browsers prefer
 //   CSP). We keep X-Frame-Options for the legacy-IE case.
 // - HSTS is safe because every *.pages.dev origin is HTTPS-only.

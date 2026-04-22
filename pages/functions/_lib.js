@@ -290,34 +290,37 @@ export async function queueEmail(env, { userId, template, to, subject, html, tex
     }
 }
 
-// Constant-time bearer-token check for admin endpoints. env.ADMIN_TOKEN
-// is set via `wrangler pages secret put ADMIN_TOKEN`. Returns true if the
-// Authorization header matches.
-//
-// Compares HMAC-SHA256 digests of both sides under a per-request random key
-// so neither length nor byte-pattern of the expected token leaks via timing.
-// An earlier impl returned early on length mismatch — that's an enumeration
-// oracle for the secret length.
 export async function isAdmin(env, request) {
     const expected = env.ADMIN_TOKEN;
-    if (!expected) return false;
     const h = request.headers.get("Authorization") || "";
-    const m = /^Bearer\s+(.+)$/i.exec(h);
-    if (!m) return false;
-    const given = m[1];
+    const bearerMatch = /^Bearer\s+(.+)$/i.test(h) && h.replace(/^Bearer\s+/i, "");
+    if (bearerMatch && expected) {
+        const given = bearerMatch;
+        const enc = new TextEncoder();
+        const keyMaterial = crypto.getRandomValues(new Uint8Array(32));
+        const key = await crypto.subtle.importKey(
+            "raw", keyMaterial, { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
+        );
+        const a = new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode(given)));
+        const b = new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode(expected)));
+        let diff = 0;
+        for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+        return diff === 0;
+    }
 
-    const enc = new TextEncoder();
-    const keyMaterial = crypto.getRandomValues(new Uint8Array(32));
-    const key = await crypto.subtle.importKey(
-        "raw", keyMaterial, { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
+    if (!env.ADMIN_COOKIE_SECRET) return false;
+    const { parseSessionCookie, parseCookies, COOKIE_NAME } = await import(
+        "./api/admin/auth/_auth_helpers.js"
     );
-    const a = new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode(given)));
-    const b = new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode(expected)));
-    // Both digests are fixed 32 bytes regardless of input length — safe to
-    // compare without leaking the secret's length.
-    let diff = 0;
-    for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
-    return diff === 0;
+    const cookies = parseCookies(request.headers.get("Cookie"));
+    const cookieValue = cookies[COOKIE_NAME];
+    if (!cookieValue) return false;
+    const session = await parseSessionCookie(cookieValue, env.ADMIN_COOKIE_SECRET);
+    if (!session) return false;
+    const admin = await env.DB.prepare(
+        "SELECT id FROM admin_users WHERE lower(email) = ?1"
+    ).bind(session.email.toLowerCase()).first();
+    return !!admin;
 }
 
 export async function constantTimeEqual(a, b) {
