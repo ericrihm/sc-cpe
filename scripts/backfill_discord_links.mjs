@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 // Backfill show_links from Discord #live-chat channel history.
 // Uses Discord HTTP API with a user auth token, rate-limited to 1 req/2sec.
-// Writes to D1 via wrangler d1 execute (same pattern as seed_demo.mjs).
+// Writes to D1 via Cloudflare D1 HTTP API.
 //
 // Usage:
-//   source ~/.cloudflare/signalplane.env
+//   source ~/.cloudflare/grc-eng.env
 //   export DISCORD_TOKEN="$(cat ~/.discord-token)"
 //   export DISCORD_CHANNEL_ID="<channel-id>"
 //   node scripts/backfill_discord_links.mjs
@@ -14,8 +14,7 @@
 //   DISCORD_DELAY_MS=2000 Pause between Discord API calls (default 2000)
 //   DRY_RUN=1             Log what would be inserted without writing to D1
 
-import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync, unlinkSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import https from "node:https";
 import { randomBytes } from "node:crypto";
 import { homedir } from "node:os";
@@ -94,20 +93,80 @@ async function discordGetWithRetry(path) {
     }
 }
 
-// --- D1 helpers (same pattern as seed_demo.mjs) ---
-const spawnEnv = { ...process.env };
+// --- D1 helpers (HTTP API, no wrangler dependency) ---
+const CF_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID;
+const CF_API_TOKEN = process.env.CLOUDFLARE_API_TOKEN;
+const D1_DB_ID = process.env.D1_DATABASE_ID || "28218db6-6f35-4bfb-85cd-abd2881b6049";
 
-function d1(cmd) {
-    const out = execFileSync("npx",
-        ["wrangler", "d1", "execute", "sc-cpe", "--remote", "--json", "--command", cmd],
-        { encoding: "utf8", cwd: "pages", timeout: 30_000, env: spawnEnv });
-    return JSON.parse(out);
+if (!CF_ACCOUNT_ID || !CF_API_TOKEN) {
+    console.error("CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN required");
+    process.exit(1);
 }
 
-function d1File(path) {
-    execFileSync("npx",
-        ["wrangler", "d1", "execute", "sc-cpe", "--remote", `--file=${path}`],
-        { stdio: "inherit", cwd: "pages", timeout: 60_000, env: spawnEnv });
+async function d1Query(sql, params = []) {
+    const body = JSON.stringify({ sql, params });
+    return new Promise((resolve, reject) => {
+        const opts = {
+            hostname: "api.cloudflare.com",
+            path: `/client/v4/accounts/${CF_ACCOUNT_ID}/d1/database/${D1_DB_ID}/query`,
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${CF_API_TOKEN}`,
+                "Content-Type": "application/json",
+                "Content-Length": Buffer.byteLength(body),
+            },
+        };
+        const req = https.request(opts, res => {
+            let data = "";
+            res.on("data", c => data += c);
+            res.on("end", () => {
+                try {
+                    const parsed = JSON.parse(data);
+                    if (!parsed.success) {
+                        reject(new Error(`D1 error: ${JSON.stringify(parsed.errors)}`));
+                        return;
+                    }
+                    resolve(parsed.result);
+                } catch (e) { reject(e); }
+            });
+        });
+        req.on("error", reject);
+        req.write(body);
+        req.end();
+    });
+}
+
+async function d1Batch(stmts) {
+    const body = JSON.stringify(stmts.map(s => ({ sql: s })));
+    return new Promise((resolve, reject) => {
+        const opts = {
+            hostname: "api.cloudflare.com",
+            path: `/client/v4/accounts/${CF_ACCOUNT_ID}/d1/database/${D1_DB_ID}/query`,
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${CF_API_TOKEN}`,
+                "Content-Type": "application/json",
+                "Content-Length": Buffer.byteLength(body),
+            },
+        };
+        const req = https.request(opts, res => {
+            let data = "";
+            res.on("data", c => data += c);
+            res.on("end", () => {
+                try {
+                    const parsed = JSON.parse(data);
+                    if (!parsed.success) {
+                        reject(new Error(`D1 batch error: ${JSON.stringify(parsed.errors)}`));
+                        return;
+                    }
+                    resolve(parsed.result);
+                } catch (e) { reject(e); }
+            });
+        });
+        req.on("error", reject);
+        req.write(body);
+        req.end();
+    });
 }
 
 // --- ET date conversion ---
@@ -154,8 +213,9 @@ async function main() {
     // 4. Prefetch streams from D1
     console.log("Fetching streams from D1...");
     const cutoffDate = cutoff.toISOString().slice(0, 10);
-    const streamsResult = d1(
-        `SELECT id, scheduled_date FROM streams WHERE scheduled_date >= '${cutoffDate}' ORDER BY scheduled_date`
+    const streamsResult = await d1Query(
+        "SELECT id, scheduled_date FROM streams WHERE scheduled_date >= ?1 ORDER BY scheduled_date",
+        [cutoffDate]
     );
     const streamsByDate = new Map();
     for (const row of streamsResult[0].results) {
@@ -280,12 +340,14 @@ async function main() {
         return;
     }
 
-    // Write to D1 via temp file (same pattern as seed_demo.mjs)
-    const sqlPath = "/tmp/backfill_discord_links.sql";
-    writeFileSync(sqlPath, allStmts.join("\n") + "\n");
-    console.log(`\nWriting ${allStmts.length} rows to D1...`);
-    d1File(sqlPath);
-    unlinkSync(sqlPath);
+    // Write to D1 in batches via HTTP API
+    const BATCH_SIZE = 50;
+    console.log(`\nWriting ${allStmts.length} rows to D1 in batches of ${BATCH_SIZE}...`);
+    for (let i = 0; i < allStmts.length; i += BATCH_SIZE) {
+        const batch = allStmts.slice(i, i + BATCH_SIZE);
+        await d1Batch(batch);
+        console.log(`  wrote ${Math.min(i + BATCH_SIZE, allStmts.length)}/${allStmts.length}`);
+    }
     console.log("Done.");
 }
 
