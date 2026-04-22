@@ -36,6 +36,26 @@ button.refresh { background: #0b3d5c; color: #fff; border: 0; padding: 6px 14px;
 .audit-row .ar-val { font-family: monospace; word-break: break-all; }
 .audit-row.hidden { display: none; }
 
+.admin-search input[type="search"] { background: #111820; color: #e5ecf2; border: 1px solid #2a3644; padding: 6px 10px; border-radius: 4px; font-size: 12px; }
+#user-results .user-row { background: #111820; border: 1px solid #2a3644; border-radius: 6px; padding: 12px 14px; margin-bottom: 8px; }
+#user-results .user-row .user-header { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; margin-bottom: 6px; }
+#user-results .user-row .user-header .user-name { font-weight: 600; }
+#user-results .user-row .user-meta { font-size: 12px; color: #6b7a8a; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+#user-results .user-row .user-actions { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
+.cert-sub-table { width: 100%; margin-top: 8px; font-size: 12px; }
+.cert-sub-table th { font-size: 10px; }
+.cert-sub-table td { padding: 4px 8px; }
+.cert-sub-table .cert-actions { display: flex; gap: 4px; }
+.cert-sub-table .cert-actions button { font-size: 11px; padding: 2px 8px; }
+#revoke-form input, #revoke-form textarea { background: #111820; color: #e5ecf2; border: 1px solid #2a3644; padding: 6px 10px; border-radius: 4px; font-size: 12px; }
+#appeals-rows .appeal-row { background: #111820; border: 1px solid #2a3644; border-radius: 6px; padding: 10px 14px; margin-bottom: 6px; font-size: 12px; display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 4px 12px; }
+#appeals-rows .appeal-row .ar-label { color: #6b7a8a; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; }
+#appeals-rows .appeal-actions { grid-column: 1 / -1; display: flex; gap: 6px; margin-top: 6px; }
+#attendance-form input, #attendance-form textarea { background: #111820; color: #e5ecf2; border: 1px solid #2a3644; padding: 6px 10px; border-radius: 4px; font-size: 12px; font-family: monospace; }
+.result-box { padding: 10px 14px; border-radius: 4px; margin-bottom: 12px; font-size: 13px; }
+.result-box.success { background: #1a2e1a; border: 1px solid #2a6b2a; color: #88dd88; }
+.result-box.error { background: #3a1818; border: 1px solid #6b2a2a; color: #ffb4b4; }
+
 @media (max-width: 640px) {
     .heartbeat-table { display: block; }
     .heartbeat-table thead { display: none; }

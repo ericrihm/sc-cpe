@@ -248,8 +248,12 @@ ADMIN_TOKEN="$(tr -d '\n' < ~/.cloudflare/sc-cpe-admin-token)" \
   scripts extracted to external files. `style-src 'unsafe-inline'` retained
   — removing it requires refactoring all inline `style=` attributes.
 - Leaderboard migration (004) applied to prod on 2026-04-17.
-- CF Pages PR previews remain disabled — current bindings are prod;
-  enabling them requires a separate `sc-cpe-preview` D1/R2/KV.
+- CF Pages PR previews active — `[env.preview]` in `wrangler.toml` has
+  real D1/KV/R2 bindings. Preview D1: `sc-cpe-preview`
+  (`8aa974e0-e0d8-4120-b2c3-172f441b2520`), KV: `sc-cpe-rate-preview`
+  (`3eecd067a6bf44eca56a8feaca4d127c`), R2: `sc-cpe-certs-preview`.
+  Backup bucket: `sc-cpe-backups`. Deploy workflow:
+  `.github/workflows/deploy-preview.yml`.
 - Show Links Archive (migration 005) deployed 2026-04-22. Poller
   extracts URLs from host/mod chat; purge worker enriches with titles
   daily. Public page at `/links.html`, API at `/api/links`.
