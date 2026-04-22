@@ -78,7 +78,7 @@ export async function onRequestPost({ request, env }) {
         const kv = Object.fromEntries((rs.results || []).map(r => [r.k, r.v]));
         const rv = parseInt(kv["rule_version.current"] || "1", 10);
         const grace = parseInt(kv[`rule_version.${rv}.pre_start_grace_min`] || "15", 10);
-        const windowOpenMs = startMs + grace * 60_000;
+        const windowOpenMs = startMs - grace * 60_000;
         if (pubMs < windowOpenMs) {
             return json({
                 error: "chat_evidence_outside_live_window",
