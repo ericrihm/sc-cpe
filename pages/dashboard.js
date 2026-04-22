@@ -34,19 +34,18 @@ if (!token) {
 }
 var err = document.getElementById("err");
 
+function showLogin() {
+    document.getElementById("skel").hidden = true;
+    document.getElementById("login-card").hidden = false;
+}
+
 async function load() {
-    if (!token) {
-        err.innerHTML = 'No dashboard token found. <a href="/recover.html">Recover your link</a> or <a href="/">register</a>.';
-        err.hidden = false;
-        document.getElementById("skel").hidden = true;
-        return;
-    }
+    if (!token) { showLogin(); return; }
     var r = await fetch("/api/me/" + encodeURIComponent(token));
     if (!r.ok) {
         if (r.status === 404) clearSession();
-        err.innerHTML = r.status === 404
-            ? 'Dashboard not found. The link may have been rotated. <a href="/recover.html">Recover it here</a>.'
-            : "Error loading dashboard (" + r.status + ").";
+        if (r.status === 404) { showLogin(); return; }
+        err.textContent = "Error loading dashboard (" + r.status + ").";
         err.hidden = false;
         document.getElementById("skel").hidden = true;
         return;
@@ -1018,5 +1017,57 @@ document.getElementById("leaderboard-toggle").addEventListener("change", async f
         e.target.checked = !e.target.checked;
     }
 });
+
+// --- Inline login (no-token state) ---
+var loginForm = document.getElementById("login-form");
+if (loginForm) {
+    loginForm.addEventListener("submit", async function (e) {
+        e.preventDefault();
+        var btn = loginForm.querySelector("button[type=submit]");
+        var loginErr = document.getElementById("login-err");
+        var loginOk = document.getElementById("login-ok");
+        loginErr.hidden = true;
+        loginOk.hidden = true;
+
+        var fd = new FormData(loginForm);
+        var turnstileToken = fd.get("cf-turnstile-response");
+        if (!turnstileToken) {
+            loginErr.textContent = "Please complete the anti-bot challenge.";
+            loginErr.hidden = false;
+            return;
+        }
+        btn.disabled = true;
+        var original = btn.textContent;
+        btn.textContent = "Sending…";
+        try {
+            var r = await fetch("/api/recover", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    email: fd.get("email"),
+                    turnstile_token: turnstileToken,
+                }),
+            });
+            var data = await r.json();
+            if (!r.ok) {
+                var msgs = {
+                    invalid_email: "That email address doesn’t look right.",
+                    captcha_failed: "Anti-bot challenge failed — please try again.",
+                };
+                loginErr.textContent = msgs[data.error] || "Request failed (" + (data.error || r.status) + ").";
+                loginErr.hidden = false;
+                return;
+            }
+            loginForm.hidden = true;
+            loginOk.hidden = false;
+        } catch (x) {
+            loginErr.textContent = "Network error — check your connection and try again.";
+            loginErr.hidden = false;
+        } finally {
+            btn.disabled = false;
+            btn.textContent = original;
+        }
+    });
+}
 
 load();
