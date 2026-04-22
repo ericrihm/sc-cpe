@@ -17,7 +17,7 @@ function ago(s) { return new Date(NOW_MS - s * 1000).toISOString(); }
 test("staleHeartbeats: empty table → every known non-poller source stale", () => {
     const out = staleHeartbeats([], NOW_MS);
     const sources = out.map(r => r.source).sort();
-    assert.deepEqual(sources, ["canary", "email_sender", "monthly_digest", "purge", "security_alerts"]);
+    assert.deepEqual(sources, ["canary", "email_sender", "link_enrichment", "monthly_digest", "purge", "security_alerts"]);
     assert.ok(out.every(r => r.reason === "never_beat"));
 });
 
@@ -28,6 +28,7 @@ test("staleHeartbeats: fresh beats → none stale", () => {
         { source: "email_sender", last_beat_at: ago(60), last_status: "ok" },
         { source: "canary", last_beat_at: ago(600), last_status: "ok" },
         { source: "monthly_digest", last_beat_at: ago(86400), last_status: "ok" },
+        { source: "link_enrichment", last_beat_at: ago(3600), last_status: "ok" },
     ];
     assert.deepEqual(staleHeartbeats(rows, NOW_MS), []);
 });
@@ -39,6 +40,7 @@ test("staleHeartbeats: email_sender 11 min old → stale", () => {
         { source: "email_sender", last_beat_at: ago(660), last_status: "ok" },
         { source: "canary", last_beat_at: ago(600), last_status: "ok" },
         { source: "monthly_digest", last_beat_at: ago(86400), last_status: "ok" },
+        { source: "link_enrichment", last_beat_at: ago(3600), last_status: "ok" },
     ];
     const out = staleHeartbeats(rows, NOW_MS);
     assert.equal(out.length, 1);
@@ -55,6 +57,7 @@ test("staleHeartbeats: poller excluded regardless of staleness", () => {
         { source: "email_sender", last_beat_at: ago(60), last_status: "ok" },
         { source: "canary", last_beat_at: ago(600), last_status: "ok" },
         { source: "monthly_digest", last_beat_at: ago(86400), last_status: "ok" },
+        { source: "link_enrichment", last_beat_at: ago(3600), last_status: "ok" },
     ];
     assert.deepEqual(staleHeartbeats(rows, NOW_MS), []);
 });
@@ -66,6 +69,7 @@ test("staleHeartbeats: unknown source ignored", () => {
         { source: "email_sender", last_beat_at: ago(60), last_status: "ok" },
         { source: "canary", last_beat_at: ago(600), last_status: "ok" },
         { source: "monthly_digest", last_beat_at: ago(86400), last_status: "ok" },
+        { source: "link_enrichment", last_beat_at: ago(3600), last_status: "ok" },
         { source: "mystery_cron", last_beat_at: ago(7 * 86400), last_status: "ok" },
     ];
     assert.deepEqual(staleHeartbeats(rows, NOW_MS), []);
