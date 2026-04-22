@@ -41,6 +41,10 @@ export async function onRequestGet({ request, env }) {
     const nowMs = Date.now();
     const ageSecs = (iso) => iso ? Math.max(0, Math.floor((nowMs - new Date(iso).getTime()) / 1000)) : null;
 
+    const pollerBeat = await env.DB.prepare(
+        "SELECT detail_json FROM heartbeats WHERE source = 'poller'"
+    ).first();
+
     const fixtureStreams = await env.DB.prepare(
         "SELECT COUNT(*) AS n FROM streams WHERE id LIKE '01KTEST%' OR yt_video_id LIKE 'TEST%'",
     ).first();
@@ -87,6 +91,11 @@ export async function onRequestGet({ request, env }) {
             streams: fixtureStreams?.n ?? 0,
             attendance: fixtureAttendance?.n ?? 0,
             users: fixtureUsers?.n ?? 0,
+        },
+        poller: {
+            auth_method: pollerBeat?.detail_json
+                ? (JSON.parse(pollerBeat.detail_json).auth_method ?? null)
+                : null,
         },
     };
     payload.warnings = computeWarnings(payload);
@@ -159,6 +168,12 @@ export function computeWarnings(s) {
     if (s.appeals_open > 0) {
         push("warn", "appeals_open",
             `${s.appeals_open} open appeal(s) awaiting admin review`);
+    }
+
+    // OAuth degraded — poller is using API key fallback instead of OAuth.
+    if (s.poller?.auth_method === "api_key") {
+        push("warn", "poller_oauth_degraded",
+            "Poller is using API key fallback — OAuth refresh token may have expired (7-day testing mode limit)");
     }
 
     // Fixture pollution in prod — test data leaked into production DB.

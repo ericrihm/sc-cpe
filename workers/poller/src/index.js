@@ -64,8 +64,11 @@ export default {
         const now = new Date();
         if (!inPollWindow(now, env).ok) return;
         try {
-            await tick(env, now);
-            await heartbeat(env, "poller", "ok", { at: now.toISOString() });
+            const meta = await tick(env, now);
+            await heartbeat(env, "poller", "ok", {
+                at: now.toISOString(),
+                auth_method: meta?.auth_method ?? "none",
+            });
         } catch (err) {
             await heartbeat(env, "poller", "error", {
                 at: now.toISOString(),
@@ -96,26 +99,28 @@ function inPollWindow(now, env) {
 }
 
 async function tick(env, now) {
+    const meta = { auth_method: "none" };
     const breaker = await env.DB.prepare("SELECT v FROM kv WHERE k = 'circuit.youtube_quota'").first();
     if (breaker) {
         const state = JSON.parse(breaker.v);
-        if (new Date(state.resume_after) > now) return;
+        if (new Date(state.resume_after) > now) return meta;
     }
 
     const today = isoDate(now);
     const session = await loadSession(env, today);
 
     if (session?.stream_id) {
-        if (session.state === "complete" || session.state === "flagged") return;
-        if (session.next_poll_at && new Date(session.next_poll_at) > now) return;
-        await pollOnePage(env, session, now);
-        return;
+        if (session.state === "complete" || session.state === "flagged") return meta;
+        if (session.next_poll_at && new Date(session.next_poll_at) > now) return meta;
+        meta.auth_method = await pollOnePage(env, session, now);
+        return meta;
     }
 
     const discovered = await discoverLiveStream(env);
+    if (discovered) meta.auth_method = discovered._auth_method;
     if (!discovered) {
         await kvSet(env, `session.${today}`, { state: "searching", last_check: now.toISOString() });
-        return;
+        return meta;
     }
 
     const streamRowId = await upsertStream(env, discovered, now);
@@ -131,7 +136,8 @@ async function tick(env, now) {
     };
     await kvSet(env, `session.${today}`, newSession);
     await audit(env, "poller", null, "stream_discovered", "stream", streamRowId, null, discovered);
-    await pollOnePage(env, newSession, now);
+    meta.auth_method = await pollOnePage(env, newSession, now);
+    return meta;
 }
 
 async function discoverLiveStream(env) {
@@ -161,6 +167,7 @@ async function discoverLiveStream(env) {
         title: v.snippet.title,
         liveChatId: lsd.activeLiveChatId,
         actualStartTime: lsd.actualStartTime,
+        _auth_method: token ? "oauth" : "api_key",
     };
 }
 
@@ -171,6 +178,7 @@ async function pollOnePage(env, session, now) {
     let token;
     try { token = await getAccessToken(env); }
     catch (e) { console.error(`[poller] OAuth error in poll: ${e.message}`); token = null; }
+    const authMethod = token ? "oauth" : "api_key";
     const authParam = token ? "" : `&key=${env.YOUTUBE_API_KEY}`;
     const params = new URLSearchParams({
         liveChatId: session.live_chat_id,
@@ -216,7 +224,7 @@ async function pollOnePage(env, session, now) {
                     ? "fetch_errors_exhausted"
                     : "max_elapsed_exceeded";
             await finalizeStream(env, session, now, reason);
-            return;
+            return authMethod;
         }
 
         const minInterval = parseInt(env.MIN_POLL_INTERVAL_MS, 10);
@@ -228,7 +236,7 @@ async function pollOnePage(env, session, now) {
         await kvSet(env, `session.${session.date}`, updated);
         await audit(env, "poller", null, "poll_fetch_error", "stream", session.stream_id,
             null, { strikes, elapsed_min: Math.round(elapsedMin), msg: msg.slice(0, 200) });
-        return;
+        return authMethod;
     }
 
     // Successful fetch — clear quota circuit breaker if it was tripped.
@@ -255,9 +263,10 @@ async function pollOnePage(env, session, now) {
 
     if (!data.nextPageToken) {
         await finalizeStream(env, updated, now, "no_next_page_token");
-        return;
+        return authMethod;
     }
     await kvSet(env, `session.${session.date}`, updated);
+    return authMethod;
 }
 
 async function processCodeMatches(env, session, items, now) {
