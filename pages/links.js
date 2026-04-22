@@ -16,6 +16,7 @@ async function load(date) {
     listEl.textContent = "";
     streamEl.hidden = true;
     streamEl.textContent = "";
+    document.getElementById("copy-wrap").hidden = true;
 
     try {
         const params = date ? `?date=${encodeURIComponent(date)}` : "";
@@ -76,6 +77,7 @@ async function load(date) {
         for (const link of links) {
             listEl.appendChild(renderCard(link));
         }
+        document.getElementById("copy-wrap").hidden = links.length === 0;
     } catch {
         errEl.textContent = "Failed to load links.";
         errEl.hidden = false;
@@ -189,6 +191,19 @@ document.getElementById("next-date").addEventListener("click", function() {
         currentIndex--;
         load(availableDates[currentIndex]);
     }
+});
+
+document.getElementById("copy-all").addEventListener("click", function() {
+    var cards = document.querySelectorAll(".link-title a[href]");
+    var urls = [];
+    for (var i = 0; i < cards.length; i++) urls.push(cards[i].href);
+    if (!urls.length) return;
+    navigator.clipboard.writeText(urls.join("\n")).then(function() {
+        var btn = document.getElementById("copy-all");
+        var orig = btn.textContent;
+        btn.textContent = "Copied!";
+        setTimeout(function() { btn.textContent = orig; }, 2000);
+    });
 });
 
 var params = new URLSearchParams(window.location.search);
