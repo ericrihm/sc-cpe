@@ -177,12 +177,12 @@ function renderFeedback(fb) {
       ? '<span class="muted">reissue pending</span>'
       : '<button class="refresh reissue-btn" data-cert="' + r.cert_id + '">Re-issue</button>';
     tr.innerHTML =
-      '<td class="muted">' + r.updated_at + "</td>" +
-      '<td class="' + ratingCls + '">' + r.rating + "</td>" +
+      '<td class="muted">' + escapeHtml(r.updated_at) + "</td>" +
+      '<td class="' + ratingCls + '">' + escapeHtml(r.rating) + "</td>" +
       "<td>" + escapeHtml(r.legal_name) + '<br><span class="muted" style="font-size:11px;">' + escapeHtml(r.email) + "</span></td>" +
-      '<td><a href="/verify.html?t=' + r.public_token + '" target="_blank" rel="noopener" style="color:#7cc3ff;">' + r.cert_id.slice(0,10) + '\u2026</a></td>' +
-      '<td class="muted">' + r.period_yyyymm + "</td>" +
-      '<td class="muted">' + r.cert_kind + "</td>" +
+      '<td><a href="/verify.html?t=' + encodeURIComponent(r.public_token) + '" target="_blank" rel="noopener" style="color:#7cc3ff;">' + escapeHtml(r.cert_id.slice(0,10)) + '\u2026</a></td>' +
+      '<td class="muted">' + escapeHtml(r.period_yyyymm) + "</td>" +
+      '<td class="muted">' + escapeHtml(r.cert_kind) + "</td>" +
       '<td class="muted" style="max-width:240px;word-break:break-word;">' + escapeHtml(r.note || "") + "</td>" +
       "<td>" + action + "</td>";
     tb.appendChild(tr);

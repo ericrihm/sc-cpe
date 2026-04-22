@@ -1,14 +1,11 @@
-import { json, isSameOrigin } from "../../../_lib.js";
+import { json } from "../../../_lib.js";
 
 // GET /api/me/{token}/annual-summary?year=2026
 // Returns a JSON summary of a user's CPE for a given year, broken down by
 // month. Provides the data a future PDF annual-summary generator would need.
-//
-// CSRF gate: dashboard_token sits in URL → Origin check required.
 export async function onRequestGet({ params, request, env }) {
     const token = params.token;
     if (!token || token.length < 32) return json({ error: "invalid_token" }, 400);
-    if (!isSameOrigin(request, env)) return json({ error: "forbidden_origin" }, 403);
 
     const url = new URL(request.url);
     const yearParam = url.searchParams.get("year");

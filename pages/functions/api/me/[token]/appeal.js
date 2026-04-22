@@ -40,6 +40,11 @@ export async function onRequestPost({ params, request, env }) {
     const rl = await rateLimit(env, `appeal:${user.id}`, 10);
     if (!rl.ok) return json(rl.body, rl.status);
 
+    const openCount = await env.DB.prepare(
+        "SELECT COUNT(*) AS n FROM appeals WHERE user_id = ?1 AND state = 'open'"
+    ).bind(user.id).first();
+    if ((openCount?.n || 0) >= 3) return json({ error: "too_many_open_appeals" }, 429);
+
     const existing = await env.DB.prepare(
         "SELECT id FROM appeals WHERE user_id = ?1 AND claimed_date = ?2 AND state = 'open'"
     ).bind(user.id, claimedDate).first();

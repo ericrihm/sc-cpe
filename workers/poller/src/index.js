@@ -465,6 +465,7 @@ async function extractShowLinks(env, session, items, now) {
             raw = raw.replace(/[.,;:!?]+$/, "");
             let parsed;
             try { parsed = new URL(raw); } catch { continue; }
+            if (parsed.protocol !== "https:" && parsed.protocol !== "http:") continue;
 
             await env.DB.prepare(`
                 INSERT OR IGNORE INTO show_links

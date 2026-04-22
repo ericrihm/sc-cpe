@@ -314,13 +314,16 @@ test("cert-feedback: typo rating → 200 + audit row", async () => {
 
 // ── annual-summary ───────────────────────────────────────────────────────
 
-test("annual-summary: rejects missing Origin (CSRF)", async () => {
+test("annual-summary: GET without Origin header still works (read-only, no CSRF risk)", async () => {
+    const db = mockDB([
+        { match: /FROM users WHERE dashboard_token/, handler: () => ({ first: null })},
+    ]);
     const r = await annualSummaryGet({
         params: { token: "a".repeat(32) },
-        env: { DB: mockDB([]) },
+        env: { DB: db },
         request: new Request("https://sc-cpe-web.pages.dev/api/me/x/annual-summary?year=2026"),
     });
-    assert.equal(r.status, 403);
+    assert.equal(r.status, 404);
 });
 
 test("annual-summary: rejects invalid year", async () => {

@@ -6,7 +6,7 @@ import {
 // POST /api/me/{dashboard_token}/resend-code
 //
 // User self-service for "I lost my verification code" or "my code expired".
-// Generates a fresh 6-char code, extends expiry by 7 days, and queues an
+// Generates a fresh 6-char code, extends expiry by 72 hours, and queues an
 // email to the address on file. The endpoint is reachable only via the
 // dashboard URL (the user's token), and rate-limited to 3/hour per dashboard
 // token to keep someone with a leaked URL from spraying email.
