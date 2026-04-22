@@ -13,14 +13,15 @@ import { json, isAdmin, sha256Hex, canonicalAuditRow } from "../../_lib.js";
 //      the chain. We surface a missing index here so it can't go unnoticed.
 //
 // Heavy-ish endpoint (one digest per row), gated by admin auth and by an
-// optional limit. Default 1000 = recent tail; pass ?limit=0 for full scan.
+// optional limit. Default 1000 = recent tail; capped at 50000.
 export async function onRequestGet({ request, env }) {
     if (!(await isAdmin(env, request))) {
         return json({ error: "unauthorized" }, 401);
     }
 
     const url = new URL(request.url);
-    const limit = parseInt(url.searchParams.get("limit") || "1000", 10);
+    const rawLimit = parseInt(url.searchParams.get("limit") || "1000", 10);
+    const limit = (rawLimit <= 0 || rawLimit > 50000) ? 50000 : rawLimit;
 
     // Index check — the partial UNIQUE INDEX is what serialises writers.
     const idxRow = await env.DB.prepare(
@@ -37,17 +38,12 @@ export async function onRequestGet({ request, env }) {
         /unique/i.test(r.sql || "") && /prev_hash/i.test(r.sql || "")
     );
 
-    const sql = limit > 0
-        ? `SELECT id, actor_type, actor_id, action, entity_type, entity_id,
+    const sql = `SELECT id, actor_type, actor_id, action, entity_type, entity_id,
                   before_json, after_json, ip_hash, user_agent, ts, prev_hash
              FROM audit_log
             ORDER BY ts ASC, id ASC
-            LIMIT ?1`
-        : `SELECT id, actor_type, actor_id, action, entity_type, entity_id,
-                  before_json, after_json, ip_hash, user_agent, ts, prev_hash
-             FROM audit_log
-            ORDER BY ts ASC, id ASC`;
-    const stmt = limit > 0 ? env.DB.prepare(sql).bind(limit) : env.DB.prepare(sql);
+            LIMIT ?1`;
+    const stmt = env.DB.prepare(sql).bind(limit);
     const { results = [] } = await stmt.all();
 
     let prev = null;
