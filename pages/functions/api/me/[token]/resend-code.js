@@ -6,7 +6,7 @@ import {
 // POST /api/me/{dashboard_token}/resend-code
 //
 // User self-service for "I lost my verification code" or "my code expired".
-// Generates a fresh 6-char code, extends expiry by 7 days, and queues an
+// Generates a fresh 6-char code, extends expiry by 72 hours, and queues an
 // email to the address on file. The endpoint is reachable only via the
 // dashboard URL (the user's token), and rate-limited to 3/hour per dashboard
 // token to keep someone with a leaked URL from spraying email.
@@ -23,7 +23,7 @@ function bodies({ legalName, code, expiresAt, dashboardUrl }) {
     const text =
         `Hi ${legalName},\n\n` +
         `You requested a fresh verification code. Paste this into a live chat\n` +
-        `message during the Daily Threat Briefing on YouTube within 7 days:\n\n` +
+        `message during the Daily Threat Briefing on YouTube within 72 hours:\n\n` +
         `    ${display}\n\n` +
         `The code expires ${expiresAt}.\n\n` +
         `Your dashboard:\n  ${dashboardUrl}\n\n` +
@@ -32,7 +32,7 @@ function bodies({ legalName, code, expiresAt, dashboardUrl }) {
     const bodyHtml = `
 <p>Hi ${escapeHtml(legalName)},</p>
 <p>You requested a fresh verification code. Paste this into a live chat
-message during the Daily Threat Briefing on YouTube within 7 days:</p>
+message during the Daily Threat Briefing on YouTube within 72 hours:</p>
 <p style="font-family:Menlo,monospace;font-size:20pt;text-align:center;
    background:#f4f6f8;padding:14px;border-radius:6px;letter-spacing:0.04em;">
    ${escapeHtml(display)}

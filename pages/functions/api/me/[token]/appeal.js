@@ -13,10 +13,6 @@ export async function onRequestPost({ params, request, env }) {
     if (!token || token.length < 32) return json({ error: "invalid_token" }, 400);
     if (!isSameOrigin(request, env)) return json({ error: "forbidden_origin" }, 403);
 
-    const ip = await ipHash(clientIp(request));
-    const rl = await rateLimit(env, `appeal:${ip}`, 10);
-    if (!rl.ok) return json(rl.body, rl.status);
-
     let body;
     try { body = await request.json(); }
     catch { return json({ error: "invalid_json" }, 400); }
@@ -39,6 +35,9 @@ export async function onRequestPost({ params, request, env }) {
         "SELECT id, yt_channel_id, yt_display_name_seen FROM users WHERE dashboard_token = ?1 AND deleted_at IS NULL"
     ).bind(token).first();
     if (!user) return json({ error: "not_found" }, 404);
+
+    const rl = await rateLimit(env, `appeal:${user.id}`, 10);
+    if (!rl.ok) return json(rl.body, rl.status);
 
     const existing = await env.DB.prepare(
         "SELECT id FROM appeals WHERE user_id = ?1 AND claimed_date = ?2 AND state = 'open'"

@@ -240,13 +240,16 @@ function renderAttendance(items) {
             '<div class="att-actions">' + actions + "</div>";
         host.appendChild(row);
     }
-    host.addEventListener("click", async function (e) {
+}
+(function () {
+    var attHost = document.getElementById("att");
+    attHost.addEventListener("click", async function (e) {
         var btn = e.target.closest(".att-ps-btn");
         if (!btn || btn.disabled) return;
         btn.disabled = true;
         var stream = btn.dataset.stream;
         var original = btn.textContent;
-        btn.textContent = "sending\u2026";
+        btn.textContent = "sending…";
         try {
             var r = await fetch(
                 "/api/me/" + encodeURIComponent(token) + "/cert-per-session/" + encodeURIComponent(stream),
@@ -254,14 +257,14 @@ function renderAttendance(items) {
             );
             var j = await r.json().catch(function () { return {}; });
             if (!r.ok) throw new Error(j.error || "HTTP " + r.status);
-            btn.outerHTML = '<span class="att-ps-done">' + (j.existing ? "already issued" : "queued \u2014 arrives within ~2h") + "</span>";
+            btn.outerHTML = '<span class="att-ps-done">' + (j.existing ? "already issued" : "queued — arrives within ~2h") + "</span>";
         } catch (err) {
             btn.disabled = false;
             btn.textContent = original;
             btn.title = String(err.message || err);
         }
     });
-}
+})();
 
 function formatPeriod(yyyymm) {
     if (!/^\d{6}$/.test(yyyymm)) return yyyymm;
@@ -377,7 +380,7 @@ function certCard(c, isSuperseded) {
         var rating = btn.dataset.r;
         var note = null;
         if (rating !== "ok") {
-            note = prompt("What\u2019s " + rating + "? (optional, max 500 chars)") || null;
+            note = (prompt("What\u2019s " + rating + "? (optional, max 500 chars)") || "").trim().slice(0, 500) || null;
         }
         var msg = row.querySelector(".fb-msg");
         msg.style.display = "inline";
@@ -591,7 +594,7 @@ function renderToday(today) {
         } else {
             status.innerHTML = "<strong class='today-waiting'>&#9203; Waiting for qualifying message</strong>";
         }
-        hint.hidden = userState !== "pending_verification";
+        hint.hidden = userState === "pending_verification";
         if (refreshTimer) clearTimeout(refreshTimer);
         refreshTimer = setTimeout(function () { refreshTimer = null; load(); }, 30000);
         return;
@@ -599,12 +602,12 @@ function renderToday(today) {
         var credits = (calData.attendance || []).length;
         var lastCredit = credits
             ? calData.attendance.slice().sort(function (a, b) {
-                return (b.session_date || "").localeCompare(a.session_date || "");
+                return (b.scheduled_date || "").localeCompare(a.scheduled_date || "");
               })[0]
             : null;
         var priorLine = credits
             ? " You have <strong>" + credits + "</strong> prior session" + (credits === 1 ? "" : "s") + " credited" +
-              (lastCredit ? " (most recent " + lastCredit.session_date + ")." : ".")
+              (lastCredit ? " (most recent " + lastCredit.scheduled_date + ")." : ".")
             : "";
         status.innerHTML =
             "<strong class='today-missed'>This session ended without credit.</strong> " +
@@ -791,7 +794,7 @@ function showRenewalDisplay(tracker) {
     bar.className = "renewal-bar-fill" + (pct >= 100 ? " bar-ok" : pct >= 60 ? "" : " bar-warn");
     document.getElementById("renewal-summary").textContent =
         tracker.cert_name + ": " + currentCpe.toFixed(1) + " / " + tracker.cpe_required + " CPE earned";
-    var dl = new Date(tracker.deadline + "T00:00:00");
+    var dl = new Date(tracker.deadline + "T12:00:00Z");
     var daysLeft = Math.ceil((dl - new Date()) / 86400000);
     var dlStr = dl.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
     document.getElementById("renewal-deadline").textContent =
@@ -809,6 +812,8 @@ document.getElementById("renewal-cancel-btn").addEventListener("click", function
 });
 document.getElementById("renewal-remove-btn").addEventListener("click", async function () {
     if (!confirm("Remove your renewal tracker?")) return;
+    var btn = this;
+    btn.disabled = true;
     var msg = document.getElementById("renewal-msg");
     msg.hidden = false; msg.textContent = "removing...";
     try {
@@ -822,9 +827,12 @@ document.getElementById("renewal-remove-btn").addEventListener("click", async fu
         document.getElementById("renewal-setup").hidden = false;
         document.getElementById("renewal-form").reset();
     } catch (e) { msg.textContent = "failed: " + e.message; }
+    finally { btn.disabled = false; }
 });
 document.getElementById("renewal-form").addEventListener("submit", async function (e) {
     e.preventDefault();
+    var submitBtn = this.querySelector("button[type=submit]");
+    if (submitBtn) submitBtn.disabled = true;
     var msg = document.getElementById("renewal-msg");
     msg.hidden = false; msg.textContent = "saving...";
     var tracker = {
@@ -842,6 +850,7 @@ document.getElementById("renewal-form").addEventListener("submit", async functio
         document.getElementById("renewal-cancel-btn").hidden = true;
         showRenewalDisplay(tracker);
     } catch (e) { msg.textContent = "failed: " + e.message; }
+    finally { if (submitBtn) submitBtn.disabled = false; }
 });
 
 // --- Bulk cert download ---
