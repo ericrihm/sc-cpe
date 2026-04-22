@@ -12,9 +12,10 @@
   <a href="https://github.com/ericrihm/sc-cpe/actions/workflows/ci.yml"><img src="https://github.com/ericrihm/sc-cpe/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://sc-cpe-web.pages.dev/status.html"><img src="https://img.shields.io/badge/status-live-brightgreen?style=flat" alt="Status: Live"></a>
   <a href="https://sc-cpe-web.pages.dev/verify.html"><img src="https://img.shields.io/badge/certs-PAdES--T%20signed-blue?style=flat" alt="PAdES-T Signed"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat" alt="MIT License"></a>
 </p>
 
-**[See it in action: Verify a certificate](https://sc-cpe-web.pages.dev/verify.html)**
+**[Verify a certificate](https://sc-cpe-web.pages.dev/verify.html)** · **[View the leaderboard](https://sc-cpe-web.pages.dev/leaderboard.html)** · **[Browse show links](https://sc-cpe-web.pages.dev/links.html)** · **[Contribute](CONTRIBUTING.md)**
 
 ---
 
@@ -59,34 +60,26 @@ Your dashboard link arrives by email from `certs@signalplane.co`. Bookmark it �
 ## How It Works
 
 ```mermaid
-flowchart LR
-    subgraph User
-        A([Register]) --> B([Get Code via Email])
-        B --> C([Post Code in Live Chat])
-    end
+flowchart TD
+    A([Register]) -->|email + Turnstile| B([Get code via email])
+    B --> C([Post code in YouTube chat])
+    C -.->|visible in| YT{{YouTube API v3}}
 
-    subgraph SC-CPE Platform
-        D[Poller Worker<br/>per-minute cron] -->|matches code| E[(Cloudflare D1<br/>SQLite)]
-        F[Cert Signer<br/>Python + PAdES-T] -->|reads attendance| E
-        F -->|signed PDF| G[R2 Storage]
-        G --> H[Email Sender<br/>Worker]
-    end
+    YT -->|live chat| P[Poller]
+    P -->|matches code| DB[(D1 SQLite)]
 
-    subgraph External
-        I{{YouTube Data API v3}} -->|live chat| D
-        H -->|delivers cert| J{{Resend}}
-        J --> K([User Inbox])
-    end
+    DB --> S[Cert Signer]
+    S -->|signed PDF| R2[(R2 Storage)]
+    R2 --> E[Email Sender]
+    E --> RE{{Resend}}
+    RE --> IN([Your inbox])
 
-    C -.->|visible in| I
-    A -.->|creates row| E
-
-    style D fill:#3b82f6,stroke:#1e40af,color:#fff
-    style E fill:#10b981,stroke:#047857,color:#fff
-    style F fill:#8b5cf6,stroke:#6d28d9,color:#fff
-    style H fill:#f59e0b,stroke:#d97706,color:#fff
-    style I fill:#ef4444,stroke:#b91c1c,color:#fff
-    style J fill:#ec4899,stroke:#be185d,color:#fff
+    style P fill:#3b82f6,stroke:#1e40af,color:#fff
+    style DB fill:#10b981,stroke:#047857,color:#fff
+    style S fill:#8b5cf6,stroke:#6d28d9,color:#fff
+    style E fill:#f59e0b,stroke:#d97706,color:#fff
+    style YT fill:#ef4444,stroke:#b91c1c,color:#fff
+    style RE fill:#ec4899,stroke:#be185d,color:#fff
 ```
 
 <details>
@@ -124,47 +117,39 @@ flowchart LR
 ## Architecture
 
 ```mermaid
-graph TB
+graph TD
     subgraph cf["Cloudflare Edge"]
-        pages["Pages Functions<br/>API + UI"]
-        d1[("D1 — SQLite<br/>schema.sql")]
-        r2[("R2 — Object Storage<br/>chat JSON + signed PDFs")]
-
-        subgraph workers["Workers (cron-triggered)"]
-            poller["Poller<br/>⏱ per-minute<br/>ET 08-11 M-F"]
-            email["Email Sender<br/>⏱ every 2 min"]
-            purge["Purge + Digests<br/>⏱ daily 09:00 UTC"]
-        end
+        pages["Pages · API + UI"]
+        d1[("D1 · SQLite")]
+        r2[("R2 · Object Storage")]
+        poller["Poller · per-min"]
+        email["Email Sender"]
+        purge["Purge + Digests"]
     end
 
-    subgraph ext["External Services"]
-        yt["YouTube Data API v3"]
-        resend["Resend<br/>certs@signalplane.co"]
+    subgraph ext["External"]
+        yt["YouTube API v3"]
+        resend["Resend"]
         tsa["RFC-3161 TSA"]
     end
 
     subgraph gh["GitHub Actions"]
-        ci["CI: tests + gitleaks"]
         deploy["deploy-prod"]
-        smoke["Hourly smoke canary"]
-        watchdog["15-min watchdog"]
-        certs["Cert signer cron<br/>Python + WeasyPrint"]
-        schema["Weekly schema drift"]
+        certs["Cert Signer · Python"]
+        smoke["Smoke + Watchdog"]
     end
 
-    yt -->|liveChatMessages| poller
-    poller -->|attendance rows| d1
+    yt --> poller --> d1
     pages --> d1
     pages --> r2
-    certs -->|signed PDFs| r2
-    certs -->|queues email| d1
-    email -->|drains outbox| resend
-    purge -->|chat GC| r2
-    purge -->|digests| d1
-    certs -->|timestamp| tsa
-    deploy -->|wrangler| cf
-    smoke -->|/api/health| pages
-    watchdog -->|/api/health| pages
+    certs --> r2
+    certs --> d1
+    certs --> tsa
+    email --> resend
+    purge --> r2
+    purge --> d1
+    deploy --> cf
+    smoke --> pages
 
     style d1 fill:#10b981,stroke:#047857,color:#fff
     style r2 fill:#06b6d4,stroke:#0e7490,color:#fff
@@ -175,21 +160,24 @@ graph TB
     style yt fill:#ef4444,stroke:#b91c1c,color:#fff
 ```
 
-### Components
-
-| Component | Tech | What it does |
-|:----------|:-----|:-------------|
-| **Pages Functions** | Cloudflare Pages | Registration, dashboard, verify, admin API |
-| **Poller** | CF Worker (cron) | Polls YouTube live chat, matches codes, credits attendance |
-| **Email Sender** | CF Worker (cron) | Drains `email_outbox` via Resend |
-| **Purge** | CF Worker (cron) | Daily R2 chat GC + security digest + weekly digest + cert nudge |
-| **Cert Signer** | Python 3.11 (GH Actions) | WeasyPrint render + `endesive` PAdES-T with RFC-3161 |
-| **D1** | Cloudflare SQLite | Single source of truth — schema in `db/schema.sql` |
-| **R2** | Cloudflare Object Storage | Raw chat JSONL (purges daily) + signed PDF certs |
-
 ---
 
 ## Certificate Integrity
+
+```mermaid
+flowchart TD
+    A["1 · Time-Gated Attendance"] --> B["2 · Hash-Chained Audit Log"]
+    B --> C["3 · PAdES-T + RFC-3161"]
+    C --> D["4 · Public Verify URL"]
+
+    E([Auditor]) -->|/verify.html| D
+    F([PDF Reader]) -->|check signature| C
+
+    style A fill:#3b82f6,stroke:#1e40af,color:#fff
+    style B fill:#10b981,stroke:#047857,color:#fff
+    style C fill:#8b5cf6,stroke:#6d28d9,color:#fff
+    style D fill:#f59e0b,stroke:#d97706,color:#fff
+```
 
 > [!NOTE]
 > Anyone can generate a PDF that says "attended." SC-CPE certificates are different because each one is anchored to four independent, durable pieces of evidence.
@@ -198,24 +186,16 @@ graph TB
 <tr>
 <td width="50%">
 
-**1. Time-gated attendance**
+**1. Time-gated attendance** — The poller only credits messages whose YouTube `publishedAt` falls inside the live window. Pre-stream chat and replays don't count. Rejected attempts are logged and surfaced on your dashboard.
 
-The poller only credits messages whose YouTube `publishedAt` falls inside the live window. Pre-stream chat and replays don't count. Rejected attempts are logged and surfaced on your dashboard.
-
-**2. Hash-chained audit log**
-
-Every state transition is recorded in an append-only, SHA-256 chained table with a `UNIQUE INDEX` on `prev_hash`. Chain forks fail at insert time. `verify_audit_chain.py` replays the full chain.
+**2. Hash-chained audit log** — Every state transition is recorded in an append-only, SHA-256 chained table with a `UNIQUE INDEX` on `prev_hash`. Chain forks fail at insert time. `verify_audit_chain.py` replays the full chain.
 
 </td>
 <td width="50%">
 
-**3. PAdES-T + RFC-3161**
+**3. PAdES-T + RFC-3161** — Certs are signed with a dedicated CA-rooted key and bound to a trusted timestamp authority. The signature outlives the key's validity period. The signing cert fingerprint is on the face of every PDF.
 
-Certs are signed with a dedicated CA-rooted key and bound to a trusted timestamp authority. The signature outlives the key's validity period. The signing cert fingerprint is on the face of every PDF.
-
-**4. Public verify URL**
-
-Each cert carries a `/verify.html?t=...` link anyone can open — no login required. Drop the PDF on the page and the browser recomputes its SHA-256 client-side against the registered hash.
+**4. Public verify URL** — Each cert carries a `/verify.html?t=...` link anyone can open — no login required. Drop the PDF on the page and the browser recomputes its SHA-256 client-side against the registered hash.
 
 </td>
 </tr>
@@ -229,7 +209,9 @@ user_registered → code_matched → attendance_credited → cert_issued → ema
 
 ---
 
-## Cert Delivery Options
+## Features
+
+### Cert Delivery Options
 
 | Option | Best for | Delivery |
 |:-------|:---------|:---------|
@@ -238,6 +220,48 @@ user_registered → code_matched → attendance_credited → cert_issued → ema
 | **Both** | Multiple certifications | Per-session + monthly |
 
 Change your preference anytime from the dashboard.
+
+### Community & Engagement
+
+```mermaid
+flowchart TD
+    subgraph dashboard["Dashboard"]
+        streak["Streaks"]
+        renewal["Renewal Countdown"]
+        calendar["Attendance Calendar"]
+        annual["Annual Summary"]
+        bulk["Bulk Cert Download"]
+    end
+
+    subgraph community["Community"]
+        leaderboard["Leaderboard"]
+        badge["Shareable Badge"]
+        links["Show Links Archive"]
+    end
+
+    subgraph comms["Communications"]
+        digest["Monthly Digest"]
+        nudge["Cert Nudge"]
+        weekly["Weekly Digest"]
+    end
+
+    style streak fill:#3b82f6,stroke:#1e40af,color:#fff
+    style leaderboard fill:#10b981,stroke:#047857,color:#fff
+    style badge fill:#f59e0b,stroke:#d97706,color:#fff
+    style links fill:#8b5cf6,stroke:#6d28d9,color:#fff
+    style digest fill:#ec4899,stroke:#be185d,color:#fff
+```
+
+- **Streak tracking** — Current and longest consecutive attendance days, visible on your dashboard
+- **Shareable badges** — SVG badge endpoint + public badge page with social sharing
+- **Renewal countdown** — Track progress toward your cert renewal deadline (configure per certification)
+- **Community leaderboard** — Opt-in top-20 monthly CPE rankings
+- **Show Links Archive** — Daily archive of URLs shared by hosts/mods during the briefing
+- **Monthly email digest** — CPE summary, streak stats, and session count on the 1st of each month
+- **Annual summary** — Year-at-a-glance attendance and CPE stats
+- **Bulk cert download** — Download all your certs as a ZIP archive
+- **Appeal flow** — Missed credit? Submit an appeal directly from the calendar
+- **Remember session** — Opt-in device memory for your dashboard (shared-computer safe)
 
 ---
 
@@ -257,28 +281,99 @@ Live status: [`/status.html`](https://sc-cpe-web.pages.dev/status.html) (auto-re
 
 ---
 
+## CI/CD Pipeline
+
+```mermaid
+flowchart TD
+    A[Push branch] --> B[CI: tests + gitleaks]
+    B --> C{PR merge to main}
+    C --> T[Run test suite]
+    T --> M[Auto-apply D1 migrations]
+    M --> P[Deploy Pages]
+    P --> W[Deploy Workers]
+    W --> S[Post-deploy smoke]
+    S --> L([Live in ~2 min])
+
+    SM["Hourly canary"] -.-> L
+    WD["15-min watchdog"] -.-> L
+
+    style T fill:#3b82f6,stroke:#1e40af,color:#fff
+    style P fill:#10b981,stroke:#047857,color:#fff
+    style W fill:#f59e0b,stroke:#d97706,color:#fff
+    style S fill:#8b5cf6,stroke:#6d28d9,color:#fff
+    style L fill:#10b981,stroke:#047857,color:#fff
+```
+
+Branch protection on `main`: PRs required, `Node test suite` + `Secret scan (gitleaks)` must pass, no force-push. Auto-merge enabled — `gh pr merge --auto --squash` lands the PR the moment checks go green.
+
+D1 migrations in `db/migrations/` are applied automatically during deploy — the pipeline tracks applied files in `_applied_migrations` and only runs new ones.
+
+---
+
+## Components
+
+| Component | Tech | What it does |
+|:----------|:-----|:-------------|
+| **Pages Functions** | Cloudflare Pages | Registration, dashboard, verify, admin API, links archive |
+| **Poller** | CF Worker (cron) | Polls YouTube live chat (OAuth + API-key fallback), matches codes, credits attendance, extracts show links |
+| **Email Sender** | CF Worker (cron) | Drains `email_outbox` via Resend |
+| **Purge** | CF Worker (cron) | Daily R2 chat GC + security digest + weekly digest + cert nudge + link enrichment + monthly digest |
+| **Cert Signer** | Python 3.11 (GH Actions) | WeasyPrint render + `endesive` PAdES-T with RFC-3161 |
+| **D1** | Cloudflare SQLite | Single source of truth — schema in `db/schema.sql` |
+| **R2** | Cloudflare Object Storage | Raw chat JSONL (purges daily) + signed PDF certs |
+
+---
+
 <details>
 <summary><strong>API Surface</strong></summary>
+
+### Public
 
 | Path | Auth | Purpose |
 |:-----|:-----|:--------|
 | `POST /api/register` | Turnstile | Sign up |
-| `GET /api/me/{token}` | dashboard-token | User view |
-| `POST /api/me/{token}/cert-feedback` | dashboard-token + CSRF | Report typo/error |
-| `POST /api/me/{token}/prefs` | dashboard-token + CSRF | Set cert style, nudge opt-out |
-| `POST /api/me/{token}/cert-per-session/{stream_id}` | dashboard-token + CSRF | Request single-session cert |
-| `POST /api/me/{token}/resend-code` | dashboard-token + CSRF | Get a fresh verification code |
-| `POST /api/me/{token}/delete` | dashboard-token + CSRF | Account deletion |
-| `POST /api/me/{token}/recover` | Turnstile | Email dashboard link recovery |
+| `POST /api/recover` | Turnstile | Recover dashboard link via email |
 | `GET /api/health` | public | External watchdog poll |
 | `GET /api/verify/{token}` | public | Cert verification data |
 | `GET /api/crl.json` | public | Certificate revocation list |
+| `GET /api/leaderboard` | public | Community leaderboard (top 20) |
+| `GET /api/links` | public | Show links archive |
+| `GET /api/badge/{token}` | public | SVG achievement badge |
+| `GET /api/download/{token}` | public | Cert PDF download |
+| `GET /api/preflight/channel` | public | YouTube channel pre-check |
+
+### User (dashboard-token + CSRF)
+
+| Path | Auth | Purpose |
+|:-----|:-----|:--------|
+| `GET /api/me/{token}` | dashboard-token | User dashboard data |
+| `POST /api/me/{token}/prefs` | + CSRF | Set cert style, nudge opt-out, leaderboard opt-in |
+| `POST /api/me/{token}/cert-per-session/{stream_id}` | + CSRF | Request single-session cert |
+| `POST /api/me/{token}/cert-feedback` | + CSRF | Report cert typo/error |
+| `POST /api/me/{token}/resend-code` | + CSRF | Get a fresh verification code |
+| `POST /api/me/{token}/appeal` | + CSRF | Appeal missed attendance credit |
+| `POST /api/me/{token}/delete` | + CSRF | Account deletion (GDPR) |
+| `POST /api/me/{token}/rotate` | + CSRF | Rotate dashboard token |
+| `GET /api/me/{token}/annual-summary` | dashboard-token | Year-at-a-glance stats |
+
+### Admin (bearer token)
+
+| Path | Auth | Purpose |
+|:-----|:-----|:--------|
 | `GET /api/admin/heartbeat-status` | bearer | Per-source staleness |
 | `GET /api/admin/audit-chain-verify` | bearer | Full chain walk |
 | `GET /api/admin/ops-stats` | bearer | Dashboard counts |
 | `GET /api/admin/cert-feedback` | bearer | Non-ok feedback inbox |
+| `GET /api/admin/users` | bearer | User management |
+| `GET /api/admin/attendance` | bearer | Attendance records |
+| `GET /api/admin/appeals` | bearer | Pending appeals |
+| `POST /api/admin/appeals/{id}/resolve` | bearer | Resolve appeal |
 | `POST /api/admin/cert/{id}/reissue` | bearer | Queue cert regeneration |
+| `POST /api/admin/cert/{token}/resend` | bearer | Resend cert email |
+| `POST /api/admin/revoke` | bearer | Revoke a certificate |
 | `POST /api/admin/canary-beat` | bearer | Hourly smoke heartbeat |
+| `POST /api/admin/toggles` | bearer | Feature toggles |
+| `GET /api/watchdog-state` | bearer | Watchdog health state |
 
 </details>
 
@@ -311,7 +406,7 @@ ADMIN_TOKEN=... ORIGIN=https://sc-cpe-web.pages.dev \
 ## Deploying
 
 Auto-deploy on every merge to `main` via [`deploy-prod.yml`](.github/workflows/deploy-prod.yml):
-tests → Pages → Workers (parallel) → post-deploy smoke. ~2 min on a warm runner.
+tests → D1 migrations → Pages → Workers (parallel) → post-deploy smoke. ~2 min on a warm runner.
 
 ```bash
 git checkout -b fix/whatever
@@ -329,19 +424,21 @@ gh pr create --fill && gh pr merge --auto --squash
 
 ```
 pages/                 Cloudflare Pages Functions — public web surface
-  functions/api/       JSON API (register, dashboard, admin, verify)
+  functions/api/       JSON API (register, dashboard, admin, verify, links)
   _lib.js              Shared helpers (audit, rate-limit, email, crypto)
 workers/
-  poller/              Per-minute livestream chat poller
-  purge/               Daily R2 chat GC + security/weekly digests
+  poller/              Per-minute livestream chat poller (OAuth + API-key fallback)
+  purge/               Daily R2 chat GC + security/weekly/monthly digests + link enrichment
   email-sender/        Drains email_outbox via Resend
 services/certs/        Python PDF issuer (PAdES-T + RFC-3161)
 db/
   schema.sql           Authoritative schema
-  migrations/          Append-only numbered migrations
+  migrations/          Append-only numbered migrations (auto-applied on deploy)
 scripts/               Smoke, schema check, audit verifier, tests
-.github/workflows/     CI, deploy, smoke, watchdog, cert crons, schema drift
+.github/workflows/     CI, deploy, smoke, watchdog, cert crons, schema drift, backups
 docs/
+  DESIGN.md            Architecture decisions
+  PITCH.md             Simply Cyber team pitch
   RUNBOOK.md           Operator procedures
   LTV.md               Legal/compliance reasoning (GDPR Art. 17(3)(e))
   VERIFIER_GUIDE.md    Third-party cert verification guide
@@ -349,7 +446,8 @@ docs/
 
 ## Community
 
-Built for the [Simply Cyber](https://www.youtube.com/@SimplyCyber) community.
+Built for the [Simply Cyber](https://www.youtube.com/@SimplyCyber) community. Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
+
 Found a bug or have feedback? [Open an issue](https://github.com/ericrihm/sc-cpe/issues) or email certs@signalplane.co.
 
 ## License
