@@ -77,12 +77,11 @@ or deliberate human process. Track-and-check. Each item has an owner
       traffic patterns. Look for abuse signatures that didn't exist
       at launch time. Update rate-limit knobs accordingly.
 
-- [ ] **Preview environment with isolated bindings** — separate D1 +
-      R2 + KV for PR preview deploys so we can enable
-      Cloudflare Pages PR previews without leaking prod state.
-      Precondition: creating a `sc-cpe-preview` D1 + R2 bucket + KV
-      namespace and threading them through `pages/wrangler.toml` as
-      preview-scoped bindings.
+- [x] **Preview environment with isolated bindings** — `sc-cpe-preview`
+      D1, `sc-cpe-rate-preview` KV, `sc-cpe-certs-preview` R2 created.
+      `[env.preview]` in `pages/wrangler.toml`. `deploy-preview.yml`
+      workflow applies migrations + seed data on every PR. Completed
+      2026-04-22.
 
 ## Verification: the "really launched" criteria
 

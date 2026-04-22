@@ -35,3 +35,30 @@ id = "5066e1eeba0748cc96ad6d44f3f5325f"
 [[r2_buckets]]
 binding = "CERTS_BUCKET"
 bucket_name = "sc-cpe-certs"
+
+# --- Preview environment ---
+# Used by CF Pages for non-production branch deploys (PR previews).
+# Create these resources once:
+#   wrangler d1 create sc-cpe-preview
+#   wrangler kv:namespace create sc-cpe-rate-preview
+#   wrangler r2 bucket create sc-cpe-certs-preview
+# Then paste the IDs below.
+
+[env.preview.vars]
+POLL_WINDOW_TZ = "America/New_York"
+POLL_WINDOW_START_HOUR = "8"
+POLL_WINDOW_END_HOUR = "11"
+POLL_WINDOW_DAYS = "1,2,3,4,5"
+
+[[env.preview.d1_databases]]
+binding = "DB"
+database_name = "sc-cpe-preview"
+database_id = "8aa974e0-e0d8-4120-b2c3-172f441b2520"
+
+[[env.preview.kv_namespaces]]
+binding = "RATE_KV"
+id = "3eecd067a6bf44eca56a8feaca4d127c"
+
+[[env.preview.r2_buckets]]
+binding = "CERTS_BUCKET"
+bucket_name = "sc-cpe-certs-preview"

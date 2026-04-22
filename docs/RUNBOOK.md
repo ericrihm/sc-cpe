@@ -140,3 +140,54 @@ cd pages && wrangler pages secret put ADMIN_TOKEN
 The HMAC compare in `isAdmin` means wrong tokens leak nothing about the
 expected token's length or bytes — rotating is still prudent on any
 suspected exposure.
+
+## Disaster Recovery
+
+### How backups work
+
+- **Weekly** (Sunday 06:00 UTC): GitHub Actions exports D1 via `wrangler d1 export`,
+  uploads the SQL dump to R2 bucket `sc-cpe-backups`, and saves a 30-day GitHub
+  artifact as secondary copy.
+- **Retention:** R2 keeps 90 days (lifecycle rule). GitHub artifacts keep 30 days.
+  Local `/tmp` keeps 4 files (rotated).
+- **Data loss window:** Up to 7 days (weekly cadence). If this is too wide,
+  increase the cron frequency in `.github/workflows/backup.yml`.
+
+### List available backups
+
+```sh
+bash scripts/restore_d1.sh --list
+```
+
+### Restore from R2
+
+```sh
+# Most recent backup
+bash scripts/restore_d1.sh --latest --confirm
+
+# Specific backup
+bash scripts/restore_d1.sh d1-backup-20260420-060012.sql --confirm
+```
+
+**Warning:** This overwrites the production D1 database. All data written
+since the backup was taken will be lost.
+
+### Test the restore path
+
+Trigger the backup workflow with `test_restore=true`:
+
+```sh
+gh workflow run backup.yml -f test_restore=true
+```
+
+This creates a throwaway D1, imports the backup, runs sanity queries, and
+deletes the throwaway DB. It does not touch production.
+
+### After a restore
+
+1. Run `scripts/smoke_hardening.sh` to verify endpoints work.
+2. Check `/api/admin/audit-chain-verify` — the chain should be intact
+   (the backup includes all audit rows).
+3. Check heartbeats — cron workers will re-beat on their next tick.
+4. Any registrations, attendance, or certs created since the backup was
+   taken are lost. Communicate to affected users if applicable.
