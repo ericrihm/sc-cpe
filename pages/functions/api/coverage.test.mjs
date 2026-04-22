@@ -12,6 +12,7 @@ import { onRequestGet as annualSummaryGet } from "./me/[token]/annual-summary.js
 import { onRequestGet as leaderboardGet } from "./leaderboard.js";
 import { onRequestGet as linksGet } from "./links.js";
 import { onRequestGet as badgeGet } from "./badge/[token].js";
+import { onRequestGet as rssGet } from "./links/rss.js";
 
 // ── helpers ───────────────────────────────────────────────────────────────
 
@@ -556,6 +557,57 @@ test("links: viewer links excluded from response", async () => {
     });
     assert.ok(showLinksSql, "show_links query must have been executed");
     assert.ok(/author_type IN/.test(showLinksSql), "show_links query must filter by author_type");
+});
+
+// ── rss ──────────────────────────────────────────────────────────────────
+
+test("rss: returns valid XML with content-type application/rss+xml", async () => {
+    const db = mockDB([
+        { match: /LEFT JOIN show_links.*GROUP BY/s, handler: () => ({
+            all: [{ scheduled_date: "2026-04-10", cnt: 2 }],
+        })},
+        { match: /FROM streams\s+WHERE scheduled_date/s, handler: () => ({
+            first: { id: "s1", title: "DTB 2026-04-10", yt_video_id: "v1" },
+        })},
+        { match: /FROM show_links\s+WHERE stream_id/s, handler: () => ({
+            all: [
+                { url: "https://example.com", domain: "example.com", title: "Test Link",
+                  description: "A test", author_type: "owner", author_name: "SC", posted_at: "2026-04-10T10:00:00Z" },
+            ],
+        })},
+    ]);
+    const r = await rssGet({
+        env: { DB: db, RATE_KV: kvPermissive },
+        request: getReq("https://sc-cpe-web.pages.dev/api/links/rss"),
+    });
+    assert.equal(r.status, 200);
+    assert.ok(r.headers.get("Content-Type").includes("application/rss+xml"));
+    const body = await r.text();
+    assert.ok(body.includes("<rss"));
+    assert.ok(body.includes("Test Link"));
+    assert.ok(body.includes("2026-04-10"));
+});
+
+test("rss: rate limit trips → 429", async () => {
+    const r = await rssGet({
+        env: { DB: mockDB([]), RATE_KV: kvTripped },
+        request: getReq("https://sc-cpe-web.pages.dev/api/links/rss"),
+    });
+    assert.equal(r.status, 429);
+});
+
+test("rss: no data → valid XML with zero items", async () => {
+    const db = mockDB([
+        { match: /LEFT JOIN show_links.*GROUP BY/s, handler: () => ({ all: [] })},
+    ]);
+    const r = await rssGet({
+        env: { DB: db, RATE_KV: kvPermissive },
+        request: getReq("https://sc-cpe-web.pages.dev/api/links/rss"),
+    });
+    assert.equal(r.status, 200);
+    const body = await r.text();
+    assert.ok(body.includes("<rss"));
+    assert.ok(!body.includes("<item>"));
 });
 
 // ── badge ────────────────────────────────────────────────────────────────
