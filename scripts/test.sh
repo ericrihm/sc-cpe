@@ -11,6 +11,7 @@ node --test \
     pages/functions/api/health.test.mjs \
     pages/functions/api/admin/ops-stats.test.mjs \
     pages/functions/api/admin/toggles.test.mjs \
+    pages/functions/api/admin/analytics/_helpers.test.mjs \
     pages/functions/api/preflight/channel.test.mjs \
     pages/functions/api/coverage.test.mjs \
     workers/poller/src/race-detection.test.mjs \
