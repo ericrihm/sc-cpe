@@ -59,21 +59,35 @@ export async function onRequestPost({ params, request, env }) {
     const periodYyyymm = date.slice(0, 4) + date.slice(5, 7);
     const ts = now();
 
-    await env.DB.prepare(`
-        INSERT INTO certs (
-            id, public_token, user_id,
-            period_yyyymm, period_start, period_end,
-            cpe_total, sessions_count, session_video_ids,
-            issuer_name_snapshot, recipient_name_snapshot,
-            state, cert_kind, stream_id, created_at
-        ) VALUES (?1, ?2, ?3, ?4, ?5, ?5, ?6, 1, ?7, '', '',
-                  'pending', 'per_session', ?8, ?9)
-    `).bind(
-        certId, publicToken, owner.user_id,
-        periodYyyymm, date,
-        owner.earned_cpe, JSON.stringify([owner.yt_video_id]),
-        owner.stream_pk, ts,
-    ).run();
+    try {
+        await env.DB.prepare(`
+            INSERT INTO certs (
+                id, public_token, user_id,
+                period_yyyymm, period_start, period_end,
+                cpe_total, sessions_count, session_video_ids,
+                issuer_name_snapshot, recipient_name_snapshot,
+                state, cert_kind, stream_id, created_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?5, ?6, 1, ?7, '', '',
+                      'pending', 'per_session', ?8, ?9)
+        `).bind(
+            certId, publicToken, owner.user_id,
+            periodYyyymm, date,
+            owner.earned_cpe, JSON.stringify([owner.yt_video_id]),
+            owner.stream_pk, ts,
+        ).run();
+    } catch (err) {
+        if (/UNIQUE/i.test(String(err?.message || err))) {
+            const dup = await env.DB.prepare(`
+                SELECT id, state, public_token FROM certs
+                 WHERE user_id = ?1 AND stream_id = ?2
+                   AND cert_kind = 'per_session' AND state != 'revoked'
+            `).bind(owner.user_id, owner.stream_pk).first();
+            if (dup) return json({ ok: true, queued: false, existing: true,
+                                   cert_id: dup.id, state: dup.state,
+                                   public_token: dup.public_token });
+        }
+        throw err;
+    }
 
     await audit(
         env, "user", owner.user_id, "cert_per_session_requested",

@@ -1,4 +1,4 @@
-import { json, audit, clientIp, ipHash, now, ulid, isSameOrigin } from "../../../_lib.js";
+import { json, audit, clientIp, ipHash, now, ulid, isSameOrigin, rateLimit } from "../../../_lib.js";
 
 // POST /api/me/{token}/cert-feedback
 // Body: { "cert_id": "<ULID>", "rating": "ok"|"typo"|"wrong", "note"?: string }
@@ -52,6 +52,9 @@ export async function onRequestPost({ params, request, env }) {
          WHERE u.dashboard_token = ?1 AND c.id = ?2
     `).bind(token, certId).first();
     if (!owner) return json({ error: "not_found" }, 404);
+
+    const rl = await rateLimit(env, `cert_feedback:${owner.user_id}`, 30);
+    if (!rl.ok) return json(rl.body, rl.status);
 
     const ts = now();
     const id = ulid();
