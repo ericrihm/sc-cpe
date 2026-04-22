@@ -808,6 +808,64 @@ if (appealsBox) {
         }
     });
 }
+var attendanceForm = $("#attendance-form");
+if (attendanceForm) {
+    attendanceForm.addEventListener("submit", async function (e) {
+        e.preventDefault();
+        var resultEl = $("#attendance-result");
+        resultEl.hidden = true;
+        var body = {
+            user_id: $("#att-user-id").value.trim(),
+            stream_id: $("#att-stream-id").value.trim(),
+            reason: $("#att-reason").value.trim(),
+            resolver: $("#att-resolver").value.trim(),
+            rule_version: parseInt($("#att-rule-version").value, 10) || 1,
+        };
+        if (!body.user_id || body.user_id.length < 10) {
+            resultEl.className = "result-box error";
+            resultEl.textContent = "User ID required.";
+            resultEl.hidden = false;
+            return;
+        }
+        if (!body.stream_id || body.stream_id.length < 10) {
+            resultEl.className = "result-box error";
+            resultEl.textContent = "Stream ID required.";
+            resultEl.hidden = false;
+            return;
+        }
+        if (!body.reason) {
+            resultEl.className = "result-box error";
+            resultEl.textContent = "Reason required.";
+            resultEl.hidden = false;
+            return;
+        }
+        if (!body.resolver) {
+            resultEl.className = "result-box error";
+            resultEl.textContent = "Resolver handle required.";
+            resultEl.hidden = false;
+            return;
+        }
+        if (!confirm("Grant attendance for user " + body.user_id.slice(0, 10) + "…?")) return;
+        var btn = attendanceForm.querySelector("button");
+        btn.disabled = true;
+        btn.textContent = "Granting…";
+        try {
+            var data = await postJson("/api/admin/attendance", body);
+            resultEl.className = "result-box success";
+            resultEl.textContent = "Attendance granted. Earned CPE: " + data.earned_cpe + ". Source: " + data.source;
+            resultEl.hidden = false;
+            attendanceForm.reset();
+            $("#att-rule-version").value = "1";
+        } catch (err) {
+            resultEl.className = "result-box error";
+            resultEl.textContent = err.message;
+            resultEl.hidden = false;
+        } finally {
+            btn.disabled = false;
+            btn.textContent = "Grant attendance";
+        }
+    });
+}
 (async function init() {
     try {
         var testR = await fetch("/api/admin/ops-stats", { credentials: "include" });
@@ -816,6 +874,7 @@ if (appealsBox) {
             $("#login").style.display = "none";
             $("#app").style.display = "";
             load();
+            loadAppeals();
             return;
         }
     } catch (e) {}
