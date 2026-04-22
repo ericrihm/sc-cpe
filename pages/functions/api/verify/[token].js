@@ -33,7 +33,7 @@ export async function onRequestGet({ params, env, request }) {
         WHERE id = ?2 AND first_viewed_at IS NULL
     `).bind(new Date().toISOString(), row.id).run();
 
-    await audit(env, "api", null, "cert_verified", "cert", row.id, null, {
+    await audit(env, "api", null, "cert_verified", "cert", row.id, null, null, {
         ip_hash: await ipHash(clientIp(request)),
     });
 

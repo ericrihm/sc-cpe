@@ -14,7 +14,7 @@ export async function onRequestGet({ params, env, request }) {
 
     const user = await env.DB.prepare(`
         SELECT id, legal_name, state
-        FROM users WHERE dashboard_token = ?1 AND deleted_at IS NULL
+        FROM users WHERE badge_token = ?1 AND deleted_at IS NULL
     `).bind(token).first();
 
     if (!user) {

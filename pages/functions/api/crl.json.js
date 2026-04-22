@@ -50,6 +50,7 @@ export async function onRequestGet({ env }) {
             "Content-Type": "application/json",
             "Cache-Control": "public, max-age=300",
             "Access-Control-Allow-Origin": "*",
+            "Cross-Origin-Resource-Policy": "cross-origin",
         },
     });
 }

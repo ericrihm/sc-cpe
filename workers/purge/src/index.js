@@ -457,6 +457,7 @@ const EXPECTED_CADENCE_S = {
     canary: 3600,
     monthly_digest: 2678400,
     link_enrichment: 86400,
+    cert_nudge: 2678400,
 };
 
 function staleHeartbeats(rows, nowMs) {
@@ -564,15 +565,14 @@ async function runSecurityAlerts(env, nowIso) {
         throw new Error(`resend_${resp.status}: ${body}`);
     }
 
-    // Advance cursor only after a successful send so a failed email gets
-    // retried on the next run instead of being silently lost. If there were
-    // no audit events (digest was purely a staleness alarm), keep the cursor
-    // where it was so the next run still scans from the same point.
+    // Advance cursor past the newest audit event we included, or to now if
+    // the digest was purely a staleness alarm (so we don't re-send the same
+    // stale-heartbeat digest every run).
     return {
         scanned_since: since,
         events: rows.length,
         stale_heartbeats: stale.length,
-        cursor_ts: rows.length ? rows[rows.length - 1].ts : since,
+        cursor_ts: rows.length ? rows[rows.length - 1].ts : nowIso,
     };
 }
 
@@ -620,11 +620,9 @@ async function enrichShowLinks(env, nowIso) {
         } catch {
             failed++;
         }
-        if (fetchOk || title) {
-            await env.DB.prepare(
-                "UPDATE show_links SET title = ?1, description = ?2, enriched_at = ?3 WHERE id = ?4"
-            ).bind(title, description, nowIso, row.id).run();
-        }
+        await env.DB.prepare(
+            "UPDATE show_links SET title = ?1, description = ?2, enriched_at = ?3 WHERE id = ?4"
+        ).bind(title, description, nowIso, row.id).run();
     }
     return { candidates: rows.length, enriched, failed };
 }
