@@ -53,7 +53,7 @@ Acceptance is ultimately the certification body's decision — see [Terms §5](h
 5. Get cert    →  per-session (~2h) or monthly bundle — your pick
 ```
 
-Your dashboard link arrives by email from `certs@signalplane.co`. Bookmark it — it's your only credential.
+Your dashboard link arrives by email from `certs@signalplane.co`. Lost it? Just visit `/dashboard` — an inline login form emails you a fresh link. You can also opt-in to "remember this device" so your dashboard loads without the URL token.
 
 ---
 
@@ -262,6 +262,7 @@ flowchart TD
 - **Bulk cert download** — Download all your certs as a ZIP archive
 - **Appeal flow** — Missed credit? Submit an appeal directly from the calendar
 - **Remember session** — Opt-in device memory for your dashboard (shared-computer safe)
+- **Inline sign-in** — No token? The dashboard shows a login form instead of an error — email yourself a link in seconds
 
 ---
 
