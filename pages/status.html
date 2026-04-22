@@ -13,7 +13,7 @@
 </head>
 <body>
 <main class="narrow">
-  <h1>SC-CPE — Service Status</h1>
+  <h1><a href="/">SC-CPE</a> — Service Status</h1>
   <p class="lead">Automated. Polled every 30 seconds from <code>/api/health</code>. If something below is red, the relevant cron or worker is not beating within its expected cadence.</p>
 
   <div id="hero" class="status-hero loading">checking…</div>
@@ -23,7 +23,13 @@
 
   <p class="foot" id="foot"></p>
   <p class="foot">For longer-form incident updates, see the <a href="https://github.com/ericrihm/sc-cpe/issues?q=label%3Aincident">incidents label</a> on the SC-CPE repo. For ongoing issues that affect your account, email <a href="mailto:certs@signalplane.co?subject=%5BACCOUNT%5D%20status%20page%20issue">certs@signalplane.co</a> with <code>[ACCOUNT]</code> in the subject.</p>
-  <p><a href="/">&larr; Back</a> · <a href="/links.html">Show Links</a></p>
+  <p class="muted" style="font-size:0.85rem;">
+    <a href="/">Home</a> · <a href="/faq.html">FAQ</a>
+    · <a href="/leaderboard.html">Leaderboard</a>
+    · <a href="/links.html">Show Links</a>
+    · <a href="/verify.html">Verify a cert</a>
+    · <a href="/terms.html">Terms</a> &amp; <a href="/privacy.html">Privacy</a>
+  </p>
 </main>
 <script src="/status.js"></script>
 </body>
