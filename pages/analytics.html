@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>SC-CPE Analytics</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="stylesheet" href="/admin.css">
+<link rel="stylesheet" href="/analytics.css">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<meta name="theme-color" content="#0b3d5c">
+</head>
+<body>
+<div class="wrap">
+  <h1>SC-CPE Analytics</h1>
+  <div class="sub">
+    <a href="/admin.html">&larr; Back to Admin</a>
+    <span style="margin:0 8px">|</span>
+    Usage trends and program health over time.
+  </div>
+
+  <div id="login" class="login">
+    <input type="password" id="token" placeholder="ADMIN_TOKEN" autocomplete="off">
+    <button id="go">Load</button>
+  </div>
+
+  <div id="app" style="display:none;">
+    <div class="range-bar">
+      <button class="range-btn" data-range="7d">7d</button>
+      <button class="range-btn active" data-range="30d">30d</button>
+      <button class="range-btn" data-range="90d">90d</button>
+      <button class="range-btn" data-range="all">All</button>
+      <span class="muted" id="ts" style="margin-left:auto;font-size:12px;"></span>
+    </div>
+    <div id="err"></div>
+
+    <div class="panel" id="panel-growth">
+      <div class="section-h">Growth</div>
+      <div class="grid" id="growth-cards"></div>
+      <div class="chart-wrap"><canvas id="growth-chart"></canvas></div>
+    </div>
+
+    <div class="panel" id="panel-engagement">
+      <div class="section-h">Engagement</div>
+      <div class="grid" id="engagement-cards"></div>
+      <div class="chart-wrap"><canvas id="engagement-chart"></canvas></div>
+    </div>
+
+    <div class="panel" id="panel-certs">
+      <div class="section-h">Certificates</div>
+      <div class="grid" id="certs-cards"></div>
+      <div class="chart-wrap"><canvas id="certs-chart"></canvas></div>
+    </div>
+
+    <div class="panel" id="panel-system">
+      <div class="section-h">System Health</div>
+      <div class="grid" id="system-cards"></div>
+      <div class="chart-wrap"><canvas id="system-chart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<script src="/lib/chart.umd.min.js"></script>
+<script src="/analytics.js"></script>
+</body>
+</html>
