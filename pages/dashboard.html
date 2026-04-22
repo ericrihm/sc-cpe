@@ -14,6 +14,29 @@
 <main class="narrow">
     <h1>My SC-CPE Dashboard</h1>
     <div id="err" class="err" hidden></div>
+
+    <section id="login-card" class="card" hidden>
+        <h2 style="margin-top:0;">Sign in to your dashboard</h2>
+        <p>Enter the email you registered with and we'll send you a login link.</p>
+        <form id="login-form">
+            <label>
+                Email
+                <input name="email" type="email" required maxlength="254" autocomplete="email"
+                       style="width:100%;padding:8px;margin:6px 0 12px;border:1px solid var(--border,#ccc);border-radius:4px;font-size:1rem;">
+            </label>
+            <div class="cf-turnstile" data-sitekey="0x4AAAAAAC9lHHxbfTKNzdFN" data-theme="auto"></div>
+            <button type="submit" style="margin-top:8px;">Email me a login link</button>
+        </form>
+        <div id="login-err" class="err" hidden></div>
+        <div id="login-ok" hidden>
+            <p style="color:var(--ok-fg,#16a34a);font-weight:600;">Check your inbox!</p>
+            <p class="muted">If that email is registered, we've sent a login link. Check spam too. It usually arrives within a minute or two.</p>
+        </div>
+        <p class="muted" style="margin-top:1rem;font-size:0.85rem;">
+            Don't have an account? <a href="/">Register here</a>
+        </p>
+    </section>
+
     <section id="skel" aria-label="loading">
         <div class="card">
             <div class="skeleton skeleton-line medium"></div>
@@ -325,6 +348,7 @@
     </p>
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 <script src="/dashboard.js"></script>
 </body>
 </html>
