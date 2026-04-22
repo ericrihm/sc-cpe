@@ -91,7 +91,7 @@ async function drain(env) {
         .toISOString();
     await env.DB.prepare(`
         UPDATE email_outbox SET state = 'queued'
-         WHERE state = 'sending' AND created_at < ?1
+         WHERE state = 'sending' AND sent_at IS NOT NULL AND sent_at < ?1
     `).bind(stuckCutoff).run();
 
     const { results: rows = [] } = await env.DB.prepare(`
@@ -109,9 +109,10 @@ async function drain(env) {
         // grabbed it (shouldn't happen given the scheduled cadence, but
         // belt-and-suspenders against concurrent fetch+cron).
         const claim = await env.DB.prepare(`
-            UPDATE email_outbox SET state = 'sending', attempts = attempts + 1
+            UPDATE email_outbox SET state = 'sending', attempts = attempts + 1,
+                   sent_at = ?2
              WHERE id = ?1 AND state = 'queued'
-        `).bind(row.id).run();
+        `).bind(row.id, new Date().toISOString()).run();
         if (!claim.meta?.changes) continue;
 
         try {

@@ -584,7 +584,11 @@ async function ytGet(url, accessToken) {
             const body = await res.text();
             throw new Error(`YT ${res.status}: ${body.slice(0, 500)}`);
         }
-        return res.json();
+        const json = await res.json();
+        if (json?.error?.errors?.some(e => /quotaExceeded/i.test(e.reason || ""))) {
+            throw new Error(`YT 200 (quota): ${JSON.stringify(json.error).slice(0, 500)}`);
+        }
+        return json;
     } finally {
         clearTimeout(timer);
     }
