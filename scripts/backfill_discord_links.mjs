@@ -18,11 +18,12 @@
 //   DRY_RUN=1               Log what would be inserted without writing to D1
 //   HOST_USER_IDS=id1,id2   Discord user IDs to classify as "owner"
 
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, unlinkSync } from "node:fs";
 import https from "node:https";
 import { randomBytes } from "node:crypto";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
 // --- Config ---
 const token = process.env.DISCORD_TOKEN
@@ -41,6 +42,15 @@ if (!channelId) { console.error("DISCORD_CHANNEL_ID required"); process.exit(1);
 
 const cutoff = new Date(Date.now() - backfillDays * 86400_000);
 const URL_RE = /https?:\/\/[^\s<>"')\]]+/gi;
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const PROGRESS_FILE = join(__dirname, ".backfill_progress.json");
+const resumeBeforeId = process.env.RESUME_BEFORE_ID
+    || (existsSync(PROGRESS_FILE) ? JSON.parse(readFileSync(PROGRESS_FILE, "utf8")).beforeId : undefined);
+
+function saveProgress(beforeId, page, totalLinks, totalWritten) {
+    writeFileSync(PROGRESS_FILE, JSON.stringify({ beforeId, page, totalLinks, totalWritten, savedAt: new Date().toISOString() }));
+}
 
 function isWeekday(dateStr) {
     const [y, m, d] = dateStr.split("-").map(Number);
@@ -197,6 +207,8 @@ async function main() {
     console.log(`  Backfill: ${backfillDays} days (cutoff: ${cutoff.toISOString().slice(0, 10)})`);
     console.log(`  Delay: ${delayMs}ms between API calls`);
     console.log(`  Host user IDs: ${hostUserIds.size ? [...hostUserIds].join(", ") : "(server owner only)"}`);
+    console.log(`  Resume from: ${resumeBeforeId || "(start)"}`);
+    console.log(`  Progress file: ${PROGRESS_FILE}`);
     console.log(`  Dry run: ${dryRun}\n`);
 
     // 1. Fetch channel info to get guild_id
@@ -281,7 +293,8 @@ async function main() {
     const FLUSH_EVERY = 25;
     const BATCH_SIZE = 50;
     let page = 0;
-    let beforeId = undefined;
+    let beforeId = resumeBeforeId || undefined;
+    if (beforeId) console.log(`Resuming from message ID: ${beforeId}\n`);
     let totalScanned = 0;
     let totalLinks = 0;
     let totalWritten = 0;
@@ -379,11 +392,15 @@ async function main() {
 
         console.log(`[page ${page}] ${totalScanned} msgs, ${totalLinks} links (${counts.owner}o/${counts.moderator}m/${counts.viewer}v), ${missingDates.size} new streams, oldest: ${oldestDate.toISOString().slice(0, 10)}`);
 
-        if (page % FLUSH_EVERY === 0) await flushToD1();
+        if (page % FLUSH_EVERY === 0) {
+            await flushToD1();
+            saveProgress(beforeId, page, totalLinks, totalWritten);
+        }
         if (oldestDate < cutoff) break;
     }
 
     await flushToD1();
+    try { if (existsSync(PROGRESS_FILE)) unlinkSync(PROGRESS_FILE); } catch {}
 
     console.log(`\n=== Scan complete ===`);
     console.log(`Pages: ${page}`);
