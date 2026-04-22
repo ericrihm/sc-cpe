@@ -33,7 +33,11 @@ function fmtDuration(secs) {
 }
 
 async function fetchJson(path) {
-    var r = await fetch(path, { headers: { Authorization: "Bearer " + TOKEN } });
+    var opts = { credentials: "include" };
+    if (TOKEN && TOKEN !== "__cookie__") {
+        opts.headers = { Authorization: "Bearer " + TOKEN };
+    }
+    var r = await fetch(path, opts);
     if (r.status === 401) throw new Error("unauthorized");
     if (!r.ok) throw new Error(path + " HTTP " + r.status);
     return r.json();
@@ -163,18 +167,6 @@ async function loadAll() {
     }
 }
 
-document.getElementById("go").addEventListener("click", function () {
-    TOKEN = document.getElementById("token").value.trim();
-    if (!TOKEN) return;
-    document.getElementById("login").style.display = "none";
-    document.getElementById("app").style.display = "";
-    loadAll();
-});
-
-document.getElementById("token").addEventListener("keydown", function (e) {
-    if (e.key === "Enter") document.getElementById("go").click();
-});
-
 document.querySelectorAll(".range-btn").forEach(function (btn) {
     btn.addEventListener("click", function () {
         document.querySelectorAll(".range-btn").forEach(function (b) { b.classList.remove("active"); });
@@ -183,3 +175,81 @@ document.querySelectorAll(".range-btn").forEach(function (btn) {
         loadAll();
     });
 });
+
+var signoutBtn = $("#signout");
+if (signoutBtn) {
+    signoutBtn.addEventListener("click", async function () {
+        await fetch("/api/admin/auth/logout", { method: "POST", credentials: "include" });
+        TOKEN = null;
+        $("#app").style.display = "none";
+        $("#login").style.display = "";
+        location.reload();
+    }, { once: true });
+}
+
+(async function init() {
+    try {
+        var testR = await fetch("/api/admin/analytics/growth?range=7d", { credentials: "include" });
+        if (testR.ok) {
+            TOKEN = "__cookie__";
+            $("#login").style.display = "none";
+            $("#app").style.display = "";
+            loadAll("30d");
+            return;
+        }
+    } catch (e) {}
+
+    var params = new URLSearchParams(location.search);
+    if (params.get("error") === "expired") {
+        var le = $("#login-err");
+        le.textContent = "Login link expired or already used. Request a new one.";
+        le.hidden = false;
+        history.replaceState(null, "", location.pathname);
+    }
+
+    var form = $("#login-form");
+    if (form) {
+        form.addEventListener("submit", async function (e) {
+            e.preventDefault();
+            var emailInput = $("#admin-email");
+            var errEl = $("#login-err");
+            var okEl = $("#login-ok");
+            errEl.hidden = true;
+            var fd = new FormData(form);
+            var turnstileToken = fd.get("cf-turnstile-response");
+            if (!turnstileToken) {
+                errEl.textContent = "Please complete the anti-bot challenge.";
+                errEl.hidden = false;
+                return;
+            }
+            var btn = form.querySelector("button[type=submit]");
+            btn.disabled = true;
+            btn.textContent = "Sending…";
+            try {
+                var r = await fetch("/api/admin/auth/login", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        email: emailInput.value.trim(),
+                        turnstile_token: turnstileToken,
+                        redirect: "/analytics.html",
+                    }),
+                });
+                var data = await r.json();
+                if (!r.ok) {
+                    errEl.textContent = data.error || "Login failed.";
+                    errEl.hidden = false;
+                    return;
+                }
+                form.hidden = true;
+                okEl.hidden = false;
+            } catch (x) {
+                errEl.textContent = "Network error — check your connection.";
+                errEl.hidden = false;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = "Send login link";
+            }
+        });
+    }
+})();

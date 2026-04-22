@@ -1082,6 +1082,8 @@ if (loginForm) {
             }
             loginForm.hidden = true;
             loginOk.hidden = false;
+            var emailDisplay = document.getElementById("login-ok-email");
+            if (emailDisplay) emailDisplay.textContent = fd.get("email");
         } catch (x) {
             loginErr.textContent = "Network error — check your connection and try again.";
             loginErr.hidden = false;
