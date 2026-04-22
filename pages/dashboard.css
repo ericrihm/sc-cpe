@@ -233,8 +233,10 @@
 .appeal-popover .appeal-actions { display: flex; gap: 8px; }
 .appeal-popover button { font-size: 12px; padding: 6px 12px; min-height: 32px; }
 .appeal-popover .appeal-cancel { background: var(--card); color: var(--fg); border: 1px solid var(--border); }
+.appeal-overlay[hidden] { display: none; }
 .appeal-overlay { position: fixed; inset: 0; z-index: 99; background: rgba(0,0,0,0.3); }
 
+.share-modal-overlay[hidden] { display: none; }
 .share-modal-overlay {
     position: fixed; inset: 0; z-index: 1001; background: rgba(0,0,0,0.5);
     display: flex; align-items: center; justify-content: center; padding: 1rem;
