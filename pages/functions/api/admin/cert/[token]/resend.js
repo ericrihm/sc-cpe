@@ -19,8 +19,6 @@ import {
 // retry a stuck send. Use sparingly; the email_outbox drainer also
 // auto-retries failed sends up to MAX_ATTEMPTS.
 
-const SITE_BASE = "https://sc-cpe-web.pages.dev";
-
 function buildBodies({ recipientName, periodDisplay, cpeTotal, sessionsCount, downloadUrl, verifyUrl, issuerName }) {
     const cpeStr = Number.isInteger(cpeTotal) ? `${cpeTotal}` : `${cpeTotal.toFixed(1)}`;
     const subject = `Your ${periodDisplay} Simply Cyber CPE certificate (re-issued link)`;
@@ -90,8 +88,9 @@ export async function onRequestPost({ params, request, env }) {
     const periodDisplay = new Date(Date.UTC(yyyy, mm - 1, 1))
         .toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
 
-    const downloadUrl = `${SITE_BASE}/api/download/${cert.public_token}`;
-    const verifyUrl = `${SITE_BASE}/verify.html?t=${cert.public_token}`;
+    const siteBase = new URL(request.url).origin;
+    const downloadUrl = `${siteBase}/api/download/${cert.public_token}`;
+    const verifyUrl = `${siteBase}/verify.html?t=${cert.public_token}`;
 
     const bodies = buildBodies({
         recipientName: cert.recipient_name_snapshot || cert.legal_name,

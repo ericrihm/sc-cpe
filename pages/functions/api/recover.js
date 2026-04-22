@@ -4,8 +4,6 @@ import {
     sha256Hex, killSwitched, killedResponse,
 } from "../_lib.js";
 
-const SITE_BASE = "https://sc-cpe-web.pages.dev";
-
 function recoveryEmailBodies({ legalName, dashboardUrl }) {
     const subject = "Your Simply Cyber CPE dashboard link";
     const text = (
@@ -106,7 +104,8 @@ export async function onRequestPost({ request, env }) {
 
     const emailId = ulid();
     const idempotencyKey = `recover:${user.id}:${hourBucket}`;
-    const dashboardUrl = `${SITE_BASE}/dashboard.html?t=${user.dashboard_token}`;
+    const siteBase = new URL(request.url).origin;
+    const dashboardUrl = `${siteBase}/dashboard.html?t=${user.dashboard_token}`;
     const bodies = recoveryEmailBodies({
         legalName: user.legal_name || "there",
         dashboardUrl,
