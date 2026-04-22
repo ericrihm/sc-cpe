@@ -256,6 +256,25 @@ ADMIN_TOKEN="$(tr -d '\n' < ~/.cloudflare/sc-cpe-admin-token)" \
 - Poller had zero messages scanned for Apr 15-21 streams (all flagged).
   No raw chat in R2 for those dates; links archive starts from first
   show after 2026-04-22 deploy.
+- **Admin attendance window check was sign-inverted** — fixed 2026-04-22.
+  `admin/attendance.js:81` had `startMs + grace` (rejected pre-stream
+  evidence, accepted post-stream). Corrected to `startMs - grace` to
+  match the poller's formula.
+- **Audit-proofness gaps documented 2026-04-22** (no code changes needed):
+    - Appeal-granted attendance rows carry synthetic `first_msg_id` and
+      empty `first_msg_sha256` — no YouTube chat evidence. Distinguishable
+      via `source='appeal_granted'` in the attendance table and audit log.
+    - Admin no-evidence grants (`source='admin_manual'` without
+      `chat_evidence`) are self-attesting — the `reason` free-text in
+      the audit log is the sole justification.
+    - The public verify portal (`/api/verify/[token]`) does not surface
+      per-session credit source (poll vs. appeal vs. admin). An auditor
+      who cares about this needs D1 read access.
+    - `yt_display_name_seen` is not captured in the `user_verified`
+      audit log entry — if the user deletes their account, the display
+      name at binding time is lost.
+    - PAdES-LTA re-sign ceremony needed before the signing cert's 10-year
+      expiry. See `docs/LTV.md` for the full analysis.
 
 ## Where to look for more context
 
