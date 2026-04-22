@@ -26,6 +26,22 @@ async function fetchJson(path) {
     if (!r.ok) throw new Error(path + " → HTTP " + r.status);
     return r.json();
 }
+async function postJson(path, body) {
+    var opts = {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+    };
+    if (TOKEN && TOKEN !== "__cookie__") {
+        opts.headers["Authorization"] = "Bearer " + TOKEN;
+    }
+    var r = await fetch(path, opts);
+    var j = await r.json().catch(function () { return {}; });
+    if (r.status === 401) throw new Error("unauthorized");
+    if (!r.ok) throw new Error(j.error || path + " → HTTP " + r.status);
+    return j;
+}
 async function load() {
   $("#err").innerHTML = "";
   try {
@@ -308,6 +324,551 @@ if (signoutBtn) {
     }, { once: true });
 }
 $("#refresh").addEventListener("click", load);
+<<<<<<< HEAD
+var userSearchForm = $("#user-search-form");
+if (userSearchForm) {
+    userSearchForm.addEventListener("submit", async function (e) {
+        e.preventDefault();
+        var q = $("#user-q").value.trim();
+        var errEl = $("#user-search-err");
+        errEl.hidden = true;
+        if (q.length < 2) {
+            errEl.textContent = "Query must be at least 2 characters.";
+            errEl.hidden = false;
+            return;
+        }
+        var btn = userSearchForm.querySelector("button");
+        btn.disabled = true;
+        btn.textContent = "Searching…";
+        try {
+            var data = await fetchJson("/api/admin/users?q=" + encodeURIComponent(q) + "&limit=20");
+            renderUserResults(data.users || []);
+        } catch (err) {
+            errEl.textContent = err.message;
+            errEl.hidden = false;
+        } finally {
+            btn.disabled = false;
+            btn.textContent = "Search";
+        }
+    });
+}
+
+function renderUserResults(users) {
+    var box = $("#user-results");
+    box.textContent = "";
+    if (users.length === 0) {
+        var p = document.createElement("p");
+        p.className = "muted";
+        p.style.fontSize = "12px";
+        p.textContent = "No users found.";
+        box.appendChild(p);
+        return;
+    }
+    for (var i = 0; i < users.length; i++) {
+        var u = users[i];
+        box.appendChild(buildUserRow(u));
+    }
+}
+
+function buildUserRow(u) {
+    var row = document.createElement("div");
+    row.className = "user-row";
+
+    var header = document.createElement("div");
+    header.className = "user-header";
+    var nameSpan = document.createElement("span");
+    nameSpan.className = "user-name";
+    nameSpan.textContent = u.legal_name;
+    var emailSpan = document.createElement("span");
+    emailSpan.className = "muted";
+    emailSpan.style.fontSize = "12px";
+    emailSpan.textContent = u.email;
+    var stateSpan = document.createElement("span");
+    stateSpan.className = u.state === "active" ? "ok" : (u.deleted_at ? "stale" : "warn");
+    stateSpan.style.fontSize = "12px";
+    stateSpan.textContent = u.state;
+    header.append(nameSpan, emailSpan, stateSpan);
+
+    var meta = document.createElement("div");
+    meta.className = "user-meta";
+    var idEl = document.createElement("span");
+    var idCode = document.createElement("code");
+    idCode.textContent = u.id;
+    idEl.textContent = "ID: ";
+    idEl.appendChild(idCode);
+    meta.appendChild(idEl);
+    if (u.yt_channel_id) {
+        var ytSpan = document.createElement("span");
+        ytSpan.textContent = "YT: " + (u.yt_display_name_seen || u.yt_channel_id);
+        meta.appendChild(ytSpan);
+    }
+    var attSpan = document.createElement("span");
+    attSpan.textContent = "Attendance: " + u.attendance_count;
+    meta.appendChild(attSpan);
+    var certSpan = document.createElement("span");
+    certSpan.textContent = "Certs: " + u.cert_count;
+    meta.appendChild(certSpan);
+    if (u.open_appeal_count > 0) {
+        var appSpan = document.createElement("span");
+        appSpan.className = "warn";
+        appSpan.textContent = "Appeals: " + u.open_appeal_count;
+        meta.appendChild(appSpan);
+    }
+
+    var actions = document.createElement("div");
+    actions.className = "user-actions";
+    var certsBtn = document.createElement("button");
+    certsBtn.className = "refresh view-certs-btn";
+    certsBtn.dataset.uid = u.id;
+    certsBtn.style.cssText = "font-size:11px;padding:3px 10px;";
+    certsBtn.textContent = "View certs (" + u.cert_count + ")";
+    var grantBtn = document.createElement("button");
+    grantBtn.className = "refresh grant-att-btn";
+    grantBtn.dataset.uid = u.id;
+    grantBtn.style.cssText = "font-size:11px;padding:3px 10px;";
+    grantBtn.textContent = "Grant attendance";
+    actions.append(certsBtn, grantBtn);
+
+    var expand = document.createElement("div");
+    expand.className = "cert-expand";
+    expand.id = "certs-" + u.id;
+
+    row.append(header, meta, actions, expand);
+    return row;
+}
+
+function renderCertSubTable(container, certs) {
+    container.textContent = "";
+    if (certs.length === 0) {
+        var p = document.createElement("p");
+        p.className = "muted";
+        p.style.cssText = "font-size:12px;margin:6px 0;";
+        p.textContent = "No certs.";
+        container.appendChild(p);
+        return;
+    }
+    var table = document.createElement("table");
+    table.className = "cert-sub-table";
+    var thead = document.createElement("thead");
+    var headRow = document.createElement("tr");
+    ["Period", "Kind", "State", "CPE", "Token", "Actions"].forEach(function (t) {
+        var th = document.createElement("th");
+        th.textContent = t;
+        headRow.appendChild(th);
+    });
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+
+    var tbody = document.createElement("tbody");
+    for (var i = 0; i < certs.length; i++) {
+        var c = certs[i];
+        var tr = document.createElement("tr");
+        var tdPeriod = document.createElement("td");
+        tdPeriod.textContent = c.period_yyyymm;
+        var tdKind = document.createElement("td");
+        tdKind.textContent = c.cert_kind;
+        var tdState = document.createElement("td");
+        tdState.className = c.state === "revoked" ? "stale" : (c.state === "delivered" || c.state === "generated" ? "ok" : "muted");
+        tdState.textContent = c.state;
+        var tdCpe = document.createElement("td");
+        tdCpe.textContent = c.cpe_total;
+        var tdToken = document.createElement("td");
+        tdToken.className = "muted";
+        tdToken.style.cssText = "font-family:monospace;font-size:11px;";
+        tdToken.textContent = c.public_token.slice(0, 12) + "…";
+        var tdActions = document.createElement("td");
+        tdActions.className = "cert-actions";
+        if (c.state !== "revoked" && c.state !== "regenerated" && c.state !== "pending") {
+            var resendBtn = document.createElement("button");
+            resendBtn.className = "refresh cert-resend-btn";
+            resendBtn.dataset.token = c.public_token;
+            resendBtn.textContent = "Resend";
+            var revokeBtn = document.createElement("button");
+            revokeBtn.className = "refresh cert-revoke-btn";
+            revokeBtn.dataset.token = c.public_token;
+            revokeBtn.style.background = "#5c1515";
+            revokeBtn.textContent = "Revoke";
+            var reissueBtn = document.createElement("button");
+            reissueBtn.className = "refresh cert-reissue-btn";
+            reissueBtn.dataset.certid = c.id;
+            reissueBtn.textContent = "Re-issue";
+            tdActions.append(resendBtn, revokeBtn, reissueBtn);
+        } else {
+            var statusSpan = document.createElement("span");
+            statusSpan.className = c.state === "revoked" ? "stale" : "muted";
+            statusSpan.textContent = c.state === "pending" ? "pending" : (c.state === "revoked" ? "revoked" : "superseded");
+            tdActions.appendChild(statusSpan);
+        }
+        tr.append(tdPeriod, tdKind, tdState, tdCpe, tdToken, tdActions);
+        tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    container.appendChild(table);
+}
+
+var userResultsBox = $("#user-results");
+if (userResultsBox) {
+    userResultsBox.addEventListener("click", async function (e) {
+        var certsBtn = e.target.closest(".view-certs-btn");
+        if (certsBtn && !certsBtn.disabled) {
+            var uid = certsBtn.dataset.uid;
+            var expandEl = document.getElementById("certs-" + uid);
+            if (expandEl.childNodes.length > 0) { expandEl.textContent = ""; return; }
+            certsBtn.disabled = true;
+            certsBtn.textContent = "Loading…";
+            try {
+                var data = await fetchJson("/api/admin/user/" + encodeURIComponent(uid) + "/certs");
+                renderCertSubTable(expandEl, data.certs || []);
+            } catch (err) {
+                expandEl.textContent = "";
+                var errDiv = document.createElement("div");
+                errDiv.className = "err";
+                errDiv.textContent = err.message;
+                expandEl.appendChild(errDiv);
+            } finally {
+                certsBtn.disabled = false;
+                certsBtn.textContent = "View certs";
+            }
+            return;
+        }
+        var attBtn = e.target.closest(".grant-att-btn");
+        if (attBtn) {
+            var attField = $("#att-user-id");
+            if (attField) {
+                attField.value = attBtn.dataset.uid;
+                attField.scrollIntoView({ behavior: "smooth" });
+            }
+            return;
+        }
+        var resendBtn = e.target.closest(".cert-resend-btn");
+        if (resendBtn && !resendBtn.disabled) {
+            if (!confirm("Resend cert email?")) return;
+            resendBtn.disabled = true;
+            resendBtn.textContent = "sending…";
+            try {
+                await postJson("/api/admin/cert/" + encodeURIComponent(resendBtn.dataset.token) + "/resend", {});
+                var sentSpan = document.createElement("span");
+                sentSpan.className = "ok";
+                sentSpan.style.fontSize = "11px";
+                sentSpan.textContent = "sent";
+                resendBtn.replaceWith(sentSpan);
+            } catch (err) {
+                resendBtn.disabled = false;
+                resendBtn.textContent = "retry";
+                resendBtn.title = err.message;
+            }
+            return;
+        }
+        var revBtn = e.target.closest(".cert-revoke-btn");
+        if (revBtn && !revBtn.disabled) {
+            var reason = prompt("Reason for revocation? (required)");
+            if (!reason) return;
+            revBtn.disabled = true;
+            revBtn.textContent = "revoking…";
+            try {
+                await postJson("/api/admin/revoke", { public_token: revBtn.dataset.token, reason: reason });
+                var revokedSpan = document.createElement("span");
+                revokedSpan.className = "stale";
+                revokedSpan.style.fontSize = "11px";
+                revokedSpan.textContent = "revoked";
+                revBtn.replaceWith(revokedSpan);
+            } catch (err) {
+                revBtn.disabled = false;
+                revBtn.textContent = "retry";
+                revBtn.title = err.message;
+            }
+            return;
+        }
+        var reissueBtn = e.target.closest(".cert-reissue-btn");
+        if (reissueBtn && !reissueBtn.disabled) {
+            var reissueReason = prompt("Reason for re-issue? (required)");
+            if (!reissueReason) return;
+            reissueBtn.disabled = true;
+            reissueBtn.textContent = "queueing…";
+            try {
+                await postJson("/api/admin/cert/" + encodeURIComponent(reissueBtn.dataset.certid) + "/reissue", { reason: reissueReason });
+                var queuedSpan = document.createElement("span");
+                queuedSpan.className = "muted";
+                queuedSpan.style.fontSize = "11px";
+                queuedSpan.textContent = "reissue queued";
+                reissueBtn.replaceWith(queuedSpan);
+            } catch (err) {
+                reissueBtn.disabled = false;
+                reissueBtn.textContent = "retry";
+                reissueBtn.title = err.message;
+            }
+            return;
+        }
+    });
+}
+var revokeForm = $("#revoke-form");
+if (revokeForm) {
+    revokeForm.addEventListener("submit", async function (e) {
+        e.preventDefault();
+        var tokenVal = $("#revoke-token").value.trim();
+        var reasonVal = $("#revoke-reason").value.trim();
+        var resultEl = $("#revoke-result");
+        if (!tokenVal || tokenVal.length < 32) {
+            resultEl.className = "result-box error";
+            resultEl.textContent = "Token must be at least 32 characters.";
+            resultEl.hidden = false;
+            return;
+        }
+        if (!reasonVal) {
+            resultEl.className = "result-box error";
+            resultEl.textContent = "Reason is required.";
+            resultEl.hidden = false;
+            return;
+        }
+        if (!confirm("Revoke cert " + tokenVal.slice(0, 12) + "…?")) return;
+        var btn = revokeForm.querySelector("button");
+        btn.disabled = true;
+        btn.textContent = "Revoking…";
+        try {
+            var data = await postJson("/api/admin/revoke", { public_token: tokenVal, reason: reasonVal });
+            resultEl.className = "result-box success";
+            resultEl.textContent = data.already_revoked
+                ? "Already revoked at " + data.revoked_at
+                : "Revoked cert " + data.cert_id + " at " + data.revoked_at;
+            resultEl.hidden = false;
+            revokeForm.reset();
+        } catch (err) {
+            resultEl.className = "result-box error";
+            resultEl.textContent = err.message;
+            resultEl.hidden = false;
+        } finally {
+            btn.disabled = false;
+            btn.textContent = "Revoke";
+        }
+    });
+}
+async function loadAppeals() {
+    var state = $("#appeals-state-filter").value;
+    var box = $("#appeals-rows");
+    box.textContent = "";
+    var empty = $("#appeals-empty");
+    empty.hidden = true;
+    try {
+        var data = await fetchJson("/api/admin/appeals?state=" + encodeURIComponent(state) + "&limit=50");
+        var appeals = data.appeals || [];
+        var badge = $("#appeals-count-badge");
+        if (badge) badge.textContent = appeals.length > 0 ? "(" + appeals.length + ")" : "";
+        if (appeals.length === 0) { empty.hidden = false; return; }
+        for (var i = 0; i < appeals.length; i++) {
+            box.appendChild(buildAppealRow(appeals[i]));
+        }
+    } catch (err) {
+        var errDiv = document.createElement("div");
+        errDiv.className = "err";
+        errDiv.textContent = err.message;
+        box.appendChild(errDiv);
+    }
+}
+
+function buildAppealRow(a) {
+    var row = document.createElement("div");
+    row.className = "appeal-row";
+
+    var dateDiv = document.createElement("div");
+    var dateLbl = document.createElement("div");
+    dateLbl.className = "ar-label";
+    dateLbl.textContent = "Date";
+    var dateVal = document.createElement("div");
+    dateVal.className = "ar-val";
+    dateVal.textContent = a.claimed_date;
+    dateDiv.append(dateLbl, dateVal);
+
+    var userDiv = document.createElement("div");
+    var userLbl = document.createElement("div");
+    userLbl.className = "ar-label";
+    userLbl.textContent = "User";
+    var userVal = document.createElement("div");
+    userVal.className = "ar-val";
+    userVal.textContent = a.legal_name;
+    var userEmail = document.createElement("span");
+    userEmail.className = "muted";
+    userEmail.style.fontSize = "11px";
+    userEmail.textContent = a.email;
+    var br = document.createElement("br");
+    userVal.append(br, userEmail);
+    userDiv.append(userLbl, userVal);
+
+    var streamDiv = document.createElement("div");
+    var streamLbl = document.createElement("div");
+    streamLbl.className = "ar-label";
+    streamLbl.textContent = "Stream";
+    var streamVal = document.createElement("div");
+    streamVal.className = "ar-val";
+    streamVal.textContent = a.stream_title || a.claimed_stream_id || "—";
+    streamDiv.append(streamLbl, streamVal);
+
+    var stateDiv = document.createElement("div");
+    var stateLbl = document.createElement("div");
+    stateLbl.className = "ar-label";
+    stateLbl.textContent = "State";
+    var stateVal = document.createElement("div");
+    stateVal.className = "ar-val " + (a.state === "open" ? "warn" : (a.state === "granted" ? "ok" : "stale"));
+    stateVal.textContent = a.state;
+    stateDiv.append(stateLbl, stateVal);
+
+    row.append(dateDiv, userDiv, streamDiv, stateDiv);
+
+    if (a.evidence_text) {
+        var evDiv = document.createElement("div");
+        evDiv.style.gridColumn = "1 / -1";
+        var evLbl = document.createElement("div");
+        evLbl.className = "ar-label";
+        evLbl.textContent = "Evidence";
+        var evVal = document.createElement("div");
+        evVal.className = "ar-val";
+        evVal.textContent = a.evidence_text;
+        evDiv.append(evLbl, evVal);
+        row.appendChild(evDiv);
+    }
+
+    if (a.evidence_url) {
+        var urlDiv = document.createElement("div");
+        urlDiv.style.gridColumn = "1 / -1";
+        var urlLbl = document.createElement("div");
+        urlLbl.className = "ar-label";
+        urlLbl.textContent = "Evidence URL";
+        var urlVal = document.createElement("div");
+        urlVal.className = "ar-val";
+        var link = document.createElement("a");
+        link.href = a.evidence_url;
+        link.target = "_blank";
+        link.rel = "noopener";
+        link.style.color = "#7cc3ff";
+        link.textContent = a.evidence_url;
+        urlVal.appendChild(link);
+        urlDiv.append(urlLbl, urlVal);
+        row.appendChild(urlDiv);
+    }
+
+    if (a.state === "open") {
+        var actionsDiv = document.createElement("div");
+        actionsDiv.className = "appeal-actions";
+        var grantBtn = document.createElement("button");
+        grantBtn.className = "refresh appeal-grant-btn";
+        grantBtn.dataset.aid = a.id;
+        grantBtn.textContent = "Grant";
+        var denyBtn = document.createElement("button");
+        denyBtn.className = "refresh appeal-deny-btn";
+        denyBtn.dataset.aid = a.id;
+        denyBtn.style.background = "#5c1515";
+        denyBtn.textContent = "Deny";
+        actionsDiv.append(grantBtn, denyBtn);
+        row.appendChild(actionsDiv);
+    } else if (a.resolution_notes) {
+        var resDiv = document.createElement("div");
+        resDiv.style.gridColumn = "1 / -1";
+        var resLbl = document.createElement("div");
+        resLbl.className = "ar-label";
+        resLbl.textContent = "Resolution";
+        var resVal = document.createElement("div");
+        resVal.className = "ar-val";
+        resVal.textContent = (a.resolved_by || "") + ": " + a.resolution_notes + " (" + (a.resolved_at || "") + ")";
+        resDiv.append(resLbl, resVal);
+        row.appendChild(resDiv);
+    }
+
+    return row;
+}
+
+var appealsRefreshBtn = $("#appeals-refresh");
+if (appealsRefreshBtn) appealsRefreshBtn.addEventListener("click", loadAppeals);
+var appealsFilter = $("#appeals-state-filter");
+if (appealsFilter) appealsFilter.addEventListener("change", loadAppeals);
+
+var appealsBox = $("#appeals-rows");
+if (appealsBox) {
+    appealsBox.addEventListener("click", async function (e) {
+        var grantBtn = e.target.closest(".appeal-grant-btn");
+        var denyBtn = e.target.closest(".appeal-deny-btn");
+        var btn = grantBtn || denyBtn;
+        if (!btn || btn.disabled) return;
+        var decision = grantBtn ? "grant" : "deny";
+        var resolver = prompt("Your admin handle:");
+        if (!resolver) return;
+        var notes = prompt("Resolution notes (optional):") || "";
+        var body = { decision: decision, resolver: resolver, notes: notes };
+        if (decision === "grant") {
+            var rv = prompt("Rule version (default 1):", "1");
+            body.rule_version = parseInt(rv, 10) || 1;
+        }
+        btn.disabled = true;
+        btn.textContent = decision === "grant" ? "Granting…" : "Denying…";
+        try {
+            await postJson("/api/admin/appeals/" + encodeURIComponent(btn.dataset.aid) + "/resolve", body);
+            loadAppeals();
+        } catch (err) {
+            btn.disabled = false;
+            btn.textContent = decision === "grant" ? "Grant" : "Deny";
+            btn.title = err.message;
+            alert("Error: " + err.message);
+        }
+    });
+}
+var attendanceForm = $("#attendance-form");
+if (attendanceForm) {
+    attendanceForm.addEventListener("submit", async function (e) {
+        e.preventDefault();
+        var resultEl = $("#attendance-result");
+        resultEl.hidden = true;
+        var body = {
+            user_id: $("#att-user-id").value.trim(),
+            stream_id: $("#att-stream-id").value.trim(),
+            reason: $("#att-reason").value.trim(),
+            resolver: $("#att-resolver").value.trim(),
+            rule_version: parseInt($("#att-rule-version").value, 10) || 1,
+        };
+        if (!body.user_id || body.user_id.length < 10) {
+            resultEl.className = "result-box error";
+            resultEl.textContent = "User ID required.";
+            resultEl.hidden = false;
+            return;
+        }
+        if (!body.stream_id || body.stream_id.length < 10) {
+            resultEl.className = "result-box error";
+            resultEl.textContent = "Stream ID required.";
+            resultEl.hidden = false;
+            return;
+        }
+        if (!body.reason) {
+            resultEl.className = "result-box error";
+            resultEl.textContent = "Reason required.";
+            resultEl.hidden = false;
+            return;
+        }
+        if (!body.resolver) {
+            resultEl.className = "result-box error";
+            resultEl.textContent = "Resolver handle required.";
+            resultEl.hidden = false;
+            return;
+        }
+        if (!confirm("Grant attendance for user " + body.user_id.slice(0, 10) + "…?")) return;
+        var btn = attendanceForm.querySelector("button");
+        btn.disabled = true;
+        btn.textContent = "Granting…";
+        try {
+            var data = await postJson("/api/admin/attendance", body);
+            resultEl.className = "result-box success";
+            resultEl.textContent = "Attendance granted. Earned CPE: " + data.earned_cpe + ". Source: " + data.source;
+            resultEl.hidden = false;
+            attendanceForm.reset();
+            $("#att-rule-version").value = "1";
+        } catch (err) {
+            resultEl.className = "result-box error";
+            resultEl.textContent = err.message;
+            resultEl.hidden = false;
+        } finally {
+            btn.disabled = false;
+            btn.textContent = "Grant attendance";
+        }
+    });
+}
+=======
+>>>>>>> origin/main
 (async function init() {
     try {
         var testR = await fetch("/api/admin/ops-stats", { credentials: "include" });
@@ -316,6 +877,10 @@ $("#refresh").addEventListener("click", load);
             $("#login").style.display = "none";
             $("#app").style.display = "";
             load();
+<<<<<<< HEAD
+            loadAppeals();
+=======
+>>>>>>> origin/main
             return;
         }
     } catch (e) {}

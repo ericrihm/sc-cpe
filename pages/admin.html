@@ -52,6 +52,48 @@
     <div class="section-h">Audit chain</div>
     <div class="grid" id="chain"></div>
 
+    <div class="section-h">Users</div>
+    <div class="admin-search" id="user-search-wrap">
+      <form id="user-search-form" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <input type="search" id="user-q" placeholder="Search by name, email, channel, or ID..." style="flex:1;min-width:200px;">
+        <button type="submit" class="refresh">Search</button>
+      </form>
+      <div id="user-search-err" class="err" hidden></div>
+    </div>
+    <div id="user-results"></div>
+
+    <div class="section-h">Revoke certificate</div>
+    <form id="revoke-form" style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;margin-bottom:20px;">
+      <input type="text" id="revoke-token" placeholder="public_token (64 hex chars)" style="flex:1;min-width:260px;" required>
+      <input type="text" id="revoke-reason" placeholder="Reason (required)" style="flex:2;min-width:200px;" required maxlength="500">
+      <button type="submit" class="refresh" style="background:#5c1515;">Revoke</button>
+    </form>
+    <div id="revoke-result" hidden></div>
+
+    <div class="section-h">Appeals <span class="muted" id="appeals-count-badge"></span></div>
+    <div style="margin-bottom:8px;">
+      <select id="appeals-state-filter" style="background:#111820;color:#e5ecf2;border:1px solid #2a3644;padding:4px 8px;border-radius:4px;font-size:12px;">
+        <option value="open">Open</option>
+        <option value="granted">Granted</option>
+        <option value="denied">Denied</option>
+        <option value="any">All</option>
+      </select>
+      <button class="refresh" id="appeals-refresh" style="margin-left:6px;">Load</button>
+    </div>
+    <div id="appeals-rows"></div>
+    <p id="appeals-empty" class="muted" style="font-size:12px;" hidden>No appeals found.</p>
+
+    <div class="section-h">Manual attendance grant</div>
+    <form id="attendance-form" style="display:flex;flex-direction:column;gap:8px;max-width:480px;margin-bottom:20px;">
+      <input type="text" id="att-user-id" placeholder="User ID (ULID)" required>
+      <input type="text" id="att-stream-id" placeholder="Stream ID (ULID)" required>
+      <textarea id="att-reason" placeholder="Reason (required)" rows="2" required maxlength="2000"></textarea>
+      <input type="text" id="att-resolver" placeholder="Your admin handle" required maxlength="80">
+      <input type="number" id="att-rule-version" value="1" min="1" style="width:80px;" required>
+      <button type="submit" class="refresh" style="align-self:flex-start;">Grant attendance</button>
+    </form>
+    <div id="attendance-result" hidden></div>
+
     <div class="section-h">Audit trail</div>
     <div class="audit-search">
       <input type="search" id="audit-q" placeholder="Search by action, entity, or ID...">
