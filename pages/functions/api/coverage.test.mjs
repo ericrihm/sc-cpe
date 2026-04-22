@@ -491,7 +491,7 @@ test("badge: short token → 400", async () => {
 
 test("badge: unknown token → 404", async () => {
     const db = mockDB([
-        { match: /FROM users WHERE dashboard_token/, handler: () => ({ first: null })},
+        { match: /FROM users WHERE badge_token/, handler: () => ({ first: null })},
     ]);
     const r = await badgeGet({
         params: { token: "a".repeat(32) },
@@ -503,7 +503,7 @@ test("badge: unknown token → 404", async () => {
 
 test("badge: valid user → SVG with correct content type", async () => {
     const db = mockDB([
-        { match: /FROM users WHERE dashboard_token/, handler: () => ({
+        { match: /FROM users WHERE badge_token/, handler: () => ({
             first: { id: "u1", legal_name: "Alice Test", state: "active" },
         })},
         { match: /FROM attendance a JOIN streams/, handler: () => ({
@@ -528,7 +528,7 @@ test("badge: valid user → SVG with correct content type", async () => {
 
 test("badge: XSS in legal_name is escaped in SVG", async () => {
     const db = mockDB([
-        { match: /FROM users WHERE dashboard_token/, handler: () => ({
+        { match: /FROM users WHERE badge_token/, handler: () => ({
             first: { id: "u1", legal_name: '<script>alert("xss")</script>', state: "active" },
         })},
         { match: /FROM attendance a JOIN streams/, handler: () => ({ all: [] })},

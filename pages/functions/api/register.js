@@ -114,7 +114,7 @@ export async function onRequestPost({ request, env }) {
         `).bind(legalName, code, expiresAt, tosVersion, existing.id).run();
 
         await audit(env, "user", existing.id, "registration_reissued", "user", existing.id,
-            null, { email_sha256: await sha256Hex(email), ip_hash: await ipHash(clientIp(request)) });
+            null, { email_sha256: await sha256Hex(email) }, { ip_hash: await ipHash(clientIp(request)) });
 
         const siteBase = new URL(request.url).origin;
         const bodies = welcomeEmailBodies({
@@ -139,17 +139,18 @@ export async function onRequestPost({ request, env }) {
 
     const userId = ulid();
     const dashboardToken = randomToken();
+    const badgeToken = randomToken();
 
     await env.DB.prepare(`
         INSERT INTO users (id, email, legal_name, verification_code, code_expires_at,
-                           dashboard_token, state, legal_name_attested, age_attested_13plus,
-                           tos_version_accepted, created_at)
-        VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'pending_verification', 1, 1, ?7, ?8)
-    `).bind(userId, email, legalName, code, expiresAt, dashboardToken, tosVersion, nowIso).run();
+                           dashboard_token, badge_token, state, legal_name_attested,
+                           age_attested_13plus, tos_version_accepted, created_at)
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'pending_verification', 1, 1, ?8, ?9)
+    `).bind(userId, email, legalName, code, expiresAt, dashboardToken, badgeToken, tosVersion, nowIso).run();
 
-    await audit(env, "user", userId, "registration_created", "user", userId, null, {
-        email_sha256: await sha256Hex(email), ip_hash: await ipHash(clientIp(request)),
-    });
+    await audit(env, "user", userId, "registration_created", "user", userId, null,
+        { email_sha256: await sha256Hex(email) },
+        { ip_hash: await ipHash(clientIp(request)) });
 
     const siteBase = new URL(request.url).origin;
     const bodies = welcomeEmailBodies({ legalName, code, dashboardToken, expiresAt, siteBase });

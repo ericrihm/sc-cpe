@@ -42,7 +42,7 @@ async function load() {
     renderFeedback(fb);
     $("#ts").textContent = "updated " + new Date().toLocaleTimeString();
   } catch (e) {
-    $("#err").innerHTML = '<div class="err">' + e.message + '</div>';
+    $("#err").innerHTML = '<div class="err">' + escapeHtml(e.message) + '</div>';
     if (String(e.message).includes("unauthorized")) {
       $("#app").style.display = "none";
       $("#login").style.display = "";
@@ -60,7 +60,7 @@ function renderWarnings(s) {
       (isCritical
         ? "background:#3a1818;border-color:#6b2a2a;color:#ffb4b4;"
         : "background:#3a2f18;border-color:#6b5a2a;color:#ffe4a4;");
-    row.innerHTML = "<strong>" + (isCritical ? "CRITICAL" : "warn") + '</strong> \u00b7 <code style="font-size:11px;">' + w.code + "</code> \u2014 " + w.detail;
+    row.innerHTML = "<strong>" + (isCritical ? "CRITICAL" : "warn") + '</strong> \u00b7 <code style="font-size:11px;">' + escapeHtml(w.code) + "</code> \u2014 " + escapeHtml(w.detail);
     box.appendChild(row);
   }
 }
@@ -97,7 +97,7 @@ function renderToggles(d) {
           if (!r.ok) throw new Error("toggle \u2192 HTTP " + r.status);
           load();
         } catch (e) {
-          $("#err").innerHTML = '<div class="err">' + e.message + '</div>';
+          $("#err").innerHTML = '<div class="err">' + escapeHtml(e.message) + '</div>';
           btn.disabled = false;
         }
       });
@@ -187,27 +187,27 @@ function renderFeedback(fb) {
       "<td>" + action + "</td>";
     tb.appendChild(tr);
   }
-  tb.addEventListener("click", async function (e) {
-    var btn = e.target.closest(".reissue-btn");
-    if (!btn || btn.disabled) return;
-    var reason = prompt("Reason for re-issue? (required, max 500 chars)");
-    if (!reason) return;
-    btn.disabled = true; btn.textContent = "queueing\u2026";
-    try {
-      var r = await fetch("/api/admin/cert/" + encodeURIComponent(btn.dataset.cert) + "/reissue", {
-        method: "POST",
-        headers: { "Authorization": "Bearer " + TOKEN, "Content-Type": "application/json" },
-        body: JSON.stringify({ reason: reason }),
-      });
-      var j = await r.json().catch(function () { return {}; });
-      if (!r.ok) throw new Error(j.error || "HTTP " + r.status);
-      btn.outerHTML = '<span class="muted">reissue queued</span>';
-    } catch (err) {
-      btn.disabled = false; btn.textContent = "retry";
-      btn.title = String(err.message || err);
-    }
-  });
 }
+$("#fb tbody").addEventListener("click", async function (e) {
+  var btn = e.target.closest(".reissue-btn");
+  if (!btn || btn.disabled) return;
+  var reason = prompt("Reason for re-issue? (required, max 500 chars)");
+  if (!reason) return;
+  btn.disabled = true; btn.textContent = "queueing…";
+  try {
+    var r = await fetch("/api/admin/cert/" + encodeURIComponent(btn.dataset.cert) + "/reissue", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + TOKEN, "Content-Type": "application/json" },
+      body: JSON.stringify({ reason: reason }),
+    });
+    var j = await r.json().catch(function () { return {}; });
+    if (!r.ok) throw new Error(j.error || "HTTP " + r.status);
+    btn.outerHTML = '<span class="muted">reissue queued</span>';
+  } catch (err) {
+    btn.disabled = false; btn.textContent = "retry";
+    btn.title = String(err.message || err);
+  }
+});
 function escapeHtml(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
     return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];

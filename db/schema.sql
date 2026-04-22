@@ -26,6 +26,7 @@ CREATE TABLE users (
     deleted_at            TEXT,
     CHECK (state IN ('pending_verification','active','inactive','banned','deleted','expired')),
     show_on_leaderboard   INTEGER NOT NULL DEFAULT 0,
+    badge_token           TEXT,
     CHECK (legal_name_attested IN (0,1)),
     CHECK (age_attested_13plus IN (0,1)),
     CHECK (show_on_leaderboard IN (0,1))
@@ -34,6 +35,7 @@ CREATE UNIQUE INDEX users_email_unique ON users(lower(email)) WHERE deleted_at I
 CREATE UNIQUE INDEX users_channel_unique ON users(yt_channel_id) WHERE yt_channel_id IS NOT NULL AND state = 'active';
 CREATE UNIQUE INDEX users_code_unique ON users(verification_code) WHERE verification_code IS NOT NULL;
 CREATE UNIQUE INDEX users_dashboard_token_unique ON users(dashboard_token);
+CREATE UNIQUE INDEX users_badge_token_unique ON users(badge_token) WHERE badge_token IS NOT NULL;
 
 -- Livestream sessions. One row per YouTube video (not per calendar date).
 CREATE TABLE streams (
@@ -120,12 +122,12 @@ CREATE TABLE certs (
 -- can't ADD CONSTRAINT CHECK on ALTER so migration 003 leaves it off.
 CREATE UNIQUE INDEX certs_user_period_bundled_unique
     ON certs(user_id, period_yyyymm)
-    WHERE cert_kind = 'bundled' AND state != 'revoked';
+    WHERE cert_kind = 'bundled' AND state NOT IN ('revoked', 'regenerated');
 CREATE UNIQUE INDEX certs_user_stream_unique
     ON certs(user_id, stream_id)
     WHERE cert_kind = 'per_session'
       AND stream_id IS NOT NULL
-      AND state != 'revoked';
+      AND state NOT IN ('revoked', 'regenerated');
 CREATE INDEX certs_user_idx ON certs(user_id);
 CREATE INDEX certs_kind_idx ON certs(cert_kind);
 CREATE INDEX certs_pending_idx ON certs(state) WHERE state = 'pending';
