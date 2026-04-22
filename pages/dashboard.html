@@ -16,8 +16,8 @@
     <div id="err" class="err" hidden></div>
 
     <section id="login-card" class="card" hidden>
-        <h2 style="margin-top:0;">Sign in to your dashboard</h2>
-        <p>Enter the email you registered with and we'll send you a login link.</p>
+        <h2 style="margin-top:0;">Welcome back</h2>
+        <p>Enter your email and we'll send you a link — no password needed.</p>
         <form id="login-form">
             <label>
                 Email
@@ -25,12 +25,13 @@
                        style="width:100%;padding:8px;margin:6px 0 12px;border:1px solid var(--border,#ccc);border-radius:4px;font-size:1rem;">
             </label>
             <div class="cf-turnstile" data-sitekey="0x4AAAAAAC9lHHxbfTKNzdFN" data-theme="auto"></div>
-            <button type="submit" style="margin-top:8px;">Email me a login link</button>
+            <button type="submit" style="margin-top:8px;">Send me my dashboard link</button>
         </form>
         <div id="login-err" class="err" hidden></div>
         <div id="login-ok" hidden>
             <p style="color:var(--ok-fg,#16a34a);font-weight:600;">Check your inbox!</p>
-            <p class="muted">If that email is registered, we've sent a login link. Check spam too. It usually arrives within a minute or two.</p>
+            <p>We sent a link to <strong id="login-ok-email"></strong>. It should arrive within a minute or two.</p>
+            <p class="muted">Check spam too if you don't see it.</p>
         </div>
         <p class="muted" style="margin-top:1rem;font-size:0.85rem;">
             Don't have an account? <a href="/">Register here</a>
