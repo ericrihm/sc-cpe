@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>SC-CPE — Show Links Archive</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/links.css">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<meta name="theme-color" content="#0b3d5c">
+<meta property="og:title" content="SC-CPE Show Links Archive">
+<meta property="og:description" content="Links shared during Simply Cyber's Daily Threat Briefing, archived by date.">
+<meta property="og:type" content="website">
+<script src="/theme.js"></script>
+</head>
+<body>
+<main class="narrow">
+    <h1>Show Links Archive</h1>
+    <p class="lead">Links shared by the host and moderators during the Daily Threat Briefing.</p>
+
+    <div id="date-nav" class="date-nav" hidden>
+        <button id="prev-date" class="date-btn" aria-label="Previous date">&larr;</button>
+        <span id="date-label" class="date-label"></span>
+        <button id="next-date" class="date-btn" aria-label="Next date">&rarr;</button>
+    </div>
+
+    <div id="stream-info" class="stream-info" hidden></div>
+    <div id="err" class="err" hidden></div>
+    <div id="links-list"></div>
+    <p id="empty" class="links-empty" hidden>No links were shared during this show.</p>
+    <p id="no-data" class="links-empty" hidden>No show links have been archived yet. Check back after the next briefing!</p>
+
+    <p class="muted" style="margin-top:1.5rem;font-size:0.85rem;">
+        <a href="/">Register</a> · <a href="/leaderboard.html">Leaderboard</a>
+        · <a href="/faq.html">FAQ</a> · <a href="/status.html">Status</a>
+        · <a href="/terms.html">Terms</a> &amp; <a href="/privacy.html">Privacy</a>
+    </p>
+</main>
+<script src="/links.js"></script>
+</body>
+</html>

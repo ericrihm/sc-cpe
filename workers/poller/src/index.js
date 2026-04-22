@@ -6,6 +6,7 @@ const YT = "https://www.googleapis.com/youtube/v3";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 // Matches both old SC-CPE-XXXXXXXX and new SC-CPE{XXXX-XXXX} formats.
 const CODE_RE = /SC-CPE[-{]([0-9A-HJKMNP-TV-Z]{4})-?([0-9A-HJKMNP-TV-Z]{4})\}?/i;
+const URL_RE = /https?:\/\/[^\s<>"')\]]+/gi;
 
 let cachedToken = null;
 let cachedTokenExpiry = 0;
@@ -231,6 +232,7 @@ async function pollOnePage(env, session, now) {
     await appendRawJsonl(env, session, items);
     await processCodeMatches(env, session, items, now);
     await processAttendance(env, session, items, now);
+    await extractShowLinks(env, session, items, now);
 
     await env.DB.prepare("UPDATE streams SET messages_scanned = messages_scanned + ?1 WHERE id = ?2")
         .bind(items.length, session.stream_id).run();
@@ -437,6 +439,41 @@ async function processAttendance(env, session, items, now) {
         await audit(env, "poller", userId, "attendance_credited", "attendance",
             `${userId}:${session.stream_id}`, null,
             { stream_id: session.stream_id, cpe: rule.cpe_per_day, rule_version: rule.version });
+    }
+}
+
+async function extractShowLinks(env, session, items, now) {
+    for (const m of items) {
+        const isOwner = m.authorDetails?.isOwner === true;
+        const isMod = m.authorDetails?.isModerator === true;
+        if (!isOwner && !isMod) continue;
+
+        const text = m.snippet?.displayMessage || "";
+        const urls = text.match(URL_RE);
+        if (!urls) continue;
+
+        for (const raw of urls) {
+            let parsed;
+            try { parsed = new URL(raw); } catch { continue; }
+
+            await env.DB.prepare(`
+                INSERT OR IGNORE INTO show_links
+                  (id, stream_id, url, domain, author_type, author_name,
+                   yt_channel_id, yt_message_id, posted_at, created_at)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+            `).bind(
+                ulid(),
+                session.stream_id,
+                raw,
+                parsed.hostname,
+                isOwner ? "owner" : "moderator",
+                m.authorDetails?.displayName || "Unknown",
+                m.authorDetails?.channelId || "",
+                m.id,
+                m.snippet?.publishedAt || now.toISOString(),
+                now.toISOString(),
+            ).run();
+        }
     }
 }
 
