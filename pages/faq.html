@@ -132,6 +132,45 @@
   </div>
 
   <div class="faq-q">
+    <h3>How does SC-CPE prove attendance if chat messages aren't stored?</h3>
+    <p>When the poller sees your chat message during the live broadcast,
+    it records three things in the attendance database:</p>
+    <ul>
+      <li>The <strong>YouTube message ID</strong> — a permanent identifier
+        assigned by YouTube to every chat message.</li>
+      <li>A <strong>SHA-256 hash</strong> of the message text — a
+        cryptographic fingerprint that proves a specific message existed,
+        without retaining the text itself.</li>
+      <li>The <strong>timestamp</strong> YouTube assigned to the message,
+        confirming it was posted during the live window.</li>
+    </ul>
+    <p>The raw chat text is purged after 7 days (GDPR data
+    minimisation). The hash, message ID, and timestamp survive
+    indefinitely alongside the hash-chained audit log entry recording
+    the credit. If an auditor needs to verify the original message, the
+    YouTube message ID can be checked against YouTube's own records
+    (while the chat replay remains available).</p>
+    <p>This means SC-CPE's attendance proof does <em>not</em> depend on
+    retaining your chat messages long-term — the cryptographic
+    commitment is the anchor, not the plaintext.</p>
+  </div>
+
+  <div class="faq-q">
+    <h3>Are appeal-granted or admin-granted credits distinguishable from regular attendance?</h3>
+    <p>Yes. Every attendance row carries a <code>source</code> field:
+    <code>poll</code> (the poller saw your chat message),
+    <code>appeal_granted</code> (an admin approved your appeal), or
+    <code>admin_manual</code> (an operator correction). Each source
+    writes a distinct action in the hash-chained audit log. An auditor
+    with database access can always tell how a specific session's credit
+    was earned.</p>
+    <p>The public <a href="/verify.html">verify portal</a> confirms a
+    certificate is authentic and unrevoked, but does not surface the
+    per-session credit source — that level of detail is available in the
+    audit trail, not on the cert face.</p>
+  </div>
+
+  <div class="faq-q">
     <h3>My cert shows "REVOKED". What happened?</h3>
     <p>An admin revoked it. The public verify page shows an opaque
     reason (e.g., <code>issued_in_error</code>, <code>superseded</code>,
