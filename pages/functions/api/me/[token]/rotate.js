@@ -16,8 +16,6 @@ import {
 // build an account-recovery flow that needs another credential.
 
 const MAX_PER_HOUR = 3;
-const SITE_BASE = "https://sc-cpe-web.pages.dev";
-
 function bodies({ legalName, dashboardUrl }) {
     const subject = "Simply Cyber CPE — your dashboard link has been rotated";
     const text =
@@ -85,7 +83,8 @@ export async function onRequestPost({ params, request, env }) {
         "UPDATE users SET dashboard_token = ?1 WHERE id = ?2"
     ).bind(newToken, user.id).run();
 
-    const dashboardUrl = `${SITE_BASE}/dashboard.html?t=${newToken}`;
+    const siteBase = new URL(request.url).origin;
+    const dashboardUrl = `${siteBase}/dashboard.html?t=${newToken}`;
     const b = bodies({
         legalName: user.legal_name || "there",
         dashboardUrl,
