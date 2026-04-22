@@ -65,4 +65,8 @@ async function load() {
 
     document.getElementById("body").hidden = false;
 }
-load();
+load().catch(function () {
+    var e = document.getElementById("err");
+    e.textContent = "Failed to load badge. Check your connection and try again.";
+    e.hidden = false;
+});

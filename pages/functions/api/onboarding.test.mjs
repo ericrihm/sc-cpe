@@ -277,7 +277,7 @@ test("verify: unknown token → 404", async () => {
     ]);
     const r = await verifyGet({
         params: { token: "x".repeat(32) },
-        env: { DB: db },
+        env: { DB: db, RATE_KV: kvPermissive },
         request: new Request(`${BASE}/api/verify/${"x".repeat(32)}`),
     });
     assert.equal(r.status, 404);
@@ -302,7 +302,7 @@ test("verify: generated cert → 200 valid:true", async () => {
     ]);
     const r = await verifyGet({
         params: { token: "x".repeat(32) },
-        env: { DB: db },
+        env: { DB: db, RATE_KV: kvPermissive },
         request: new Request(`${BASE}/api/verify/${"x".repeat(32)}`),
     });
     assert.equal(r.status, 200);
@@ -328,7 +328,7 @@ test("verify: revoked cert → valid:false with mapped reason", async () => {
     ]);
     const r = await verifyGet({
         params: { token: "x".repeat(32) },
-        env: { DB: db },
+        env: { DB: db, RATE_KV: kvPermissive },
         request: new Request(`${BASE}/api/verify/${"x".repeat(32)}`),
     });
     assert.equal(r.status, 200);

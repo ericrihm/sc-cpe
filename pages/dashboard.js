@@ -600,7 +600,7 @@ function renderToday(today) {
         } else {
             status.innerHTML = "<strong class='today-waiting'>&#9203; Waiting for qualifying message</strong>";
         }
-        hint.hidden = userState !== "pending_verification";
+        hint.hidden = true;
         if (refreshTimer) clearTimeout(refreshTimer);
         refreshTimer = setTimeout(function () { refreshTimer = null; load(); }, 30000);
         return;

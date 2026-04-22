@@ -587,36 +587,44 @@ async function enrichShowLinks(env, nowIso) {
     let enriched = 0, failed = 0;
     for (const row of rows) {
         let title = null, description = null;
+        let fetchOk = false;
         try {
-            const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort(), ENRICH_TIMEOUT_MS);
-            const res = await fetch(row.url, {
-                signal: controller.signal,
-                headers: { "User-Agent": "SC-CPE-LinkEnricher/1.0" },
-                redirect: "follow",
-            });
-            clearTimeout(timer);
-            const ct = res.headers.get("content-type") || "";
-            if (res.ok && ct.includes("text/html")) {
-                const html = (await res.text()).slice(0, 200_000);
-                const ogTitle = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)
-                    || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']/i);
-                const pageTitle = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-                title = (ogTitle?.[1] || pageTitle?.[1] || "").trim().slice(0, 500) || null;
-
-                const ogDesc = html.match(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i)
-                    || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:description["']/i);
-                description = (ogDesc?.[1] || "").trim().slice(0, 1000) || null;
-                enriched++;
-            } else {
+            if (!row.url || !row.url.startsWith("https://")) {
                 failed++;
+            } else {
+                const controller = new AbortController();
+                const timer = setTimeout(() => controller.abort(), ENRICH_TIMEOUT_MS);
+                const res = await fetch(row.url, {
+                    signal: controller.signal,
+                    headers: { "User-Agent": "SC-CPE-LinkEnricher/1.0" },
+                    redirect: "follow",
+                });
+                clearTimeout(timer);
+                const ct = res.headers.get("content-type") || "";
+                if (res.ok && ct.includes("text/html")) {
+                    const html = (await res.text()).slice(0, 200_000);
+                    const ogTitle = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)
+                        || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']/i);
+                    const pageTitle = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+                    title = (ogTitle?.[1] || pageTitle?.[1] || "").trim().slice(0, 500) || null;
+
+                    const ogDesc = html.match(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i)
+                        || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:description["']/i);
+                    description = (ogDesc?.[1] || "").trim().slice(0, 1000) || null;
+                    fetchOk = true;
+                    enriched++;
+                } else {
+                    failed++;
+                }
             }
         } catch {
             failed++;
         }
-        await env.DB.prepare(
-            "UPDATE show_links SET title = ?1, description = ?2, enriched_at = ?3 WHERE id = ?4"
-        ).bind(title, description, nowIso, row.id).run();
+        if (fetchOk || title) {
+            await env.DB.prepare(
+                "UPDATE show_links SET title = ?1, description = ?2, enriched_at = ?3 WHERE id = ?4"
+            ).bind(title, description, nowIso, row.id).run();
+        }
     }
     return { candidates: rows.length, enriched, failed };
 }

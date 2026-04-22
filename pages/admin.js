@@ -206,7 +206,7 @@ function renderFeedback(fb) {
       btn.disabled = false; btn.textContent = "retry";
       btn.title = String(err.message || err);
     }
-  }, { once: true });
+  });
 }
 function escapeHtml(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {

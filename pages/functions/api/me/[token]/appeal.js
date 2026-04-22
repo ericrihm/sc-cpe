@@ -13,10 +13,6 @@ export async function onRequestPost({ params, request, env }) {
     if (!token || token.length < 32) return json({ error: "invalid_token" }, 400);
     if (!isSameOrigin(request, env)) return json({ error: "forbidden_origin" }, 403);
 
-    const ip = await ipHash(clientIp(request));
-    const rl = await rateLimit(env, `appeal:${ip}`, 10);
-    if (!rl.ok) return json(rl.body, rl.status);
-
     let body;
     try { body = await request.json(); }
     catch { return json({ error: "invalid_json" }, 400); }
@@ -40,6 +36,10 @@ export async function onRequestPost({ params, request, env }) {
     ).bind(token).first();
     if (!user) return json({ error: "not_found" }, 404);
 
+    const ip = await ipHash(clientIp(request));
+    const rl = await rateLimit(env, `appeal:${user.id}`, 10);
+    if (!rl.ok) return json(rl.body, rl.status);
+
     const existing = await env.DB.prepare(
         "SELECT id FROM appeals WHERE user_id = ?1 AND claimed_date = ?2 AND state = 'open'"
     ).bind(user.id, claimedDate).first();
@@ -54,6 +54,7 @@ export async function onRequestPost({ params, request, env }) {
     const stream = await env.DB.prepare(
         "SELECT id FROM streams WHERE scheduled_date = ?1 LIMIT 1"
     ).bind(claimedDate).first();
+    if (!stream) return json({ error: "no_stream_on_date" }, 404);
 
     const ts = now();
     const id = ulid();
