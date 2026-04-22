@@ -26,7 +26,12 @@ async function getAccessToken(env) {
         }),
     });
     const data = await res.json();
-    if (data.error) throw new Error(`OAuth token refresh failed: ${data.error} — ${data.error_description}`);
+    if (data.error) {
+        console.error(`[poller] OAuth refresh failed: ${data.error} — ${data.error_description}`);
+        cachedToken = null;
+        cachedTokenExpiry = 0;
+        return null;
+    }
 
     cachedToken = data.access_token;
     cachedTokenExpiry = Date.now() + (data.expires_in - 60) * 1000;
@@ -130,7 +135,9 @@ async function tick(env, now) {
 }
 
 async function discoverLiveStream(env) {
-    const token = await getAccessToken(env);
+    let token;
+    try { token = await getAccessToken(env); }
+    catch (e) { console.error(`[poller] OAuth error in discover: ${e.message}`); token = null; }
     const channel = env.SC_CHANNEL_ID;
     const authParam = token ? "" : `&key=${env.YOUTUBE_API_KEY}`;
     const search = await ytGet(`${YT}/search?part=id&channelId=${channel}&eventType=live&type=video&maxResults=2${authParam}`, token);
@@ -161,7 +168,9 @@ const FINALIZE_ERROR_STRIKES = 3;
 const FINALIZE_ELAPSED_MIN = 90;
 
 async function pollOnePage(env, session, now) {
-    const token = await getAccessToken(env);
+    let token;
+    try { token = await getAccessToken(env); }
+    catch (e) { console.error(`[poller] OAuth error in poll: ${e.message}`); token = null; }
     const authParam = token ? "" : `&key=${env.YOUTUBE_API_KEY}`;
     const params = new URLSearchParams({
         liveChatId: session.live_chat_id,
