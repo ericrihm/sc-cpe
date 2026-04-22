@@ -39,6 +39,11 @@ export default {
                 await heartbeat(env, "monthly_digest", "ok",
                     { at: now, ...out.monthly_digest });
             }
+            if (only === "all" || only === "link_enrichment") {
+                out.link_enrichment = await enrichShowLinks(env, now);
+                await heartbeat(env, "link_enrichment", "ok",
+                    { at: now, ...out.link_enrichment });
+            }
             return new Response(JSON.stringify({ ok: true, now, ...out }),
                 { headers: { "content-type": "application/json" }});
         } catch (err) {
@@ -102,6 +107,17 @@ export default {
                     at: now, msg: String(err && err.message || err),
                 });
             }
+        }
+
+        // Show-link metadata enrichment — runs every day. Fetches page
+        // titles for URLs the poller extracted but hasn't enriched yet.
+        try {
+            const enriched = await enrichShowLinks(env, now);
+            await heartbeat(env, "link_enrichment", "ok", { at: now, ...enriched });
+        } catch (err) {
+            await heartbeat(env, "link_enrichment", "error", {
+                at: now, msg: String(err && err.message || err),
+            });
         }
 
         // Monthly user digest — fires on the 1st of each month. Queues a
@@ -440,6 +456,7 @@ const EXPECTED_CADENCE_S = {
     email_sender: 300,
     canary: 3600,
     monthly_digest: 2678400,
+    link_enrichment: 86400,
 };
 
 function staleHeartbeats(rows, nowMs) {
@@ -557,6 +574,50 @@ async function runSecurityAlerts(env, nowIso) {
         stale_heartbeats: stale.length,
         cursor_ts: rows.length ? rows[rows.length - 1].ts : since,
     };
+}
+
+const ENRICH_BATCH = 50;
+const ENRICH_TIMEOUT_MS = 5000;
+
+async function enrichShowLinks(env, nowIso) {
+    const rows = (await env.DB.prepare(
+        "SELECT id, url FROM show_links WHERE enriched_at IS NULL LIMIT ?1"
+    ).bind(ENRICH_BATCH).all()).results || [];
+
+    let enriched = 0, failed = 0;
+    for (const row of rows) {
+        let title = null, description = null;
+        try {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), ENRICH_TIMEOUT_MS);
+            const res = await fetch(row.url, {
+                signal: controller.signal,
+                headers: { "User-Agent": "SC-CPE-LinkEnricher/1.0" },
+                redirect: "follow",
+            });
+            clearTimeout(timer);
+            if (res.ok) {
+                const html = await res.text();
+                const ogTitle = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)
+                    || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']/i);
+                const pageTitle = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+                title = (ogTitle?.[1] || pageTitle?.[1] || "").trim().slice(0, 500) || null;
+
+                const ogDesc = html.match(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i)
+                    || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:description["']/i);
+                description = (ogDesc?.[1] || "").trim().slice(0, 1000) || null;
+                enriched++;
+            } else {
+                failed++;
+            }
+        } catch {
+            failed++;
+        }
+        await env.DB.prepare(
+            "UPDATE show_links SET title = ?1, description = ?2, enriched_at = ?3 WHERE id = ?4"
+        ).bind(title, description, nowIso, row.id).run();
+    }
+    return { candidates: rows.length, enriched, failed };
 }
 
 // Exported for tests.
