@@ -122,6 +122,7 @@ async function load() {
 
     var cpe = Number(d.total_cpe_earned != null ? d.total_cpe_earned : 0);
     document.getElementById("total").textContent = cpe.toFixed(1) + " CPE";
+    document.getElementById("share-btn").hidden = cpe <= 0;
 
     renderWindowWarnings(d.code_window_warnings || []);
 
