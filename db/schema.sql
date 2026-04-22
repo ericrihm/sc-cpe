@@ -254,3 +254,9 @@ CREATE TABLE cert_feedback (
 );
 CREATE UNIQUE INDEX cert_feedback_unique ON cert_feedback(user_id, cert_id);
 CREATE INDEX cert_feedback_rating_idx ON cert_feedback(rating) WHERE rating != 'ok';
+
+-- Deploy-pipeline migration tracking (not app data).
+CREATE TABLE _applied_migrations (
+    filename    TEXT PRIMARY KEY,
+    applied_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);

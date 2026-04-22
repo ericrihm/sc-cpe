@@ -120,8 +120,11 @@ All new pure-logic code should get a `node --test` file wired into
 ## Deploying
 
 Pages + Workers auto-deploy on every merge to `main` via
-`.github/workflows/deploy-prod.yml` (tests → Pages → Workers matrix →
-post-deploy smoke). `main` is branch-protected: PRs required, status
+`.github/workflows/deploy-prod.yml` (tests → D1 migrations → Pages →
+Workers matrix → post-deploy smoke). D1 migrations in `db/migrations/`
+are applied automatically — the pipeline tracks applied files in an
+`_applied_migrations` table and only runs new ones. No manual
+`wrangler d1 execute` needed. `main` is branch-protected: PRs required, status
 checks `Node test suite` + `Secret scan (gitleaks)` must be green,
 no force-push, no deletions. `enforce_admins: false` is deliberate —
 admin (owner) can break-glass push if CI itself is broken; otherwise
