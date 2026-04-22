@@ -1,5 +1,6 @@
 let availableDates = [];
 let currentIndex = 0;
+let dateLinkCounts = {};
 
 async function load(date) {
     const errEl = document.getElementById("err");
@@ -32,6 +33,7 @@ async function load(date) {
         }
 
         availableDates = d.available_dates;
+        dateLinkCounts = d.date_link_counts || {};
         currentIndex = availableDates.indexOf(d.date);
         if (currentIndex === -1) currentIndex = 0;
 
@@ -56,6 +58,17 @@ async function load(date) {
 
         const links = d.links || [];
         if (links.length === 0) {
+            if (d.stream && d.stream.yt_video_id) {
+                emptyEl.textContent = "No links were shared during this show. ";
+                var watchLink = document.createElement("a");
+                watchLink.href = "https://www.youtube.com/watch?v=" + encodeURIComponent(d.stream.yt_video_id);
+                watchLink.target = "_blank";
+                watchLink.rel = "noopener";
+                watchLink.textContent = "Watch on YouTube";
+                watchLink.style.display = "inline-block";
+                watchLink.style.marginTop = "0.5rem";
+                emptyEl.appendChild(watchLink);
+            }
             emptyEl.hidden = false;
             return;
         }
@@ -137,7 +150,9 @@ function updateNav() {
     var next = document.getElementById("next-date");
 
     var d = availableDates[currentIndex];
-    label.textContent = formatDate(d);
+    var cnt = dateLinkCounts[d];
+    var countSuffix = (cnt !== undefined) ? " (" + cnt + ")" : "";
+    label.textContent = formatDate(d) + countSuffix;
     prev.disabled = currentIndex >= availableDates.length - 1;
     next.disabled = currentIndex <= 0;
 
