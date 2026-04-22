@@ -11,10 +11,8 @@ import {
 // expires after 72h; you rarely re-register more than once a day).
 const MAX_REGISTRATIONS_PER_HOUR = 10;
 
-const SITE_BASE = "https://sc-cpe-web.pages.dev";
-
-function welcomeEmailBodies({ legalName, code, dashboardToken, expiresAt }) {
-    const dashUrl = `${SITE_BASE}/dashboard.html?t=${dashboardToken}`;
+function welcomeEmailBodies({ legalName, code, dashboardToken, expiresAt, siteBase }) {
+    const dashUrl = `${siteBase}/dashboard.html?t=${dashboardToken}`;
     const display = formatCode(code);
     const subject = `Simply Cyber CPE — your verification code`;
     const text = (
@@ -118,8 +116,9 @@ export async function onRequestPost({ request, env }) {
         await audit(env, "user", existing.id, "registration_reissued", "user", existing.id,
             null, { email_sha256: await sha256Hex(email), ip_hash: await ipHash(clientIp(request)) });
 
+        const siteBase = new URL(request.url).origin;
         const bodies = welcomeEmailBodies({
-            legalName, code, dashboardToken: existing.dashboard_token, expiresAt,
+            legalName, code, dashboardToken: existing.dashboard_token, expiresAt, siteBase,
         });
         await queueEmail(env, {
             userId: existing.id,
@@ -152,7 +151,8 @@ export async function onRequestPost({ request, env }) {
         email_sha256: await sha256Hex(email), ip_hash: await ipHash(clientIp(request)),
     });
 
-    const bodies = welcomeEmailBodies({ legalName, code, dashboardToken, expiresAt });
+    const siteBase = new URL(request.url).origin;
+    const bodies = welcomeEmailBodies({ legalName, code, dashboardToken, expiresAt, siteBase });
     await queueEmail(env, {
         userId,
         template: "register",

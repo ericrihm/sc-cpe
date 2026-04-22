@@ -15,7 +15,6 @@ import {
 // re-send. Refuses on deleted users.
 
 const MAX_PER_HOUR = 3;
-const SITE_BASE = "https://sc-cpe-web.pages.dev";
 
 function bodies({ legalName, code, expiresAt, dashboardUrl }) {
     const display = formatCode(code);
@@ -89,7 +88,8 @@ export async function onRequestPost({ params, request, env }) {
         UPDATE users SET verification_code = ?1, code_expires_at = ?2 WHERE id = ?3
     `).bind(code, expiresAt, user.id).run();
 
-    const dashboardUrl = `${SITE_BASE}/dashboard.html?t=${user.dashboard_token}`;
+    const siteBase = new URL(request.url).origin;
+    const dashboardUrl = `${siteBase}/dashboard.html?t=${user.dashboard_token}`;
     const b = bodies({
         legalName: user.legal_name || "there",
         code, expiresAt, dashboardUrl,
