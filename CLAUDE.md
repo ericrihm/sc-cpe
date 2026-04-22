@@ -284,6 +284,29 @@ ADMIN_TOKEN="$(tr -d '\n' < ~/.cloudflare/sc-cpe-admin-token)" \
   heartbeat now includes `auth_method` (`oauth`/`api_key`/`none`) in
   `detail_json`. `/api/health` surfaces detail per source.
   `/api/admin/ops-stats` warns when poller falls back to API key.
+- **Security audit fixes** — 2026-04-22. Migrations 006 (cert reissue
+  index) + 007 (badge_token). Key changes:
+    - `badge_token` column on `users` — badge/share URLs use this instead
+      of `dashboard_token`, preventing credential leak in shared links.
+      Badge endpoint looks up by `badge_token`. Rotate regenerates both.
+    - Cert reissue unique index: partial unique indexes now exclude
+      `state = 'regenerated'`; reissue endpoint sets old cert to
+      `regenerated` before INSERT to avoid constraint violation.
+    - XSS: admin.js `innerHTML` calls now use `escapeHtml()`;
+      generate.py uses `html.escape()` for recipient_name;
+      cert resend email escapes `sessionsCount`.
+    - enrichShowLinks always sets `enriched_at` (even on fetch failure)
+      to prevent infinite retry loop.
+    - `cert_nudge` added to `EXPECTED_CADENCE_S` in both `_heartbeat.js`
+      and purge worker mirror.
+    - `ip_hash` moved from `after` to `opts` param in 4 audit callers
+      (download, verify, register ×2) so it lands in the `ip_hash` column.
+    - generate.py email claim sets `sent_at` so the email-sender's
+      stuck-row rescue can reclaim it.
+    - Security alert cursor advances to `nowIso` on stale-only digests.
+    - resend-code "within 7 days" corrected to "before it expires".
+    - CRL endpoint sets `Cross-Origin-Resource-Policy: cross-origin`.
+    - admin.js reissue click listener moved to one-time registration.
 
 ## Where to look for more context
 

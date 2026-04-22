@@ -58,7 +58,7 @@ export async function onRequestGet({ params, env, request }) {
         }
     }
 
-    await audit(env, "api", null, "cert_downloaded", "cert", row.id, null, {
+    await audit(env, "api", null, "cert_downloaded", "cert", row.id, null, null, {
         ip_hash: await ipHash(clientIp(request)),
     });
 

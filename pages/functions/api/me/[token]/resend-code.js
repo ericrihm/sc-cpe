@@ -22,7 +22,7 @@ function bodies({ legalName, code, expiresAt, dashboardUrl }) {
     const text =
         `Hi ${legalName},\n\n` +
         `You requested a fresh verification code. Paste this into a live chat\n` +
-        `message during the Daily Threat Briefing on YouTube within 7 days:\n\n` +
+        `message during the Daily Threat Briefing on YouTube before it expires:\n\n` +
         `    ${display}\n\n` +
         `The code expires ${expiresAt}.\n\n` +
         `Your dashboard:\n  ${dashboardUrl}\n\n` +
@@ -31,7 +31,7 @@ function bodies({ legalName, code, expiresAt, dashboardUrl }) {
     const bodyHtml = `
 <p>Hi ${escapeHtml(legalName)},</p>
 <p>You requested a fresh verification code. Paste this into a live chat
-message during the Daily Threat Briefing on YouTube within 7 days:</p>
+message during the Daily Threat Briefing on YouTube before it expires:</p>
 <p style="font-family:Menlo,monospace;font-size:20pt;text-align:center;
    background:#f4f6f8;padding:14px;border-radius:6px;letter-spacing:0.04em;">
    ${escapeHtml(display)}

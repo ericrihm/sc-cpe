@@ -79,9 +79,10 @@ export async function onRequestPost({ params, request, env }) {
     if (!rl.ok) return json(rl.body, rl.status);
 
     const newToken = randomToken();
+    const newBadgeToken = randomToken();
     await env.DB.prepare(
-        "UPDATE users SET dashboard_token = ?1 WHERE id = ?2"
-    ).bind(newToken, user.id).run();
+        "UPDATE users SET dashboard_token = ?1, badge_token = ?2 WHERE id = ?3"
+    ).bind(newToken, newBadgeToken, user.id).run();
 
     const siteBase = new URL(request.url).origin;
     const dashboardUrl = `${siteBase}/dashboard.html?t=${newToken}`;

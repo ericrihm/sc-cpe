@@ -36,7 +36,7 @@ function buildBodies({ recipientName, periodDisplay, cpeTotal, sessionsCount, do
 <p>Your <strong>${escapeHtml(periodDisplay)}</strong> Simply Cyber CPE certificate is ready.</p>
 <ul>
   <li>CPE credit hours: <strong>${escapeHtml(cpeStr)}</strong></li>
-  <li>Sessions attended: <strong>${sessionsCount}</strong></li>
+  <li>Sessions attended: <strong>${escapeHtml(String(sessionsCount))}</strong></li>
 </ul>
 <p>
   <a href="${downloadUrl}"
