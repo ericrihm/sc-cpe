@@ -134,7 +134,9 @@ async function load() {
 
     renderCerts(d.certs || []);
     renderStreaks(d.attendance || []);
-    renderRenewalTracker(d.user.email_prefs, Number(d.total_cpe_earned != null ? d.total_cpe_earned : 0));
+    if (d.user.state === "active") {
+        renderRenewalTracker(d.user.email_prefs, Number(d.total_cpe_earned != null ? d.total_cpe_earned : 0));
+    }
 }
 
 function formatDateTime(iso) {
@@ -996,8 +998,7 @@ document.getElementById("remember-no-btn").addEventListener("click", function ()
 });
 document.getElementById("signout-btn").addEventListener("click", function () {
     clearSession();
-    document.getElementById("signout-card").hidden = true;
-    document.getElementById("remember-card").hidden = false;
+    location.replace("/dashboard");
 });
 
 // --- Leaderboard opt-in ---
