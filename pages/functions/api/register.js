@@ -62,7 +62,7 @@ export async function onRequestPost({ request, env }) {
     const legalName = (body.legal_name || "").trim();
     const legalAttested = !!body.legal_name_attested;
     const ageAttested = !!body.age_attested_13plus;
-    const tosVersion = body.tos_version || "v1";
+    const tosVersion = (body.tos_version || "v1").slice(0, 20);
     const turnstileToken = body.turnstile_token;
 
     if (!isValidEmail(email)) return json({ error: "invalid_email" }, 400);
