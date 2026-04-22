@@ -16,7 +16,7 @@
 
 const CSP = [
     "default-src 'self'",
-    "script-src 'self' https://challenges.cloudflare.com https://cdnjs.cloudflare.com",
+    "script-src 'self' https://challenges.cloudflare.com https://cdnjs.cloudflare.com/ajax/libs/jszip/",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
     "font-src 'self'",

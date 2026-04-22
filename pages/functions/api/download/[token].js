@@ -23,7 +23,7 @@ export async function onRequestGet({ params, env, request }) {
     if (!row) {
         return new Response("not found", { status: 404 });
     }
-    if (row.state === "revoked") {
+    if (row.state === "revoked" || row.state === "regenerated") {
         return new Response("certificate revoked", { status: 410 });
     }
     if (!row.pdf_r2_key) {

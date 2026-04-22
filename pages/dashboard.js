@@ -650,18 +650,25 @@ document.getElementById("cal").addEventListener("click", function (e) {
 function renderCalendar() {
     var grid = document.getElementById("cal");
     grid.innerHTML = "";
+    grid.setAttribute("role", "grid");
     var y = calCursor.getFullYear();
     var m = calCursor.getMonth();
-    document.getElementById("cal-label").textContent =
-        calCursor.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+    var monthLabel = calCursor.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+    document.getElementById("cal-label").textContent = monthLabel;
+    grid.setAttribute("aria-label", monthLabel + " attendance calendar");
 
     var headers = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+    var headerRow = document.createElement("div");
+    headerRow.setAttribute("role", "row");
+    headerRow.style.display = "contents";
     for (var hi = 0; hi < headers.length; hi++) {
         var d = document.createElement("div");
         d.className = "cal-head";
+        d.setAttribute("role", "columnheader");
         d.textContent = headers[hi];
-        grid.appendChild(d);
+        headerRow.appendChild(d);
     }
+    grid.appendChild(headerRow);
 
     var credited = new Set();
     for (var ai = 0; ai < calData.attendance.length; ai++) {
@@ -681,12 +688,14 @@ function renderCalendar() {
     for (var i = 0; i < firstDow; i++) {
         var cell = document.createElement("div");
         cell.className = "cal-cell cal-empty";
+        cell.setAttribute("role", "gridcell");
         grid.appendChild(cell);
     }
     for (var day = 1; day <= daysInMonth; day++) {
         var iso = y + "-" + String(m + 1).padStart(2, "0") + "-" + String(day).padStart(2, "0");
         var cell = document.createElement("div");
         cell.className = "cal-cell";
+        cell.setAttribute("role", "gridcell");
         if (iso === todayIso) cell.classList.add("cal-today");
 
         var dots = [];

@@ -1,6 +1,6 @@
 import {
     json, audit, clientIp, ipHash, isAdmin, queueEmail, now,
-    escapeHtml, emailShell,
+    escapeHtml, emailShell, rateLimit,
 } from "../../../../_lib.js";
 
 // POST /api/admin/cert/{public_token}/resend
@@ -81,6 +81,9 @@ export async function onRequestPost({ params, request, env }) {
     if (cert.state === "revoked") return json({ error: "cert_revoked" }, 409);
     if (!cert.pdf_r2_key) return json({ error: "cert_pdf_missing" }, 409);
     if (cert.deleted_at) return json({ error: "user_deleted" }, 409);
+
+    const rl = await rateLimit(env, `cert_resend:${cert.id}`, 5);
+    if (!rl.ok) return json(rl.body, rl.status);
 
     // period_yyyymm "202602" -> "February 2026"
     const yyyy = parseInt(cert.period_yyyymm.slice(0, 4), 10);

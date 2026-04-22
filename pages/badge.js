@@ -17,7 +17,9 @@ async function load() {
     const svgText = await r.text();
     const blob = new Blob([svgText], { type: "image/svg+xml" });
     const blobUrl = URL.createObjectURL(blob);
-    document.getElementById("badge-img").src = blobUrl;
+    const badgeImg = document.getElementById("badge-img");
+    badgeImg.onload = function () { URL.revokeObjectURL(blobUrl); };
+    badgeImg.src = blobUrl;
 
     const ogImg = document.querySelector('meta[property="og:image"]');
     if (!ogImg) {
