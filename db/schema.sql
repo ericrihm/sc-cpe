@@ -172,7 +172,7 @@ CREATE TABLE email_outbox (
     FOREIGN KEY (user_id) REFERENCES users(id),
     CHECK (state IN ('queued','sending','sent','failed','bounced'))
 );
-CREATE INDEX email_outbox_state_idx ON email_outbox(state) WHERE state IN ('queued','sending');
+CREATE INDEX email_outbox_state_created_idx ON email_outbox(state, created_at) WHERE state IN ('queued','sending');
 
 -- Append-only audit trail. Every state transition writes here.
 -- NEVER UPDATE OR DELETE rows in this table.
