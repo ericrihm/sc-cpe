@@ -104,7 +104,10 @@ function renderCard(link) {
     var titleDiv = document.createElement("div");
     titleDiv.className = "link-title";
     var titleLink = document.createElement("a");
-    titleLink.href = link.url;
+    try {
+        var p = new URL(link.url);
+        if (p.protocol === "https:" || p.protocol === "http:") titleLink.href = link.url;
+    } catch { /* malformed — leave href unset */ }
     titleLink.target = "_blank";
     titleLink.rel = "noopener";
     titleLink.textContent = title;
