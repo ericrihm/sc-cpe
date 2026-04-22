@@ -275,6 +275,15 @@ ADMIN_TOKEN="$(tr -d '\n' < ~/.cloudflare/sc-cpe-admin-token)" \
       name at binding time is lost.
     - PAdES-LTA re-sign ceremony needed before the signing cert's 10-year
       expiry. See `docs/LTV.md` for the full analysis.
+- **Hardcoded SITE_BASE removed** — fixed 2026-04-22 (PR #55). All 5 API
+  endpoint files (`register`, `recover`, `rotate`, `resend-code`,
+  `admin/cert/resend`) now derive the origin from `request.url` instead of
+  hardcoding `sc-cpe-web.pages.dev`. URLs in emails will automatically
+  work when `cpe.simplycyber.io` custom domain is added.
+- **OAuth degradation alerting** — added 2026-04-22 (PR #56). Poller
+  heartbeat now includes `auth_method` (`oauth`/`api_key`/`none`) in
+  `detail_json`. `/api/health` surfaces detail per source.
+  `/api/admin/ops-stats` warns when poller falls back to API key.
 
 ## Where to look for more context
 
