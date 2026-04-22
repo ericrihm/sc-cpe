@@ -324,6 +324,7 @@ if (signoutBtn) {
     }, { once: true });
 }
 $("#refresh").addEventListener("click", load);
+<<<<<<< HEAD
 var userSearchForm = $("#user-search-form");
 if (userSearchForm) {
     userSearchForm.addEventListener("submit", async function (e) {
@@ -866,6 +867,8 @@ if (attendanceForm) {
         }
     });
 }
+=======
+>>>>>>> origin/main
 (async function init() {
     try {
         var testR = await fetch("/api/admin/ops-stats", { credentials: "include" });
@@ -874,7 +877,10 @@ if (attendanceForm) {
             $("#login").style.display = "none";
             $("#app").style.display = "";
             load();
+<<<<<<< HEAD
             loadAppeals();
+=======
+>>>>>>> origin/main
             return;
         }
     } catch (e) {}

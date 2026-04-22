@@ -13,3 +13,4 @@ node_modules/
 *.key
 .DS_Store
 outputs/handoffs/
+scripts/.backfill_progress.json
