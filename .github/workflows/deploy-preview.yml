@@ -15,7 +15,7 @@ permissions:
 jobs:
   deploy-preview:
     runs-on: ubuntu-latest
-    environment: production
+    environment: preview
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
