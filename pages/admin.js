@@ -4,7 +4,7 @@ var auditEntries = [];
 
 var $ = function (s) { return document.querySelector(s); };
 function fmtAge(s) {
-  if (s == null) return "\u2014";
+  if (s == null) return "—";
   if (s < 90) return s + "s";
   if (s < 5400) return Math.round(s/60) + "m";
   if (s < 86400*2) return Math.round(s/3600) + "h";
@@ -17,10 +17,14 @@ function card(k, v, cls) {
   return n;
 }
 async function fetchJson(path) {
-  var r = await fetch(path, { headers: { "Authorization": "Bearer " + TOKEN } });
-  if (r.status === 401) throw new Error("unauthorized (wrong token?)");
-  if (!r.ok) throw new Error(path + " \u2192 HTTP " + r.status);
-  return r.json();
+    var opts = { credentials: "include" };
+    if (TOKEN && TOKEN !== "__cookie__") {
+        opts.headers = { "Authorization": "Bearer " + TOKEN };
+    }
+    var r = await fetch(path, opts);
+    if (r.status === 401) throw new Error("unauthorized (wrong token?)");
+    if (!r.ok) throw new Error(path + " → HTTP " + r.status);
+    return r.json();
 }
 async function load() {
   $("#err").innerHTML = "";
@@ -60,7 +64,7 @@ function renderWarnings(s) {
       (isCritical
         ? "background:#3a1818;border-color:#6b2a2a;color:#ffb4b4;"
         : "background:#3a2f18;border-color:#6b5a2a;color:#ffe4a4;");
-    row.innerHTML = "<strong>" + (isCritical ? "CRITICAL" : "warn") + '</strong> \u00b7 <code style="font-size:11px;">' + escapeHtml(w.code) + "</code> \u2014 " + escapeHtml(w.detail);
+    row.innerHTML = "<strong>" + (isCritical ? "CRITICAL" : "warn") + '</strong> · <code style="font-size:11px;">' + escapeHtml(w.code) + "</code> — " + escapeHtml(w.detail);
     box.appendChild(row);
   }
 }
@@ -94,7 +98,7 @@ function renderToggles(d) {
             headers: { Authorization: "Bearer " + TOKEN, "Content-Type": "application/json" },
             body: JSON.stringify({ name: t.name, killed: !t.killed }),
           });
-          if (!r.ok) throw new Error("toggle \u2192 HTTP " + r.status);
+          if (!r.ok) throw new Error("toggle → HTTP " + r.status);
           load();
         } catch (e) {
           $("#err").innerHTML = '<div class="err">' + escapeHtml(e.message) + '</div>';
@@ -119,10 +123,10 @@ function renderStats(s) {
     card("Certs total", s.certs_total),
     card("Attendance 24h", s.last_24h.attendance),
     card("Open appeals", s.appeals_open, s.appeals_open > 0 ? "warn" : ""),
-    card("Email queued", s.email_outbox.queued + (queuedAge != null ? " \u00b7 oldest " + fmtAge(queuedAge) : ""), queuedCls),
+    card("Email queued", s.email_outbox.queued + (queuedAge != null ? " · oldest " + fmtAge(queuedAge) : ""), queuedCls),
     card("Email failed", s.email_outbox.failed, s.email_outbox.failed > 0 ? "stale" : ""),
     card("Email sent 24h", s.email_outbox.sent_24h != null ? s.email_outbox.sent_24h : 0),
-    card("Certs pending", (s.certs ? s.certs.pending : 0) + (certPendAge != null ? " \u00b7 oldest " + fmtAge(certPendAge) : ""), certPendCls),
+    card("Certs pending", (s.certs ? s.certs.pending : 0) + (certPendAge != null ? " · oldest " + fmtAge(certPendAge) : ""), certPendCls),
   );
 }
 function renderHeartbeats(d) {
@@ -131,13 +135,13 @@ function renderHeartbeats(d) {
     var s = d.sources[i];
     var tr = document.createElement("tr");
     var cls = s.stale ? "stale" : "ok";
-    var status = s.stale ? "STALE" : (s.last_status || "\u2014");
+    var status = s.stale ? "STALE" : (s.last_status || "—");
     tr.innerHTML =
       '<td data-label="Source">' + s.source + "</td>" +
       '<td data-label="Status" class="' + cls + '">' + status + "</td>" +
       '<td data-label="Last beat" class="muted">' + (s.last_beat_at || "never") + "</td>" +
       '<td data-label="Age">' + fmtAge(s.age_seconds) + "</td>" +
-      '<td data-label="Expected \u2264" class="muted">' + (s.expected_s ? (2 * s.expected_s) + "s" : "\u2014") + "</td>" +
+      '<td data-label="Expected ≤" class="muted">' + (s.expected_s ? (2 * s.expected_s) + "s" : "—") + "</td>" +
       '<td data-label="On duty" class="muted">' + (s.on_duty ? "yes" : "no") + "</td>";
     tb.appendChild(tr);
   }
@@ -149,8 +153,8 @@ function renderChain(c, s) {
     card("Rows checked", c.rows_checked),
     card("Unique index", c.unique_index_on_prev_hash ? "present" : "MISSING",
          c.unique_index_on_prev_hash ? "ok" : "stale"),
-    card("Tip id", '<span class="v small">' + ((s.audit_tip && s.audit_tip.id) || "\u2014") + "</span>"),
-    card("Tip ts", '<span class="v small">' + ((s.audit_tip && s.audit_tip.ts) || "\u2014") + "</span>"),
+    card("Tip id", '<span class="v small">' + ((s.audit_tip && s.audit_tip.id) || "—") + "</span>"),
+    card("Tip ts", '<span class="v small">' + ((s.audit_tip && s.audit_tip.ts) || "—") + "</span>"),
   );
   if (c.first_break) {
     var n = document.createElement("div");
@@ -180,7 +184,7 @@ function renderFeedback(fb) {
       '<td class="muted">' + escapeHtml(r.updated_at) + "</td>" +
       '<td class="' + ratingCls + '">' + escapeHtml(r.rating) + "</td>" +
       "<td>" + escapeHtml(r.legal_name) + '<br><span class="muted" style="font-size:11px;">' + escapeHtml(r.email) + "</span></td>" +
-      '<td><a href="/verify.html?t=' + encodeURIComponent(r.public_token) + '" target="_blank" rel="noopener" style="color:#7cc3ff;">' + escapeHtml(r.cert_id.slice(0,10)) + '\u2026</a></td>' +
+      '<td><a href="/verify.html?t=' + encodeURIComponent(r.public_token) + '" target="_blank" rel="noopener" style="color:#7cc3ff;">' + escapeHtml(r.cert_id.slice(0,10)) + '…</a></td>' +
       '<td class="muted">' + escapeHtml(r.period_yyyymm) + "</td>" +
       '<td class="muted">' + escapeHtml(r.cert_kind) + "</td>" +
       '<td class="muted" style="max-width:240px;word-break:break-word;">' + escapeHtml(r.note || "") + "</td>" +
@@ -293,13 +297,80 @@ $("#auto-refresh").addEventListener("change", function() {
   if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; }
   if (this.checked) { autoRefreshTimer = setInterval(load, 30000); }
 });
-$("#go").addEventListener("click", function () {
-  TOKEN = $("#token").value.trim();
-  if (!TOKEN) return;
-  $("#token").value = "";
-  $("#login").style.display = "none";
-  $("#app").style.display = "";
-  load();
-});
+var signoutBtn = $("#signout");
+if (signoutBtn) {
+    signoutBtn.addEventListener("click", async function () {
+        await fetch("/api/admin/auth/logout", { method: "POST", credentials: "include" });
+        TOKEN = null;
+        $("#app").style.display = "none";
+        $("#login").style.display = "";
+        location.reload();
+    }, { once: true });
+}
 $("#refresh").addEventListener("click", load);
-$("#token").addEventListener("keydown", function (e) { if (e.key === "Enter") $("#go").click(); });
+(async function init() {
+    try {
+        var testR = await fetch("/api/admin/ops-stats", { credentials: "include" });
+        if (testR.ok) {
+            TOKEN = "__cookie__";
+            $("#login").style.display = "none";
+            $("#app").style.display = "";
+            load();
+            return;
+        }
+    } catch (e) {}
+
+    var params = new URLSearchParams(location.search);
+    if (params.get("error") === "expired") {
+        var le = $("#login-err");
+        le.textContent = "Login link expired or already used. Request a new one.";
+        le.hidden = false;
+        history.replaceState(null, "", location.pathname);
+    }
+
+    var form = $("#login-form");
+    if (form) {
+        form.addEventListener("submit", async function (e) {
+            e.preventDefault();
+            var emailInput = $("#admin-email");
+            var errEl = $("#login-err");
+            var okEl = $("#login-ok");
+            errEl.hidden = true;
+            var fd = new FormData(form);
+            var turnstileToken = fd.get("cf-turnstile-response");
+            if (!turnstileToken) {
+                errEl.textContent = "Please complete the anti-bot challenge.";
+                errEl.hidden = false;
+                return;
+            }
+            var btn = form.querySelector("button[type=submit]");
+            btn.disabled = true;
+            btn.textContent = "Sending…";
+            try {
+                var r = await fetch("/api/admin/auth/login", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        email: emailInput.value.trim(),
+                        turnstile_token: turnstileToken,
+                        redirect: location.pathname,
+                    }),
+                });
+                var data = await r.json();
+                if (!r.ok) {
+                    errEl.textContent = data.error || "Login failed.";
+                    errEl.hidden = false;
+                    return;
+                }
+                form.hidden = true;
+                okEl.hidden = false;
+            } catch (x) {
+                errEl.textContent = "Network error — check your connection.";
+                errEl.hidden = false;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = "Send login link";
+            }
+        });
+    }
+})();
