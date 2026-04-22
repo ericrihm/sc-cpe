@@ -74,6 +74,7 @@
                 count — the cert claims "attended live."
             </p>
         </div>
+
         <div class="card">
             <h2 id="name"></h2>
             <p>Status: <strong id="state"></strong></p>
@@ -123,6 +124,34 @@
             <p id="verified-at-line" class="muted" style="font-size:12px;margin:4px 0 0;" hidden></p>
         </div>
 
+        <div class="card" id="stats-card">
+            <div class="stats-row">
+                <div class="stat-block">
+                    <div class="stat-value" id="total">--</div>
+                    <div class="stat-label">CPE earned</div>
+                </div>
+                <div class="stat-block" id="streak-current-wrap" hidden>
+                    <div class="stat-value" id="streak-current">0</div>
+                    <div class="stat-label">current streak</div>
+                </div>
+                <div class="stat-block" id="streak-best-wrap" hidden>
+                    <div class="stat-value" id="streak-best">0</div>
+                    <div class="stat-label">longest streak</div>
+                </div>
+            </div>
+            <button type="button" id="share-btn" hidden style="margin-top:10px;font-size:13px;padding:6px 14px;">Share achievement</button>
+        </div>
+
+        <div class="card" id="today-card" hidden>
+            <h2 style="margin-top:0;">Today's Daily Threat Briefing</h2>
+            <p id="today-title" class="muted"></p>
+            <p id="today-status"></p>
+            <p id="today-hint" class="muted" hidden>
+                Post a qualifying message (3+ characters, letters or numbers) in the
+                live chat to get credited. This page refreshes automatically.
+            </p>
+        </div>
+
         <div class="card" id="link-card" hidden style="border-left:4px solid var(--accent);">
             <h2 style="margin-top:0;">Link your YouTube channel</h2>
             <p class="muted" style="font-size:13px;margin:0 0 8px;">
@@ -169,9 +198,126 @@
         </div>
 
         <div class="card">
-            <h2>Total CPE earned</h2>
-            <p class="big" id="total"></p>
-            <button type="button" id="share-btn" hidden style="margin-top:8px;font-size:14px;padding:8px 16px;">Share achievement</button>
+            <h2>Attendance calendar</h2>
+            <div class="cal-nav">
+                <button type="button" id="cal-prev" aria-label="previous month">&lsaquo;</button>
+                <strong id="cal-label"></strong>
+                <button type="button" id="cal-next" aria-label="next month">&rsaquo;</button>
+            </div>
+            <div id="cal" class="cal-grid" aria-label="month calendar"></div>
+            <p class="muted cal-legend">
+                <span class="cal-dot cal-credited"></span> credited &nbsp;
+                <span class="cal-dot cal-appeal-open"></span> appeal pending &nbsp;
+                <span class="cal-dot cal-appeal-granted"></span> appeal granted &nbsp;
+                <span class="cal-dot cal-appeal-denied"></span> appeal denied
+            </p>
+        </div>
+
+        <div class="card">
+            <h2>Attendance history</h2>
+            <div id="att" class="att-list" hidden></div>
+            <p id="att-empty" hidden class="muted">No attendance records yet. See you at the next Daily Threat Briefing.</p>
+        </div>
+
+        <div class="card">
+            <h2>Certificates</h2>
+            <div id="cert-dl-bar" class="cert-dl-bar" hidden>
+                <button type="button" id="cert-dl-btn">Download All (ZIP)</button>
+                <span class="dl-status" id="cert-dl-status"></span>
+            </div>
+            <div id="certs" class="cert-list" hidden></div>
+            <p id="cert-empty" hidden class="muted">No certificates yet. Certs are issued monthly.</p>
+            <p class="muted" style="font-size:11px;margin-top:10px;">
+                If a name or session count looks wrong, tap <strong>Report an issue</strong>
+                on the cert — feedback goes straight to the admin digest so we can reissue.
+            </p>
+        </div>
+
+        <h2 class="section-heading">Settings</h2>
+
+        <div class="card" id="renewal-card" hidden>
+            <h2 style="margin-top:0;">Certification renewal tracker</h2>
+            <div id="renewal-display" hidden>
+                <div class="renewal-summary" id="renewal-summary"></div>
+                <div class="renewal-bar-track"><div class="renewal-bar-fill" id="renewal-bar"></div></div>
+                <div class="renewal-deadline" id="renewal-deadline"></div>
+                <button type="button" class="renewal-edit-btn" id="renewal-edit-btn">Edit</button>
+                <button type="button" class="renewal-edit-btn" id="renewal-remove-btn" style="margin-left:8px;color:var(--bad-soft-text);">Remove</button>
+            </div>
+            <div id="renewal-setup">
+                <p class="muted" style="font-size:12px;margin:0 0 8px;">Track progress toward your certification renewal CPE requirement.</p>
+                <form class="renewal-form" id="renewal-form">
+                    <label>Certification name <input type="text" id="renewal-cert-name" placeholder="CISSP, CISM, etc." maxlength="100" required></label>
+                    <label>Renewal deadline <input type="date" id="renewal-deadline-input" required></label>
+                    <label>CPE required <input type="number" id="renewal-cpe-req" min="1" max="9999" placeholder="60" required></label>
+                    <div class="renewal-actions">
+                        <button type="submit">Save</button>
+                        <button type="button" class="appeal-cancel" id="renewal-cancel-btn" hidden>Cancel</button>
+                    </div>
+                    <span id="renewal-msg" class="muted" style="font-size:11px;" hidden></span>
+                </form>
+            </div>
+        </div>
+
+        <div class="card" id="prefs-card" hidden>
+            <h2 style="margin-top:0;">Certificate delivery</h2>
+            <p class="muted" style="font-size:12px;">
+                Most certification bodies (including (ISC)²) accept the
+                bundled monthly certificate. Pick individual per-session
+                certs only if your certification body specifically asks
+                for per-activity documentation at audit — uncommon.
+                You can also request a one-off per-session cert on any
+                attendance row above.
+            </p>
+            <div id="prefs-radios" style="display:flex;flex-direction:column;gap:6px;margin-top:8px;">
+                <label><input type="radio" name="cert_style" value="bundled"> One monthly bundle <span class="muted" style="font-size:11px;">(recommended)</span></label>
+                <label><input type="radio" name="cert_style" value="per_session"> Individual cert for every attended session</label>
+                <label><input type="radio" name="cert_style" value="both"> Both (bundle + per-session)</label>
+            </div>
+            <p id="prefs-msg" class="muted" style="font-size:11px;margin-top:6px;" hidden></p>
+        </div>
+
+        <div class="card" id="leaderboard-card" hidden>
+            <h2 style="margin-top:0;">Community leaderboard</h2>
+            <label class="check">
+                <input type="checkbox" id="leaderboard-toggle">
+                <span>Show me on the <a href="/leaderboard.html">community leaderboard</a>
+                <span class="muted" style="font-size:11px;display:block;">Your first name and last initial will be visible. Email and full name are never shown.</span></span>
+            </label>
+            <span id="leaderboard-msg" class="muted" style="font-size:11px;" hidden></span>
+        </div>
+
+        <h2 class="section-heading">Account</h2>
+
+        <div class="card" id="remember-card" hidden style="border-left:4px solid var(--accent);">
+            <h2 style="margin-top:0;">Remember this device?</h2>
+            <p class="muted" style="font-size:13px;margin:0 0 8px;">
+                Save your session so you can return to this dashboard without
+                the email link. Only use this on a personal device you trust.
+            </p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button type="button" id="remember-yes-btn">Yes, remember me</button>
+                <button type="button" id="remember-no-btn" style="background:transparent;color:var(--fg);border:1px solid var(--border);">No thanks</button>
+            </div>
+        </div>
+
+        <div class="card" id="signout-card" hidden>
+            <p class="muted" style="margin:0;font-size:13px;">
+                This device remembers your dashboard.
+                <button type="button" id="signout-btn" style="background:transparent;border:none;color:var(--accent);cursor:pointer;font-size:13px;padding:0;text-decoration:underline;">Forget this device</button>
+            </p>
+        </div>
+
+        <div class="card" id="rotate-card" hidden>
+            <h2 style="margin-top:0;">Dashboard link security</h2>
+            <p class="muted" style="font-size:12px;">
+                This dashboard URL is your account credential. If it leaked
+                (accidentally shared, screenshot posted, lost device), rotate
+                it here. We'll email a fresh URL to the address on file — this
+                page will stop working a few seconds later.
+            </p>
+            <button type="button" id="rotate-btn" style="margin-top:8px;">Rotate dashboard link</button>
+            <span id="rotate-msg" class="muted" hidden style="margin-left:8px;"></span>
         </div>
 
         <div id="share-modal" class="share-modal-overlay" hidden>
@@ -201,143 +347,6 @@
                     <a id="modal-x" class="share-link-btn" style="background:#000;color:#fff;text-decoration:none;" target="_blank" rel="noopener">X / Twitter</a>
                 </div>
             </div>
-        </div>
-
-        <div class="card" id="streak-card" hidden>
-            <h2>Attendance streak</h2>
-            <div class="streak-card">
-                <div class="streak-stat"><div class="streak-num" id="streak-current">0</div><div class="streak-label">current streak (days)</div></div>
-                <div class="streak-stat"><div class="streak-num" id="streak-best">0</div><div class="streak-label">longest streak (days)</div></div>
-            </div>
-        </div>
-
-        <div class="card" id="renewal-card" hidden>
-            <h2>Certification renewal tracker</h2>
-            <div id="renewal-display" hidden>
-                <div class="renewal-summary" id="renewal-summary"></div>
-                <div class="renewal-bar-track"><div class="renewal-bar-fill" id="renewal-bar"></div></div>
-                <div class="renewal-deadline" id="renewal-deadline"></div>
-                <button type="button" class="renewal-edit-btn" id="renewal-edit-btn">Edit</button>
-                <button type="button" class="renewal-edit-btn" id="renewal-remove-btn" style="margin-left:8px;color:var(--bad-soft-text);">Remove</button>
-            </div>
-            <div id="renewal-setup">
-                <p class="muted" style="font-size:12px;margin:0 0 8px;">Track progress toward your certification renewal CPE requirement.</p>
-                <form class="renewal-form" id="renewal-form">
-                    <label>Certification name <input type="text" id="renewal-cert-name" placeholder="CISSP, CISM, etc." maxlength="100" required></label>
-                    <label>Renewal deadline <input type="date" id="renewal-deadline-input" required></label>
-                    <label>CPE required <input type="number" id="renewal-cpe-req" min="1" max="9999" placeholder="60" required></label>
-                    <div class="renewal-actions">
-                        <button type="submit">Save</button>
-                        <button type="button" class="appeal-cancel" id="renewal-cancel-btn" hidden>Cancel</button>
-                    </div>
-                    <span id="renewal-msg" class="muted" style="font-size:11px;" hidden></span>
-                </form>
-            </div>
-        </div>
-
-        <div class="card" id="today-card" hidden>
-            <h2>Today's Daily Threat Briefing</h2>
-            <p id="today-title" class="muted"></p>
-            <p id="today-status"></p>
-            <p id="today-hint" class="muted" hidden>
-                Post a qualifying message (3+ characters, letters or numbers) in the
-                live chat to get credited. This page refreshes automatically.
-            </p>
-        </div>
-
-        <div class="card" id="leaderboard-card" hidden>
-            <h2>Community leaderboard</h2>
-            <label class="check">
-                <input type="checkbox" id="leaderboard-toggle">
-                <span>Show me on the <a href="/leaderboard.html">community leaderboard</a>
-                <span class="muted" style="font-size:11px;display:block;">Your first name and last initial will be visible. Email and full name are never shown.</span></span>
-            </label>
-            <span id="leaderboard-msg" class="muted" style="font-size:11px;" hidden></span>
-        </div>
-
-        <div class="card">
-            <h2>Attendance calendar</h2>
-            <div class="cal-nav">
-                <button type="button" id="cal-prev" aria-label="previous month">&lsaquo;</button>
-                <strong id="cal-label"></strong>
-                <button type="button" id="cal-next" aria-label="next month">&rsaquo;</button>
-            </div>
-            <div id="cal" class="cal-grid" aria-label="month calendar"></div>
-            <p class="muted cal-legend">
-                <span class="cal-dot cal-credited"></span> credited &nbsp;
-                <span class="cal-dot cal-appeal-open"></span> appeal pending &nbsp;
-                <span class="cal-dot cal-appeal-granted"></span> appeal granted &nbsp;
-                <span class="cal-dot cal-appeal-denied"></span> appeal denied
-            </p>
-        </div>
-
-        <div class="card" id="remember-card" hidden style="border-left:4px solid var(--accent);">
-            <h2 style="margin-top:0;">Remember this device?</h2>
-            <p class="muted" style="font-size:13px;margin:0 0 8px;">
-                Save your session so you can return to this dashboard without
-                the email link. Only use this on a personal device you trust.
-            </p>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                <button type="button" id="remember-yes-btn">Yes, remember me</button>
-                <button type="button" id="remember-no-btn" style="background:transparent;color:var(--fg);border:1px solid var(--border);">No thanks</button>
-            </div>
-        </div>
-
-        <div class="card" id="signout-card" hidden>
-            <p class="muted" style="margin:0;font-size:13px;">
-                This device remembers your dashboard.
-                <button type="button" id="signout-btn" style="background:transparent;border:none;color:var(--accent);cursor:pointer;font-size:13px;padding:0;text-decoration:underline;">Forget this device</button>
-            </p>
-        </div>
-
-        <div class="card" id="rotate-card" hidden>
-            <h2>Dashboard link security</h2>
-            <p class="muted" style="font-size:12px;">
-                This dashboard URL is your account credential. If it leaked
-                (accidentally shared, screenshot posted, lost device), rotate
-                it here. We'll email a fresh URL to the address on file — this
-                page will stop working a few seconds later.
-            </p>
-            <button type="button" id="rotate-btn" style="margin-top:8px;">Rotate dashboard link</button>
-            <span id="rotate-msg" class="muted" hidden style="margin-left:8px;"></span>
-        </div>
-
-        <div class="card" id="prefs-card" hidden>
-            <h2>Certificate delivery</h2>
-            <p class="muted" style="font-size:12px;">
-                Most certification bodies (including (ISC)²) accept the
-                bundled monthly certificate. Pick individual per-session
-                certs only if your certification body specifically asks
-                for per-activity documentation at audit — uncommon.
-                You can also request a one-off per-session cert on any
-                attendance row below.
-            </p>
-            <div id="prefs-radios" style="display:flex;flex-direction:column;gap:6px;margin-top:8px;">
-                <label><input type="radio" name="cert_style" value="bundled"> One monthly bundle <span class="muted" style="font-size:11px;">(recommended)</span></label>
-                <label><input type="radio" name="cert_style" value="per_session"> Individual cert for every attended session</label>
-                <label><input type="radio" name="cert_style" value="both"> Both (bundle + per-session)</label>
-            </div>
-            <p id="prefs-msg" class="muted" style="font-size:11px;margin-top:6px;" hidden></p>
-        </div>
-
-        <div class="card">
-            <h2>Attendance history</h2>
-            <div id="att" class="att-list" hidden></div>
-            <p id="att-empty" hidden class="muted">No attendance records yet. See you at the next Daily Threat Briefing.</p>
-        </div>
-
-        <div class="card">
-            <h2>Certificates</h2>
-            <div id="cert-dl-bar" class="cert-dl-bar" hidden>
-                <button type="button" id="cert-dl-btn">Download All (ZIP)</button>
-                <span class="dl-status" id="cert-dl-status"></span>
-            </div>
-            <div id="certs" class="cert-list" hidden></div>
-            <p id="cert-empty" hidden class="muted">No certificates yet. Certs are issued monthly.</p>
-            <p class="muted" style="font-size:11px;margin-top:10px;">
-                If a name or session count looks wrong, tap <strong>Report an issue</strong>
-                on the cert — feedback goes straight to the admin digest so we can reissue.
-            </p>
         </div>
     </section>
     <p class="muted" style="margin-top:1.5rem;font-size:0.85rem;">

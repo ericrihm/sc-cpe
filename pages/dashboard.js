@@ -125,7 +125,7 @@ async function load() {
     }
 
     var cpe = Number(d.total_cpe_earned != null ? d.total_cpe_earned : 0);
-    document.getElementById("total").textContent = cpe.toFixed(1) + " CPE";
+    document.getElementById("total").textContent = cpe.toFixed(1);
     document.getElementById("share-btn").hidden = cpe <= 0;
 
     renderWindowWarnings(d.code_window_warnings || []);
@@ -771,7 +771,8 @@ function renderStreaks(attendance) {
         if (run > best) best = run;
     }
 
-    document.getElementById("streak-card").hidden = false;
+    document.getElementById("streak-current-wrap").hidden = false;
+    document.getElementById("streak-best-wrap").hidden = false;
     document.getElementById("streak-current").textContent = current;
     document.getElementById("streak-best").textContent = best;
 }
@@ -952,7 +953,7 @@ document.getElementById("share-btn").addEventListener("click", function () {
     var badgeUrl = location.origin + "/api/badge/" + encodeURIComponent(token);
     var pageUrl = location.origin + "/badge.html?t=" + encodeURIComponent(token);
     var cpe = document.getElementById("total").textContent;
-    var shareText = "I've earned " + cpe + " attending Simply Cyber's Daily Threat Briefing! Verified via cryptographic audit chain. #SimplyCyber #CPE";
+    var shareText = "I've earned " + cpe + " CPE attending Simply Cyber's Daily Threat Briefing! Verified via cryptographic audit chain. #SimplyCyber #CPE";
 
     document.getElementById("share-badge-img").src = badgeUrl;
     document.getElementById("share-url").value = pageUrl;
