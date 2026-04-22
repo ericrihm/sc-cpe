@@ -49,7 +49,7 @@ export async function onRequestPost({ params, request, env }) {
         SELECT u.id AS user_id, c.id AS cert_id
           FROM users u
           JOIN certs c ON c.user_id = u.id
-         WHERE u.dashboard_token = ?1 AND c.id = ?2
+         WHERE u.dashboard_token = ?1 AND u.deleted_at IS NULL AND c.id = ?2
     `).bind(token, certId).first();
     if (!owner) return json({ error: "not_found" }, 404);
 
