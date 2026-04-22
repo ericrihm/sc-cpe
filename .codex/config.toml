@@ -1,0 +1,5 @@
+model = "gpt-5.4"
+approval_policy = "on-request"
+
+# Also read CLAUDE.md so Codex gets the full architecture context
+project_doc_fallback_filenames = ["CLAUDE.md"]
