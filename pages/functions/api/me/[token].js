@@ -103,6 +103,7 @@ export async function onRequestGet({ params, env, request }) {
                ) THEN 1 ELSE 0 END AS credited
           FROM streams s
          WHERE s.state IN ('live','complete')
+           AND s.scheduled_date = date('now')
       ORDER BY COALESCE(s.actual_start_at, s.created_at) DESC
          LIMIT 1
     `).bind(user.id).first();
