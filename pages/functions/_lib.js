@@ -98,7 +98,7 @@ export async function audit(env, actorType, actorId, action, entityType, entityI
         before_json: before == null ? null : JSON.stringify(before),
         after_json: after == null ? null : JSON.stringify(after),
         ip_hash: opts.ip_hash ?? null,
-        user_agent: opts.user_agent ?? null,
+        user_agent: opts.user_agent ? opts.user_agent.slice(0, 500) : null,
         ts: null,
         prev_hash: null,
     };
