@@ -129,3 +129,17 @@
     color: var(--muted);
     padding: 3rem 1rem;
 }
+.copy-wrap {
+    text-align: center;
+    margin-bottom: 1rem;
+}
+.copy-btn {
+    font-size: 0.85rem;
+    padding: 0.4rem 1rem;
+    background: var(--card);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+}
+.copy-btn:hover { background: var(--hover-bg); }

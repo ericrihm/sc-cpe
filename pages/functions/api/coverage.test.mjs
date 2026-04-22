@@ -12,6 +12,7 @@ import { onRequestGet as annualSummaryGet } from "./me/[token]/annual-summary.js
 import { onRequestGet as leaderboardGet } from "./leaderboard.js";
 import { onRequestGet as linksGet } from "./links.js";
 import { onRequestGet as badgeGet } from "./badge/[token].js";
+import { onRequestGet as rssGet } from "./links/rss.js";
 
 // ── helpers ───────────────────────────────────────────────────────────────
 
@@ -413,7 +414,7 @@ test("leaderboard: rate limit trips → 429", async () => {
 
 test("links: no data → empty response", async () => {
     const db = mockDB([
-        { match: /FROM streams.*show_links.*ORDER BY.*DESC.*LIMIT 1/s, handler: () => ({ first: null })},
+        { match: /LEFT JOIN show_links/, handler: () => ({ all: [] })},
     ]);
     const r = await linksGet({
         env: { DB: db, RATE_KV: kvPermissive },
@@ -423,19 +424,24 @@ test("links: no data → empty response", async () => {
     const j = await r.json();
     assert.equal(j.date, null);
     assert.deepEqual(j.links, []);
+    assert.deepEqual(j.available_dates, []);
+    assert.deepEqual(j.date_link_counts, {});
 });
 
 test("links: with date param → returns links for that date", async () => {
     const db = mockDB([
+        { match: /LEFT JOIN show_links/, handler: () => ({
+            all: [
+                { scheduled_date: "2026-04-10", cnt: 3 },
+                { scheduled_date: "2026-04-09", cnt: 0 },
+            ],
+        })},
         { match: /FROM streams\s+WHERE scheduled_date/s, handler: () => ({
             first: { id: "s1", title: "DTB 2026-04-10", yt_video_id: "v1" },
         })},
-        { match: /FROM show_links/, handler: () => ({
+        { match: /FROM show_links\s+WHERE stream_id/s, handler: () => ({
             all: [{ url: "https://example.com", domain: "example.com", title: "Test",
-                     description: null, author_type: "host", author_name: "SC", posted_at: "2026-04-10T10:00:00Z" }],
-        })},
-        { match: /DISTINCT.*scheduled_date/, handler: () => ({
-            all: [{ scheduled_date: "2026-04-10" }, { scheduled_date: "2026-04-09" }],
+                     description: null, author_type: "owner", author_name: "SC", posted_at: "2026-04-10T10:00:00Z" }],
         })},
     ]);
     const r = await linksGet({
@@ -460,14 +466,16 @@ test("links: rate limit trips → 429", async () => {
 
 test("links: invalid date param falls back to latest", async () => {
     const db = mockDB([
-        { match: /FROM streams.*show_links.*ORDER BY.*DESC.*LIMIT 1/s, handler: () => ({
-            first: { scheduled_date: "2026-04-10" },
+        { match: /LEFT JOIN show_links/, handler: () => ({
+            all: [
+                { scheduled_date: "2026-04-10", cnt: 3 },
+                { scheduled_date: "2026-04-09", cnt: 0 },
+            ],
         })},
         { match: /FROM streams\s+WHERE scheduled_date/s, handler: () => ({
             first: { id: "s1", title: "DTB", yt_video_id: "v1" },
         })},
-        { match: /FROM show_links/, handler: () => ({ all: [] })},
-        { match: /DISTINCT.*scheduled_date/, handler: () => ({ all: [{ scheduled_date: "2026-04-10" }] })},
+        { match: /FROM show_links\s+WHERE stream_id/s, handler: () => ({ all: [] })},
     ]);
     const r = await linksGet({
         env: { DB: db, RATE_KV: kvPermissive },
@@ -476,6 +484,130 @@ test("links: invalid date param falls back to latest", async () => {
     assert.equal(r.status, 200);
     const j = await r.json();
     assert.equal(j.date, "2026-04-10");
+});
+
+test("links: response includes date_link_counts object", async () => {
+    const db = mockDB([
+        { match: /LEFT JOIN show_links/, handler: () => ({
+            all: [
+                { scheduled_date: "2026-04-10", cnt: 5 },
+                { scheduled_date: "2026-04-09", cnt: 2 },
+                { scheduled_date: "2026-04-08", cnt: 0 },
+            ],
+        })},
+        { match: /FROM streams\s+WHERE scheduled_date/s, handler: () => ({
+            first: { id: "s1", title: "DTB 2026-04-10", yt_video_id: "v1" },
+        })},
+        { match: /FROM show_links\s+WHERE stream_id/s, handler: () => ({ all: [] })},
+    ]);
+    const r = await linksGet({
+        env: { DB: db, RATE_KV: kvPermissive },
+        request: getReq("https://sc-cpe-web.pages.dev/api/links"),
+    });
+    assert.equal(r.status, 200);
+    const j = await r.json();
+    assert.equal(typeof j.date_link_counts, "object");
+    assert.equal(j.date_link_counts["2026-04-10"], 5);
+    assert.equal(j.date_link_counts["2026-04-09"], 2);
+    assert.equal(j.date_link_counts["2026-04-08"], 0);
+});
+
+test("links: empty show day — stream exists, no links", async () => {
+    const db = mockDB([
+        { match: /LEFT JOIN show_links/, handler: () => ({
+            all: [
+                { scheduled_date: "2026-04-10", cnt: 3 },
+                { scheduled_date: "2026-04-09", cnt: 0 },
+            ],
+        })},
+        { match: /FROM streams\s+WHERE scheduled_date/s, handler: () => ({
+            first: { id: "s2", title: "DTB 2026-04-09", yt_video_id: "v2" },
+        })},
+        { match: /FROM show_links\s+WHERE stream_id/s, handler: () => ({ all: [] })},
+    ]);
+    const r = await linksGet({
+        env: { DB: db, RATE_KV: kvPermissive },
+        request: getReq("https://sc-cpe-web.pages.dev/api/links?date=2026-04-09"),
+    });
+    assert.equal(r.status, 200);
+    const j = await r.json();
+    assert.equal(j.date, "2026-04-09");
+    assert.ok(j.stream, "stream info should be present");
+    assert.equal(j.stream.title, "DTB 2026-04-09");
+    assert.deepEqual(j.links, []);
+});
+
+test("links: viewer links excluded from response", async () => {
+    let showLinksSql = null;
+    const db = mockDB([
+        { match: /LEFT JOIN show_links/, handler: () => ({
+            all: [{ scheduled_date: "2026-04-10", cnt: 1 }],
+        })},
+        { match: /FROM streams\s+WHERE scheduled_date/s, handler: () => ({
+            first: { id: "s1", title: "DTB", yt_video_id: "v1" },
+        })},
+        { match: /FROM show_links\s+WHERE stream_id/s, handler: (sql) => {
+            showLinksSql = sql;
+            return { all: [] };
+        }},
+    ]);
+    await linksGet({
+        env: { DB: db, RATE_KV: kvPermissive },
+        request: getReq("https://sc-cpe-web.pages.dev/api/links?date=2026-04-10"),
+    });
+    assert.ok(showLinksSql, "show_links query must have been executed");
+    assert.ok(/author_type IN/.test(showLinksSql), "show_links query must filter by author_type");
+});
+
+// ── rss ──────────────────────────────────────────────────────────────────
+
+test("rss: returns valid XML with content-type application/rss+xml", async () => {
+    const db = mockDB([
+        { match: /LEFT JOIN show_links.*GROUP BY/s, handler: () => ({
+            all: [{ scheduled_date: "2026-04-10", cnt: 2 }],
+        })},
+        { match: /FROM streams\s+WHERE scheduled_date/s, handler: () => ({
+            first: { id: "s1", title: "DTB 2026-04-10", yt_video_id: "v1" },
+        })},
+        { match: /FROM show_links\s+WHERE stream_id/s, handler: () => ({
+            all: [
+                { url: "https://example.com", domain: "example.com", title: "Test Link",
+                  description: "A test", author_type: "owner", author_name: "SC", posted_at: "2026-04-10T10:00:00Z" },
+            ],
+        })},
+    ]);
+    const r = await rssGet({
+        env: { DB: db, RATE_KV: kvPermissive },
+        request: getReq("https://sc-cpe-web.pages.dev/api/links/rss"),
+    });
+    assert.equal(r.status, 200);
+    assert.ok(r.headers.get("Content-Type").includes("application/rss+xml"));
+    const body = await r.text();
+    assert.ok(body.includes("<rss"));
+    assert.ok(body.includes("Test Link"));
+    assert.ok(body.includes("2026-04-10"));
+});
+
+test("rss: rate limit trips → 429", async () => {
+    const r = await rssGet({
+        env: { DB: mockDB([]), RATE_KV: kvTripped },
+        request: getReq("https://sc-cpe-web.pages.dev/api/links/rss"),
+    });
+    assert.equal(r.status, 429);
+});
+
+test("rss: no data → valid XML with zero items", async () => {
+    const db = mockDB([
+        { match: /LEFT JOIN show_links.*GROUP BY/s, handler: () => ({ all: [] })},
+    ]);
+    const r = await rssGet({
+        env: { DB: db, RATE_KV: kvPermissive },
+        request: getReq("https://sc-cpe-web.pages.dev/api/links/rss"),
+    });
+    assert.equal(r.status, 200);
+    const body = await r.text();
+    assert.ok(body.includes("<rss"));
+    assert.ok(!body.includes("<item>"));
 });
 
 // ── badge ────────────────────────────────────────────────────────────────
