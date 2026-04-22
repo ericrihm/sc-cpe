@@ -50,6 +50,10 @@ export async function onRequestPost({ params, request, env }) {
     const publicToken = randomHex(32);
     const ts = now();
 
+    await env.DB.prepare(
+        "UPDATE certs SET state = 'regenerated' WHERE id = ?1 AND state != 'revoked'"
+    ).bind(certId).run();
+
     await env.DB.prepare(`
         INSERT INTO certs (
             id, public_token, user_id,

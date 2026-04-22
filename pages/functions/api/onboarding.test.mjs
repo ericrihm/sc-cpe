@@ -616,7 +616,7 @@ test("rotate: updates dashboard_token, queues email, returns no new token", asyn
             handler: () => ({ first: { id: FAKE_ULID, email: "alice@example.com", legal_name: "Alice Smith" } }),
         },
         {
-            match: /UPDATE users SET dashboard_token = \?1 WHERE id = \?2/,
+            match: /UPDATE users SET dashboard_token = \?1, badge_token = \?2 WHERE id = \?3/,
             handler: (_sql, binds) => { updatedToken = binds[0]; return { run: { meta: {} } }; },
         },
         {

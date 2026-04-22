@@ -34,6 +34,7 @@ if (!token) {
 }
 var err = document.getElementById("err");
 var loadInProgress = false;
+var badgeToken = null;
 
 function showLogin() {
     document.getElementById("skel").hidden = true;
@@ -60,6 +61,7 @@ async function load() {
     document.getElementById("name").textContent = d.user.legal_name;
     document.getElementById("state").textContent = d.user.state;
     userState = d.user.state;
+    badgeToken = d.user.badge_token || null;
 
     var hasSaved = !!getSavedSession();
     var rememberCard = document.getElementById("remember-card");
@@ -950,8 +952,9 @@ function showAppealPopover(iso, anchorRect) {
 // --- Share achievement ---
 document.getElementById("share-btn").addEventListener("click", function () {
     var modal = document.getElementById("share-modal");
-    var badgeUrl = location.origin + "/api/badge/" + encodeURIComponent(token);
-    var pageUrl = location.origin + "/badge.html?t=" + encodeURIComponent(token);
+    var shareToken = badgeToken || token;
+    var badgeUrl = location.origin + "/api/badge/" + encodeURIComponent(shareToken);
+    var pageUrl = location.origin + "/badge.html?t=" + encodeURIComponent(shareToken);
     var cpe = document.getElementById("total").textContent;
     var shareText = "I've earned " + cpe + " CPE attending Simply Cyber's Daily Threat Briefing! Verified via cryptographic audit chain. #SimplyCyber #CPE";
 

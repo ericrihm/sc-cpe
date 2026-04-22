@@ -31,6 +31,7 @@ from __future__ import annotations
 import base64
 import datetime as dt
 import hashlib
+import html as html_mod
 import io
 import json
 import os
@@ -718,7 +719,7 @@ def build_email_bodies(
     )
     html = f"""<!doctype html>
 <html><body style="font-family:Helvetica,Arial,sans-serif;color:#111;line-height:1.45;">
-<p>Hi {recipient_name},</p>
+<p>Hi {html_mod.escape(recipient_name)},</p>
 <p>Your <strong>{period_display}</strong> Simply Cyber CPE certificate is ready.
 {attended_sentence}</p>
 <ul>
@@ -1009,9 +1010,10 @@ def issue_for_user(
 
     # 12. Send via Resend; tolerate send failure (outbox still queued).
     try:
+        claimed_at = now_iso_utc()
         d1.execute(
-            "UPDATE email_outbox SET state = 'sending', attempts = attempts + 1 WHERE id = ?",
-            [email_id],
+            "UPDATE email_outbox SET state = 'sending', attempts = attempts + 1, sent_at = ? WHERE id = ?",
+            [claimed_at, email_id],
         )
         msg_id = send_resend_email(
             api_key=cfg.resend_api_key,
