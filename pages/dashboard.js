@@ -33,6 +33,7 @@ if (!token) {
     if (saved) token = saved.token;
 }
 var err = document.getElementById("err");
+var loadInProgress = false;
 
 function showLogin() {
     document.getElementById("skel").hidden = true;
@@ -40,7 +41,10 @@ function showLogin() {
 }
 
 async function load() {
+    if (loadInProgress) return;
     if (!token) { showLogin(); return; }
+    loadInProgress = true;
+    try {
     var r = await fetch("/api/me/" + encodeURIComponent(token));
     if (!r.ok) {
         if (r.status === 404) clearSession();
@@ -137,6 +141,7 @@ async function load() {
     if (d.user.state === "active") {
         renderRenewalTracker(d.user.email_prefs, Number(d.total_cpe_earned != null ? d.total_cpe_earned : 0));
     }
+    } finally { loadInProgress = false; }
 }
 
 function formatDateTime(iso) {
@@ -242,28 +247,29 @@ function renderAttendance(items) {
             '<div class="att-actions">' + actions + "</div>";
         host.appendChild(row);
     }
-    host.addEventListener("click", async function (e) {
-        var btn = e.target.closest(".att-ps-btn");
-        if (!btn || btn.disabled) return;
-        btn.disabled = true;
-        var stream = btn.dataset.stream;
-        var original = btn.textContent;
-        btn.textContent = "sending\u2026";
-        try {
-            var r = await fetch(
-                "/api/me/" + encodeURIComponent(token) + "/cert-per-session/" + encodeURIComponent(stream),
-                { method: "POST", headers: { "Content-Type": "application/json" } },
-            );
-            var j = await r.json().catch(function () { return {}; });
-            if (!r.ok) throw new Error(j.error || "HTTP " + r.status);
-            btn.outerHTML = '<span class="att-ps-done">' + (j.existing ? "already issued" : "queued \u2014 arrives within ~2h") + "</span>";
-        } catch (err) {
-            btn.disabled = false;
-            btn.textContent = original;
-            btn.title = String(err.message || err);
-        }
-    });
 }
+
+document.getElementById("att").addEventListener("click", async function (e) {
+    var btn = e.target.closest(".att-ps-btn");
+    if (!btn || btn.disabled) return;
+    btn.disabled = true;
+    var stream = btn.dataset.stream;
+    var original = btn.textContent;
+    btn.textContent = "sending\u2026";
+    try {
+        var r = await fetch(
+            "/api/me/" + encodeURIComponent(token) + "/cert-per-session/" + encodeURIComponent(stream),
+            { method: "POST", headers: { "Content-Type": "application/json" } },
+        );
+        var j = await r.json().catch(function () { return {}; });
+        if (!r.ok) throw new Error(j.error || "HTTP " + r.status);
+        btn.outerHTML = '<span class="att-ps-done">' + (j.existing ? "already issued" : "queued \u2014 arrives within ~2h") + "</span>";
+    } catch (err) {
+        btn.disabled = false;
+        btn.textContent = original;
+        btn.title = String(err.message || err);
+    }
+});
 
 function formatPeriod(yyyymm) {
     if (!/^\d{6}$/.test(yyyymm)) return yyyymm;
@@ -505,6 +511,7 @@ document.getElementById("rotate-btn").addEventListener("click", async function (
         var d = await r.json().catch(function () { return {}; });
         if (r.ok) {
             clearSession();
+            if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
             msg.textContent = "Rotated. Check your email for the new link \u2014 this one stops working shortly.";
             msg.style.color = "var(--ok-soft-text)";
             btn.textContent = "Rotated \u2713";
@@ -601,12 +608,12 @@ function renderToday(today) {
         var credits = (calData.attendance || []).length;
         var lastCredit = credits
             ? calData.attendance.slice().sort(function (a, b) {
-                return (b.session_date || "").localeCompare(a.session_date || "");
+                return (b.scheduled_date || "").localeCompare(a.scheduled_date || "");
               })[0]
             : null;
         var priorLine = credits
             ? " You have <strong>" + credits + "</strong> prior session" + (credits === 1 ? "" : "s") + " credited" +
-              (lastCredit ? " (most recent " + lastCredit.session_date + ")." : ".")
+              (lastCredit ? " (most recent " + lastCredit.scheduled_date + ")." : ".")
             : "";
         status.innerHTML =
             "<strong class='today-missed'>This session ended without credit.</strong> " +
