@@ -17,22 +17,22 @@
   <div class="sub" id="sub"><a href="/analytics.html">Analytics &rarr;</a></div>
 
   <div id="login" class="login">
-    <p style="margin:0 0 12px;color:var(--fg2,#666);">Enter your admin email and we'll send you a login link — no token needed.</p>
+    <p style="margin:0 0 12px;color:var(--adm-muted);">Enter your admin email and we'll send you a login link — no token needed.</p>
     <form id="login-form" style="display:flex;flex-direction:column;gap:8px;max-width:340px;">
-      <input type="email" id="admin-email" placeholder="admin@example.com" required autocomplete="email" style="padding:8px;border:1px solid var(--border,#ccc);border-radius:4px;font-size:1rem;">
+      <input type="email" id="admin-email" placeholder="admin@example.com" required autocomplete="email" style="padding:8px;border:1px solid var(--adm-border);border-radius:4px;font-size:1rem;background:var(--adm-card);color:var(--adm-fg);">
       <div class="cf-turnstile" data-sitekey="0x4AAAAAAC9lHHxbfTKNzdFN" data-theme="auto"></div>
       <button type="submit">Send login link</button>
     </form>
     <div id="login-err" class="err" hidden></div>
     <div id="login-ok" hidden>
-      <p style="color:var(--ok-fg,#16a34a);font-weight:600;">Check your inbox!</p>
+      <p style="color:var(--adm-ok);font-weight:600;">Check your inbox!</p>
       <p class="muted">If that email is an admin account, we sent a login link. It expires in 15 minutes.</p>
     </div>
   </div>
 
   <div id="app" style="display:none;">
     <button class="refresh" id="refresh">Refresh</button>
-    <button class="refresh" id="signout" style="margin-left:8px;background:transparent;border:1px solid var(--border,#ccc);color:var(--fg2,#999);">Sign out</button>
+    <button class="refresh" id="signout" style="margin-left:8px;background:transparent;border:1px solid var(--adm-border);color:var(--adm-muted);">Sign out</button>
     <label class="auto-refresh-wrap"><input type="checkbox" id="auto-refresh"> Auto-refresh (30s)</label>
     <span class="muted" id="ts" style="margin-left:10px;font-size:12px;"></span>
     <div id="err"></div>
@@ -72,7 +72,7 @@
 
     <div class="section-h">Appeals <span class="muted" id="appeals-count-badge"></span></div>
     <div style="margin-bottom:8px;">
-      <select id="appeals-state-filter" style="background:#111820;color:#e5ecf2;border:1px solid #2a3644;padding:4px 8px;border-radius:4px;font-size:12px;">
+      <select id="appeals-state-filter" style="background:var(--adm-card);color:var(--adm-fg);border:1px solid var(--adm-border);padding:4px 8px;border-radius:4px;font-size:12px;">
         <option value="open">Open</option>
         <option value="granted">Granted</option>
         <option value="denied">Denied</option>

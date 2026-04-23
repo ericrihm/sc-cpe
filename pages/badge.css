@@ -1,0 +1,29 @@
+.badge-wrap { text-align: center; margin: 2rem 0; }
+.badge-wrap img { max-width: 100%; height: auto; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,0.18); }
+.share-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin: 1.5rem 0; }
+.share-row a, .share-row button {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 10px 18px; min-height: 44px; font-size: 14px; font-weight: 600;
+    border-radius: 6px; text-decoration: none; cursor: pointer;
+    touch-action: manipulation;
+}
+.btn-linkedin { background: #0077b5; color: #fff; border: 0; }
+.btn-linkedin:hover { background: #005e93; filter: none; }
+.btn-x { background: #000; color: #fff; border: 0; }
+.btn-x:hover { background: #333; filter: none; }
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin: 1.5rem 0; }
+.stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; text-align: center; }
+.stat-val { font-size: 2rem; font-weight: 700; color: var(--fg-strong); }
+.stat-label { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+.badge-verified { text-align: center; font-size: 12px; color: var(--muted); }
+
+@media (prefers-color-scheme: dark) {
+    .badge-wrap img {
+        box-shadow: 0 4px 24px rgba(0,0,0,0.4), 0 0 20px rgba(124, 195, 255, 0.08);
+    }
+    .stat-card:hover {
+        border-color: rgba(124, 195, 255, 0.2);
+        box-shadow: 0 0 10px rgba(124, 195, 255, 0.06);
+    }
+}
