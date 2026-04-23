@@ -27,6 +27,7 @@ CREATE TABLE users (
     CHECK (state IN ('pending_verification','active','inactive','banned','deleted','expired')),
     show_on_leaderboard   INTEGER NOT NULL DEFAULT 0,
     badge_token           TEXT,
+    discord_user_id       TEXT,
     CHECK (legal_name_attested IN (0,1)),
     CHECK (age_attested_13plus IN (0,1)),
     CHECK (show_on_leaderboard IN (0,1))
@@ -36,6 +37,7 @@ CREATE UNIQUE INDEX users_channel_unique ON users(yt_channel_id) WHERE yt_channe
 CREATE UNIQUE INDEX users_code_unique ON users(verification_code) WHERE verification_code IS NOT NULL;
 CREATE UNIQUE INDEX users_dashboard_token_unique ON users(dashboard_token);
 CREATE UNIQUE INDEX users_badge_token_unique ON users(badge_token) WHERE badge_token IS NOT NULL;
+CREATE UNIQUE INDEX users_discord_unique ON users(discord_user_id) WHERE discord_user_id IS NOT NULL AND state = 'active';
 
 -- Livestream sessions. One row per YouTube video (not per calendar date).
 CREATE TABLE streams (
