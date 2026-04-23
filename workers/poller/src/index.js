@@ -196,7 +196,7 @@ async function pollOnePage(env, session, now) {
 
     let data;
     try {
-        data = await ytGet(`${YT}/liveChatMessages?${params}`, token);
+        data = await ytGet(`${YT}/liveChat/messages?${params}`, token);
     } catch (err) {
         const msg = String(err && err.message || err);
         const is403or404 = msg.includes(" 403") || msg.includes(" 404");
