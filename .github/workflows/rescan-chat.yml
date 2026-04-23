@@ -1,19 +1,25 @@
 name: rescan-chat
 
-# Retries attendance crediting for streams the live poller missed, using
-# YouTube's chat replay. Runs daily at 16:00 UTC (after all shows end)
-# and can be triggered manually for a specific video.
+# Retries attendance crediting for streams the live poller missed.
+# Primary mode: Discord (reads #live-chat channel history).
+# Fallback mode: YouTube (requires chat replay enabled by channel owner).
 #
-# Requires the channel owner to have chat replay enabled in YouTube Studio
-# (Settings → Community → Defaults → Live chat replay).
+# Runs daily at 16:00 UTC (after all shows end).
 
 on:
   schedule:
     - cron: "0 16 * * *"
   workflow_dispatch:
     inputs:
+      mode:
+        description: "Source: discord (default) or youtube"
+        required: false
+        default: "discord"
       video_id:
         description: "YouTube video ID to rescan (blank = all flagged)"
+        required: false
+      date:
+        description: "Specific date to rescan (YYYY-MM-DD)"
         required: false
       dry_run:
         description: "Dry run (no writes)"
@@ -29,13 +35,15 @@ permissions:
 
 jobs:
   rescan:
-    name: Rescan chat replays
+    name: Rescan chat
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+      DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+      DISCORD_CHANNEL_ID: ${{ secrets.DISCORD_CHANNEL_ID }}
     steps:
       - uses: actions/checkout@v4
 
@@ -44,13 +52,17 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install chat-downloader requests
+        run: pip install requests chat-downloader
 
       - name: Run rescan
         run: |
-          ARGS=""
+          MODE="${{ inputs.mode || 'discord' }}"
+          ARGS="--${MODE}"
           if [ -n "${{ inputs.video_id }}" ]; then
-            ARGS="--video-id ${{ inputs.video_id }}"
+            ARGS="$ARGS --video-id ${{ inputs.video_id }}"
+          fi
+          if [ -n "${{ inputs.date }}" ]; then
+            ARGS="$ARGS --date ${{ inputs.date }}"
           fi
           if [ "${{ inputs.dry_run }}" = "true" ]; then
             ARGS="$ARGS --dry-run"
