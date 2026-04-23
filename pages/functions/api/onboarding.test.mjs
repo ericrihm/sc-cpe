@@ -559,6 +559,37 @@ test("resend-code: already active user with linked channel → 409", async () =>
     assert.equal(j.error, "already_verified");
 });
 
+test("resend-code: active user without YouTube channel → 200 issues code", async () => {
+    let updateCalled = false;
+    const db = mockDB([
+        {
+            match: /FROM users WHERE dashboard_token.*deleted_at IS NULL/s,
+            handler: () => ({ first: { id: FAKE_ULID, email: "alice@example.com",
+                legal_name: "Alice", state: "active", dashboard_token: FAKE_TOKEN,
+                yt_channel_id: null } }),
+        },
+        {
+            match: /FROM users WHERE verification_code/,
+            handler: () => ({ first: null }),
+        },
+        {
+            match: /UPDATE users SET verification_code/,
+            handler: () => { updateCalled = true; return { run: { meta: {} } }; },
+        },
+        emailOutboxRule,
+        ...auditRules,
+    ]);
+    const r = await resendPost({
+        params: { token: SHORT_TOKEN },
+        env: { DB: db, RATE_KV: kvPermissive },
+        request: req(`${BASE}/api/me/${SHORT_TOKEN}/resend-code`),
+    });
+    assert.equal(r.status, 200);
+    const j = await r.json();
+    assert.equal(j.ok, true);
+    assert.ok(updateCalled, "should have issued a new verification code");
+});
+
 test("resend-code: pending user → 200 issues new code", async () => {
     let updateCalled = false;
     const db = mockDB([
