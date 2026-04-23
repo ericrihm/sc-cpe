@@ -1,23 +1,31 @@
 #!/usr/bin/env python3
-"""Rescan YouTube chat replays for streams the live poller missed.
+"""Rescan chat for streams the live poller missed.
 
-Pulls chat replay via chat_downloader (no auth needed), then applies the
-same code-matching and attendance-crediting logic the poller uses. Writes
-hash-chained audit entries so the chain stays unbroken.
+Two modes:
+  --discord   Read Discord #live-chat channel (primary — no YouTube dependency)
+  --youtube   Read YouTube chat replay via chat_downloader (fallback)
+
+Discord mode uses the Discord HTTP API with a user or bot token.
+YouTube mode requires chat replay to be enabled on the channel.
 
 Usage:
-  # Rescan all flagged streams with 0 messages from the last 7 days:
-  python scripts/rescan_chat.py
+  # Discord rescan — all flagged streams from the last 7 days:
+  python scripts/rescan_chat.py --discord
 
-  # Rescan a specific video:
-  python scripts/rescan_chat.py --video-id J2lEmJCwcoQ
+  # Discord rescan — specific date:
+  python scripts/rescan_chat.py --discord --date 2026-04-22
+
+  # YouTube rescan (fallback):
+  python scripts/rescan_chat.py --youtube --video-id J2lEmJCwcoQ
 
 Environment:
   CLOUDFLARE_API_TOKEN   CF API token with D1 edit permission
   CLOUDFLARE_ACCOUNT_ID  CF account ID
-  D1_DATABASE_ID         Production D1 database ID (default: from wrangler.toml)
+  D1_DATABASE_ID         Production D1 database ID
+  DISCORD_TOKEN          Discord user or bot token
+  DISCORD_CHANNEL_ID     Discord #live-chat channel ID
 
-Requires: pip install chat-downloader
+Requires: pip install requests (+ chat-downloader for --youtube mode)
 """
 
 import argparse
@@ -32,17 +40,6 @@ import datetime as dt
 from typing import Any
 
 try:
-    from chat_downloader import ChatDownloader
-    from chat_downloader.errors import (
-        NoChatReplay,
-        VideoUnavailable,
-        ParsingError,
-    )
-except ImportError:
-    print("ERROR: pip install chat-downloader", file=sys.stderr)
-    sys.exit(1)
-
-try:
     import requests
 except ImportError:
     print("ERROR: pip install requests", file=sys.stderr)
@@ -53,6 +50,7 @@ CODE_RE = re.compile(
 )
 DEFAULT_DB_ID = "28218db6-6f35-4bfb-85cd-abd2881b6049"
 CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+DISCORD_EPOCH_MS = 1420070400000
 _AUDIT_FIELDS = (
     "id", "actor_type", "actor_id", "action",
     "entity_type", "entity_id",
@@ -61,6 +59,8 @@ _AUDIT_FIELDS = (
     "ts", "prev_hash",
 )
 
+
+# ── Shared utilities ────────────────────────────────────────────────────
 
 def new_ulid() -> str:
     ts_ms = int(time.time() * 1000) & ((1 << 48) - 1)
@@ -88,6 +88,34 @@ def canonical_audit_row(r: dict[str, Any]) -> str:
         ensure_ascii=False,
     )
 
+
+def iso_to_ms(iso: str) -> int:
+    return int(dt.datetime.fromisoformat(
+        iso.replace("Z", "+00:00")
+    ).timestamp() * 1000)
+
+
+_discord_col_cache: bool | None = None
+
+def _has_discord_column(d1: D1Client) -> bool:
+    global _discord_col_cache
+    if _discord_col_cache is not None:
+        return _discord_col_cache
+    try:
+        d1.query("SELECT discord_user_id FROM users LIMIT 0")
+        _discord_col_cache = True
+    except D1Error:
+        _discord_col_cache = False
+    return _discord_col_cache
+
+
+def passes_message_filter(text: str, min_len: int) -> bool:
+    if len(text) < min_len:
+        return False
+    return bool(re.search(r"[\w]", text, re.UNICODE))
+
+
+# ── D1 client ───────────────────────────────────────────────────────────
 
 class D1Error(RuntimeError):
     pass
@@ -160,13 +188,80 @@ def load_rule(d1: D1Client) -> dict:
     }
 
 
-def passes_message_filter(text: str, min_len: int) -> bool:
-    if len(text) < min_len:
-        return False
-    return bool(re.search(r"[\w]", text, re.UNICODE))
+# ── Discord API ─────────────────────────────────────────────────────────
+
+def snowflake_from_dt(d: dt.datetime) -> str:
+    ms = int(d.timestamp() * 1000) - DISCORD_EPOCH_MS
+    return str(ms << 22)
 
 
-def download_chat(video_id: str) -> list[dict]:
+def snowflake_to_dt(sf: str) -> dt.datetime:
+    ms = (int(sf) >> 22) + DISCORD_EPOCH_MS
+    return dt.datetime.fromtimestamp(ms / 1000, tz=dt.timezone.utc)
+
+
+def discord_get(sess: requests.Session, path: str, token: str) -> Any:
+    headers = {"Authorization": token, "Content-Type": "application/json"}
+    for attempt in range(5):
+        resp = sess.get(f"https://discord.com/api/v10{path}",
+                        headers=headers, timeout=15)
+        if resp.status_code == 429:
+            retry = resp.json().get("retry_after", 5)
+            print(f"  [rate-limited] waiting {retry}s...")
+            time.sleep(retry + 0.5)
+            continue
+        if resp.status_code >= 400:
+            raise RuntimeError(f"Discord {resp.status_code}: {resp.text[:200]}")
+        return resp.json()
+    raise RuntimeError("Discord rate limit exceeded after 5 retries")
+
+
+def download_discord_chat(sess: requests.Session, token: str,
+                          channel_id: str,
+                          window_start: dt.datetime,
+                          window_end: dt.datetime) -> list[dict]:
+    after_sf = snowflake_from_dt(window_start)
+    end_sf = int(snowflake_from_dt(window_end))
+    messages = []
+    while True:
+        path = (f"/channels/{channel_id}/messages"
+                f"?after={after_sf}&limit=100")
+        batch = discord_get(sess, path, token)
+        if not batch:
+            break
+        batch.sort(key=lambda m: int(m["id"]))
+        for m in batch:
+            if int(m["id"]) > end_sf:
+                return messages
+            messages.append({
+                "id": f"discord:{m['id']}",
+                "text": m.get("content", ""),
+                "channel_id": m["author"]["id"],
+                "display_name": (m["author"].get("global_name")
+                                 or m["author"].get("username", "?")),
+                "published_at": int(
+                    dt.datetime.fromisoformat(
+                        m["timestamp"].replace("+00:00", "+00:00")
+                    ).timestamp() * 1000
+                ),
+                "source": "discord",
+            })
+        after_sf = batch[-1]["id"]
+        time.sleep(0.5)
+    return messages
+
+
+# ── YouTube chat replay ─────────────────────────────────────────────────
+
+def download_youtube_chat(video_id: str) -> list[dict]:
+    try:
+        from chat_downloader import ChatDownloader
+        from chat_downloader.errors import NoChatReplay, VideoUnavailable, ParsingError
+    except ImportError:
+        print("ERROR: pip install chat-downloader (needed for --youtube mode)",
+              file=sys.stderr)
+        sys.exit(1)
+
     url = f"https://www.youtube.com/watch?v={video_id}"
     chat = ChatDownloader().get_chat(url, message_groups=["messages"])
     messages = []
@@ -177,59 +272,57 @@ def download_chat(video_id: str) -> list[dict]:
             "channel_id": msg.get("author", {}).get("id", ""),
             "display_name": msg.get("author", {}).get("name", ""),
             "published_at": msg.get("timestamp"),
-            "time_text": msg.get("time_text", ""),
+            "source": "youtube",
         })
     return messages
 
 
-def rescan_stream(d1: D1Client, stream: dict, dry_run: bool = False) -> dict:
-    video_id = stream["yt_video_id"]
+# ── Core rescan logic ───────────────────────────────────────────────────
+
+def rescan_stream(d1: D1Client, stream: dict, messages: list[dict],
+                  dry_run: bool = False, source: str = "youtube") -> dict:
     stream_id = stream["id"]
     actual_start = stream.get("actual_start_at")
-    print(f"\n{'='*60}")
-    print(f"Rescanning: {video_id} ({stream.get('title', '?')})")
-    print(f"  Stream ID: {stream_id}")
-    print(f"  Start: {actual_start}")
-    print(f"  Current state: {stream['state']}, msgs: {stream['messages_scanned']}")
-
-    try:
-        messages = download_chat(video_id)
-    except (NoChatReplay, VideoUnavailable, ParsingError) as e:
-        print(f"  SKIP: {type(e).__name__}: {e}")
-        return {"status": "skip", "reason": str(e)}
-    except Exception as e:
-        print(f"  ERROR: {e}")
-        return {"status": "error", "reason": str(e)}
-
-    print(f"  Downloaded {len(messages)} chat messages")
-    if not messages:
-        return {"status": "empty", "messages": 0}
 
     rule = load_rule(d1)
 
-    start_ms = None
     window_open_ms = None
     if actual_start:
-        start_ms = int(dt.datetime.fromisoformat(
-            actual_start.replace("Z", "+00:00")
-        ).timestamp() * 1000)
+        start_ms = iso_to_ms(actual_start)
         window_open_ms = start_ms - rule["pre_start_grace_min"] * 60_000
 
-    # Load users with active verification codes
-    code_users = d1.query(
-        "SELECT id, verification_code, code_expires_at, state, yt_channel_id "
-        "FROM users WHERE verification_code IS NOT NULL AND deleted_at IS NULL"
-    )
+    has_discord_col = _has_discord_column(d1)
+
+    if has_discord_col:
+        code_users = d1.query(
+            "SELECT id, verification_code, code_expires_at, state, "
+            "yt_channel_id, discord_user_id "
+            "FROM users WHERE verification_code IS NOT NULL AND deleted_at IS NULL"
+        )
+    else:
+        code_users = d1.query(
+            "SELECT id, verification_code, code_expires_at, state, yt_channel_id "
+            "FROM users WHERE verification_code IS NOT NULL AND deleted_at IS NULL"
+        )
     code_map = {u["verification_code"]: u for u in code_users}
 
-    # Load active users with linked channels for attendance
-    active_users = d1.query(
-        "SELECT id, yt_channel_id FROM users "
-        "WHERE state = 'active' AND yt_channel_id IS NOT NULL AND deleted_at IS NULL"
-    )
-    channel_to_user = {u["yt_channel_id"]: u["id"] for u in active_users}
+    if source == "discord" and has_discord_col:
+        active_users = d1.query(
+            "SELECT id, discord_user_id FROM users "
+            "WHERE state = 'active' AND discord_user_id IS NOT NULL "
+            "AND deleted_at IS NULL"
+        )
+        id_to_user = {u["discord_user_id"]: u["id"] for u in active_users}
+    elif source == "discord":
+        id_to_user = {}
+    else:
+        active_users = d1.query(
+            "SELECT id, yt_channel_id FROM users "
+            "WHERE state = 'active' AND yt_channel_id IS NOT NULL "
+            "AND deleted_at IS NULL"
+        )
+        id_to_user = {u["yt_channel_id"]: u["id"] for u in active_users}
 
-    # Load existing attendance for this stream
     existing_att = d1.query(
         "SELECT user_id FROM attendance WHERE stream_id = ?", [stream_id]
     )
@@ -242,19 +335,21 @@ def rescan_stream(d1: D1Client, stream: dict, dry_run: bool = False) -> dict:
 
     for msg in messages:
         text = msg["text"].strip()
-        channel_id = msg["channel_id"]
-        msg_ts = msg.get("published_at")
-        msg_ms = msg_ts * 1000 if isinstance(msg_ts, (int, float)) else None
+        author_id = msg["channel_id"]
+        msg_ms = msg.get("published_at")
+        if isinstance(msg_ms, (int, float)) and msg_ms < 1e12:
+            msg_ms = msg_ms * 1000
 
         # --- Code matching ---
         match = CODE_RE.search(text)
-        if match and channel_id:
+        if match and author_id:
             code = (match.group(1) + match.group(2)).upper()
             user = code_map.get(code)
             if user:
                 needs_link = (
                     user["state"] == "pending_verification"
-                    or (user["state"] == "active" and not user["yt_channel_id"])
+                    or (user["state"] == "active" and not user.get("yt_channel_id")
+                        and not user.get("discord_user_id"))
                 )
                 if needs_link:
                     expires = dt.datetime.fromisoformat(
@@ -264,40 +359,62 @@ def rescan_stream(d1: D1Client, stream: dict, dry_run: bool = False) -> dict:
                         if window_open_ms and msg_ms and msg_ms < window_open_ms:
                             print(f"  Code {code}: outside window, skipping")
                         elif not dry_run:
-                            d1.execute(
-                                "UPDATE users SET yt_channel_id = ?, "
-                                "yt_display_name_seen = ?, state = 'active', "
-                                "verification_code = NULL, "
-                                "verified_at = COALESCE(verified_at, ?) "
-                                "WHERE id = ?",
-                                [channel_id, msg["display_name"],
-                                 now_iso_str, user["id"]],
-                            )
+                            if source == "discord" and has_discord_col:
+                                d1.execute(
+                                    "UPDATE users SET discord_user_id = ?, "
+                                    "yt_display_name_seen = ?, state = 'active', "
+                                    "verification_code = NULL, "
+                                    "verified_at = COALESCE(verified_at, ?) "
+                                    "WHERE id = ?",
+                                    [author_id, msg["display_name"],
+                                     now_iso_str, user["id"]],
+                                )
+                            elif source == "discord":
+                                d1.execute(
+                                    "UPDATE users SET "
+                                    "yt_display_name_seen = ?, state = 'active', "
+                                    "verification_code = NULL, "
+                                    "verified_at = COALESCE(verified_at, ?) "
+                                    "WHERE id = ?",
+                                    [msg["display_name"],
+                                     now_iso_str, user["id"]],
+                                )
+                            else:
+                                d1.execute(
+                                    "UPDATE users SET yt_channel_id = ?, "
+                                    "yt_display_name_seen = ?, state = 'active', "
+                                    "verification_code = NULL, "
+                                    "verified_at = COALESCE(verified_at, ?) "
+                                    "WHERE id = ?",
+                                    [author_id, msg["display_name"],
+                                     now_iso_str, user["id"]],
+                                )
                             action = ("channel_linked" if user["state"] == "active"
                                       else "user_verified")
                             audit(d1, "rescan", None, action, "user", user["id"],
-                                  {"state": user["state"],
-                                   "yt_channel_id": user["yt_channel_id"]},
-                                  {"state": "active", "yt_channel_id": channel_id,
-                                   "stream_id": stream_id})
-                            # Also add to channel_to_user for attendance
-                            channel_to_user[channel_id] = user["id"]
+                                  {"state": user["state"]},
+                                  {"state": "active",
+                                   "discord_user_id" if source == "discord"
+                                   else "yt_channel_id": author_id,
+                                   "stream_id": stream_id,
+                                   "source": source})
+                            id_to_user[author_id] = user["id"]
                             already_credited.discard(user["id"])
                             del code_map[code]
                             codes_linked += 1
-                            print(f"  LINKED: {code} -> {msg['display_name']} ({channel_id})")
+                            print(f"  LINKED: {code} -> {msg['display_name']} ({author_id})")
                     else:
                         print(f"  Code {code}: expired")
 
         # --- Attendance ---
-        if not channel_id or channel_id not in channel_to_user:
+        if not author_id or author_id not in id_to_user:
             continue
         if not passes_message_filter(text, rule["min_msg_len"]):
             continue
         if window_open_ms and msg_ms and msg_ms < window_open_ms:
             continue
 
-        user_id = channel_to_user[channel_id]
+        user_id = id_to_user[author_id]
         if user_id in already_credited:
             continue
 
@@ -305,10 +422,9 @@ def rescan_stream(d1: D1Client, stream: dict, dry_run: bool = False) -> dict:
         msg_id = msg.get("id") or f"rescan-{new_ulid()}"
 
         published_iso = now_iso_str
-        if isinstance(msg_ts, (int, float)):
+        if isinstance(msg_ms, (int, float)):
             published_iso = dt.datetime.fromtimestamp(
-                msg_ts / 1000 if msg_ts > 1e12 else msg_ts,
-                tz=dt.timezone.utc,
+                msg_ms / 1000, tz=dt.timezone.utc,
             ).strftime("%Y-%m-%dT%H:%M:%SZ")
 
         if not dry_run:
@@ -325,21 +441,18 @@ def rescan_stream(d1: D1Client, stream: dict, dry_run: bool = False) -> dict:
                 attendance_credited += 1
                 already_credited.add(user_id)
                 audit(d1, "rescan", None, "attendance_credited", "user", user_id,
-                      None, {"stream_id": stream_id, "earned_cpe": rule["cpe_per_day"],
-                             "source": "rescan"})
+                      None, {"stream_id": stream_id,
+                             "earned_cpe": rule["cpe_per_day"],
+                             "source": f"rescan_{source}"})
                 print(f"  ATTENDANCE: {user_id} credited {rule['cpe_per_day']} CPE")
             except D1Error:
-                pass  # INSERT OR IGNORE handles duplicates
+                pass
 
-    # Update stream
     if not dry_run and (codes_linked > 0 or attendance_credited > 0 or len(messages) > 0):
         d1.execute(
-            "UPDATE streams SET state = 'rescanned', "
-            "messages_scanned = ?, distinct_attendees = ? WHERE id = ?",
-            [len(messages), attendance_credited + len(already_credited) - attendance_credited,
-             stream_id],
+            "UPDATE streams SET state = 'rescanned', messages_scanned = ? WHERE id = ?",
+            [len(messages), stream_id],
         )
-        # Simpler: just count total attendance for this stream
         att_count = d1.query(
             "SELECT COUNT(*) as n FROM attendance WHERE stream_id = ?", [stream_id]
         )
@@ -349,7 +462,8 @@ def rescan_stream(d1: D1Client, stream: dict, dry_run: bool = False) -> dict:
         )
         audit(d1, "rescan", None, "stream_rescanned", "stream", stream_id,
               None, {"messages": len(messages), "codes_linked": codes_linked,
-                     "attendance_credited": attendance_credited})
+                     "attendance_credited": attendance_credited,
+                     "source": source})
 
     result = {
         "status": "ok",
@@ -361,19 +475,113 @@ def rescan_stream(d1: D1Client, stream: dict, dry_run: bool = False) -> dict:
     return result
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Rescan YouTube chat replays")
-    parser.add_argument("--video-id", help="Rescan a specific video")
-    parser.add_argument("--days", type=int, default=7,
-                        help="Look back N days for flagged streams (default 7)")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="Print what would happen without writing to D1")
-    args = parser.parse_args()
+# ── Discord rescan entry point ──────────────────────────────────────────
 
+def rescan_discord(d1: D1Client, discord_token: str, channel_id: str,
+                   streams: list[dict], dry_run: bool = False) -> list[dict]:
+    sess = requests.Session()
+    rule = load_rule(d1)
+    grace_min = rule["pre_start_grace_min"]
+    results = []
+
+    for stream in streams:
+        video_id = stream["yt_video_id"]
+        stream_id = stream["id"]
+        actual_start = stream.get("actual_start_at")
+        scheduled = stream.get("scheduled_date")
+
+        print(f"\n{'='*60}")
+        print(f"Rescanning via Discord: {video_id}")
+        print(f"  Stream ID: {stream_id}")
+        print(f"  Date: {scheduled}, Start: {actual_start}")
+        print(f"  Current state: {stream['state']}, msgs: {stream['messages_scanned']}")
+
+        if actual_start:
+            start = dt.datetime.fromisoformat(actual_start.replace("Z", "+00:00"))
+        elif scheduled:
+            y, m, d = map(int, scheduled.split("-"))
+            start = dt.datetime(y, m, d, 12, 0, tzinfo=dt.timezone.utc)
+        else:
+            print("  SKIP: no start time or date")
+            results.append({"video_id": video_id, "status": "skip",
+                            "reason": "no start time"})
+            continue
+
+        window_start = start - dt.timedelta(minutes=grace_min)
+        window_end = start + dt.timedelta(hours=3, minutes=grace_min)
+        print(f"  Window: {window_start.strftime('%H:%M')} – "
+              f"{window_end.strftime('%H:%M')} UTC")
+
+        try:
+            messages = download_discord_chat(
+                sess, discord_token, channel_id, window_start, window_end)
+        except Exception as e:
+            print(f"  ERROR: {e}")
+            results.append({"video_id": video_id, "status": "error",
+                            "reason": str(e)})
+            continue
+
+        print(f"  Downloaded {len(messages)} Discord messages")
+        if not messages:
+            results.append({"video_id": video_id, "status": "empty",
+                            "messages": 0})
+            continue
+
+        r = rescan_stream(d1, stream, messages, dry_run=dry_run, source="discord")
+        results.append({"video_id": video_id, **r})
+
+    return results
+
+
+# ── YouTube rescan entry point ──────────────────────────────────────────
+
+def rescan_youtube(d1: D1Client, streams: list[dict],
+                   dry_run: bool = False) -> list[dict]:
+    try:
+        from chat_downloader.errors import NoChatReplay, VideoUnavailable, ParsingError
+    except ImportError:
+        print("ERROR: pip install chat-downloader", file=sys.stderr)
+        sys.exit(1)
+
+    results = []
+    for stream in streams:
+        video_id = stream["yt_video_id"]
+        print(f"\n{'='*60}")
+        print(f"Rescanning via YouTube: {video_id} ({stream.get('title', '?')})")
+        print(f"  Stream ID: {stream['id']}")
+        print(f"  Start: {stream.get('actual_start_at')}")
+        print(f"  Current state: {stream['state']}, msgs: {stream['messages_scanned']}")
+
+        try:
+            messages = download_youtube_chat(video_id)
+        except (NoChatReplay, VideoUnavailable, ParsingError) as e:
+            print(f"  SKIP: {type(e).__name__}: {e}")
+            results.append({"video_id": video_id, "status": "skip",
+                            "reason": str(e)})
+            continue
+        except Exception as e:
+            print(f"  ERROR: {e}")
+            results.append({"video_id": video_id, "status": "error",
+                            "reason": str(e)})
+            continue
+
+        print(f"  Downloaded {len(messages)} chat messages")
+        if not messages:
+            results.append({"video_id": video_id, "status": "empty",
+                            "messages": 0})
+            continue
+
+        r = rescan_stream(d1, stream, messages, dry_run=dry_run, source="youtube")
+        results.append({"video_id": video_id, **r})
+
+    return results
+
+
+# ── Main ────────────────────────────────────────────────────────────────
+
+def load_env():
     api_token = os.environ.get("CLOUDFLARE_API_TOKEN", "")
     account_id = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "")
-    db_id = os.environ.get("D1_DATABASE_ID", DEFAULT_DB_ID)
-
     if not api_token or not account_id:
         env_file = os.path.expanduser("~/.cloudflare/grc-eng.env")
         if os.path.isfile(env_file):
@@ -389,42 +597,124 @@ def main():
                             api_token = v
                         elif k == "CLOUDFLARE_ACCOUNT_ID" and not account_id:
                             account_id = v
+    return api_token, account_id
+
+
+def load_discord_token() -> str:
+    token = os.environ.get("DISCORD_TOKEN", "")
+    if not token:
+        token_file = os.path.expanduser("~/.discord-token")
+        if os.path.isfile(token_file):
+            with open(token_file) as f:
+                token = f.read().strip()
+    return token
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Rescan chat for missed attendance (Discord or YouTube)")
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--discord", action="store_true",
+                      help="Rescan from Discord #live-chat channel")
+    mode.add_argument("--youtube", action="store_true",
+                      help="Rescan from YouTube chat replay")
+    parser.add_argument("--video-id", help="Rescan a specific YouTube video")
+    parser.add_argument("--date", help="Rescan a specific date (YYYY-MM-DD)")
+    parser.add_argument("--days", type=int, default=7,
+                        help="Look back N days for flagged streams (default 7)")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="Print what would happen without writing to D1")
+    args = parser.parse_args()
+
+    api_token, account_id = load_env()
+    db_id = os.environ.get("D1_DATABASE_ID", DEFAULT_DB_ID)
 
     if not api_token or not account_id:
-        print("ERROR: Set CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID", file=sys.stderr)
+        print("ERROR: Set CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID",
+              file=sys.stderr)
         sys.exit(1)
 
     d1 = D1Client(account_id, db_id, api_token)
 
-    if args.video_id:
-        streams = d1.query(
-            "SELECT id, yt_video_id, title, actual_start_at, state, "
-            "messages_scanned, distinct_attendees FROM streams "
-            "WHERE yt_video_id = ?", [args.video_id]
-        )
-    else:
-        cutoff = (dt.datetime.now(dt.timezone.utc)
-                  - dt.timedelta(days=args.days)).strftime("%Y-%m-%dT%H:%M:%SZ")
-        streams = d1.query(
-            "SELECT id, yt_video_id, title, actual_start_at, state, "
-            "messages_scanned, distinct_attendees FROM streams "
-            "WHERE state IN ('flagged', 'complete') "
-            "AND messages_scanned = 0 "
-            "AND yt_video_id NOT LIKE 'discord%' "
-            "AND yt_video_id NOT LIKE 'TEST%' "
-            "AND created_at > ?",
-            [cutoff],
-        )
+    if args.discord:
+        discord_token = load_discord_token()
+        channel_id = os.environ.get("DISCORD_CHANNEL_ID", "")
+        if not discord_token:
+            print("ERROR: Set DISCORD_TOKEN or create ~/.discord-token",
+                  file=sys.stderr)
+            sys.exit(1)
+        if not channel_id:
+            print("ERROR: Set DISCORD_CHANNEL_ID", file=sys.stderr)
+            sys.exit(1)
 
-    if not streams:
-        print("No streams to rescan.")
-        return
+        if args.date:
+            streams = d1.query(
+                "SELECT id, yt_video_id, title, actual_start_at, scheduled_date, "
+                "state, messages_scanned FROM streams "
+                "WHERE scheduled_date = ? AND yt_video_id NOT LIKE 'discord%'",
+                [args.date],
+            )
+            if not streams:
+                streams = d1.query(
+                    "SELECT id, yt_video_id, title, actual_start_at, "
+                    "scheduled_date, state, messages_scanned FROM streams "
+                    "WHERE yt_video_id = ?",
+                    [f"discord-backfill-{args.date}"],
+                )
+        elif args.video_id:
+            streams = d1.query(
+                "SELECT id, yt_video_id, title, actual_start_at, scheduled_date, "
+                "state, messages_scanned FROM streams WHERE yt_video_id = ?",
+                [args.video_id],
+            )
+        else:
+            cutoff = (dt.datetime.now(dt.timezone.utc)
+                      - dt.timedelta(days=args.days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            streams = d1.query(
+                "SELECT id, yt_video_id, title, actual_start_at, scheduled_date, "
+                "state, messages_scanned FROM streams "
+                "WHERE state IN ('flagged', 'complete') "
+                "AND messages_scanned = 0 "
+                "AND yt_video_id NOT LIKE 'TEST%' "
+                "AND created_at > ?",
+                [cutoff],
+            )
 
-    print(f"Found {len(streams)} stream(s) to rescan")
-    results = []
-    for s in streams:
-        r = rescan_stream(d1, s, dry_run=args.dry_run)
-        results.append({"video_id": s["yt_video_id"], **r})
+        if not streams:
+            print("No streams to rescan.")
+            return
+
+        print(f"Found {len(streams)} stream(s) to rescan via Discord")
+        results = rescan_discord(d1, discord_token, channel_id, streams,
+                                 dry_run=args.dry_run)
+
+    else:  # --youtube
+        if args.video_id:
+            streams = d1.query(
+                "SELECT id, yt_video_id, title, actual_start_at, scheduled_date, "
+                "state, messages_scanned FROM streams WHERE yt_video_id = ?",
+                [args.video_id],
+            )
+        else:
+            cutoff = (dt.datetime.now(dt.timezone.utc)
+                      - dt.timedelta(days=args.days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            streams = d1.query(
+                "SELECT id, yt_video_id, title, actual_start_at, scheduled_date, "
+                "state, messages_scanned FROM streams "
+                "WHERE state IN ('flagged', 'complete') "
+                "AND messages_scanned = 0 "
+                "AND yt_video_id NOT LIKE 'discord%' "
+                "AND yt_video_id NOT LIKE 'TEST%' "
+                "AND created_at > ?",
+                [cutoff],
+            )
+
+        if not streams:
+            print("No streams to rescan.")
+            return
+
+        print(f"Found {len(streams)} stream(s) to rescan via YouTube")
+        results = rescan_youtube(d1, streams, dry_run=args.dry_run)
 
     print(f"\n{'='*60}")
     print("Summary:")
@@ -440,7 +730,7 @@ def main():
                  f"{r.get('attendance_credited',0)} attendance"
                  if r["status"] == "ok" else f" — {r.get('reason','')}"))
 
-    if total_skip == len(results):
+    if total_skip == len(results) and args.youtube:
         print("\nAll streams skipped. Chat replay may be disabled in YouTube Studio.")
         print("Channel owner: Settings → Community → Defaults → Live chat replay")
 
@@ -448,7 +738,9 @@ def main():
 if __name__ == "__main__":
     import io
     if hasattr(sys.stdout, "buffer"):
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
+                                      errors="replace")
     if hasattr(sys.stderr, "buffer"):
-        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8",
+                                      errors="replace")
     main()
