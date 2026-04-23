@@ -184,6 +184,69 @@ dd.small { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-siz
 }
 a { color: var(--accent); }
 
+/* ── Page title gradient (inner pages) ────────────────── */
+
+main.narrow > h1 {
+    background: linear-gradient(135deg, var(--accent), light-dark(#0b3d5c, #5ba3df));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+main.narrow > h1 a {
+    -webkit-text-fill-color: inherit;
+    text-decoration: none;
+}
+main.narrow > h1 a:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-color: var(--accent);
+}
+
+/* ── Section headers (reusable) ───────────────────────── */
+
+.section-label {
+    text-align: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: light-dark(#0b3d5c, #f4d66a);
+    margin-bottom: 0.5rem;
+}
+.section-title {
+    text-align: center;
+    font-size: clamp(1.4rem, 3vw, 1.75rem);
+    font-weight: 700;
+    margin: 0 0 2rem;
+    line-height: 1.2;
+}
+
+/* ── Footer ───────────────────────────────────────────── */
+
+.site-footer {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 2rem 0;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.5rem;
+    justify-content: center;
+    font-size: 0.85rem;
+}
+.site-footer a {
+    color: var(--muted);
+    text-decoration: none;
+}
+.site-footer a:hover {
+    color: var(--accent);
+}
+.site-footer a:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+
 .theme-toggle {
     position: fixed;
     top: 10px;
@@ -208,4 +271,25 @@ a { color: var(--accent); }
 .theme-toggle:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
+}
+
+/* ── Dark mode cyberpunk accents (site-wide) ──────────── */
+
+@media (prefers-color-scheme: dark) {
+    main.narrow > h1 {
+        text-shadow: 0 0 30px rgba(124, 195, 255, 0.1);
+    }
+    .card {
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .card:hover {
+        border-color: rgba(124, 195, 255, 0.15);
+        box-shadow: 0 0 12px rgba(124, 195, 255, 0.04);
+    }
+    button:hover {
+        box-shadow: 0 0 12px rgba(124, 195, 255, 0.15);
+    }
+    .site-footer {
+        border-image: linear-gradient(90deg, transparent, rgba(124, 195, 255, 0.12), transparent) 1;
+    }
 }

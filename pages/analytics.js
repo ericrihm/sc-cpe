@@ -43,19 +43,26 @@ async function fetchJson(path) {
     return r.json();
 }
 
+function cssVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
 function makeChart(canvasId, type, labels, datasets) {
     if (charts[canvasId]) charts[canvasId].destroy();
     var ctx = document.getElementById(canvasId);
+    var muted = cssVar("--adm-muted");
+    var dim = cssVar("--adm-muted-dim");
+    var row = cssVar("--adm-border-row");
     charts[canvasId] = new Chart(ctx, {
         type: type,
         data: { labels: labels, datasets: datasets },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { display: datasets.length > 1, labels: { color: "#95a4b3", font: { size: 11 } } } },
+            plugins: { legend: { display: datasets.length > 1, labels: { color: muted, font: { size: 11 } } } },
             scales: {
-                x: { ticks: { color: "#6b7a8a", font: { size: 10 } }, grid: { color: "#1e2833" } },
-                y: { beginAtZero: true, ticks: { color: "#6b7a8a", font: { size: 10 } }, grid: { color: "#1e2833" } },
+                x: { ticks: { color: dim, font: { size: 10 } }, grid: { color: row } },
+                y: { beginAtZero: true, ticks: { color: dim, font: { size: 10 } }, grid: { color: row } },
             },
         },
     });

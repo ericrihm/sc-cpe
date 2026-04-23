@@ -61,14 +61,14 @@ export async function onRequestPost({ request, env }) {
     const email = (body.email || "").trim().toLowerCase();
     const legalName = (body.legal_name || "").trim();
     const legalAttested = !!body.legal_name_attested;
-    const ageAttested = !!body.age_attested_13plus;
+    const tosAccepted = !!body.tos;
     const tosVersion = (body.tos_version || "v1").slice(0, 20);
     const turnstileToken = body.turnstile_token;
 
     if (!isValidEmail(email)) return json({ error: "invalid_email" }, 400);
     if (!isValidName(legalName)) return json({ error: "invalid_name" }, 400);
     if (!legalAttested) return json({ error: "legal_name_attestation_required" }, 400);
-    if (!ageAttested) return json({ error: "age_attestation_required" }, 400);
+    if (!tosAccepted) return json({ error: "tos_required" }, 400);
 
     const captcha = await verifyTurnstile(env, turnstileToken, clientIp(request));
     if (!captcha.ok) return json({ error: "captcha_failed", detail: captcha.reason }, 403);
