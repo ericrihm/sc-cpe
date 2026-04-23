@@ -21,6 +21,15 @@
 .lb-cpe { font-weight: 700; color: var(--fg-strong); }
 .lb-sessions { color: var(--muted); font-size: 13px; }
 .lb-empty { text-align: center; color: var(--muted); padding: 3rem 1rem; }
+@media (max-width: 640px) {
+    .lb-table { display: block; }
+    .lb-table thead { display: none; }
+    .lb-table tbody { display: block; }
+    .lb-table tr { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .lb-table td { display: inline; padding: 0; border-bottom: none; font-size: 14px; }
+    .lb-rank { width: auto; text-align: left; }
+    .lb-rank::after { content: "."; }
+}
 </style>
 </head>
 <body>

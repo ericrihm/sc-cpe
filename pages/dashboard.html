@@ -22,14 +22,14 @@
             <label>
                 Email
                 <input name="email" type="email" required maxlength="254" autocomplete="email"
-                       style="width:100%;padding:8px;margin:6px 0 12px;border:1px solid var(--border,#ccc);border-radius:4px;font-size:1rem;">
+                       style="width:100%;padding:8px;margin:6px 0 12px;border:1px solid var(--border);border-radius:4px;font-size:1rem;">
             </label>
             <div class="cf-turnstile" data-sitekey="0x4AAAAAAC9lHHxbfTKNzdFN" data-theme="auto"></div>
             <button type="submit" style="margin-top:8px;">Send me my dashboard link</button>
         </form>
         <div id="login-err" class="err" hidden></div>
         <div id="login-ok" hidden>
-            <p style="color:var(--ok-fg,#16a34a);font-weight:600;">Check your inbox!</p>
+            <p style="color:var(--ok-soft-text);font-weight:600;">Check your inbox!</p>
             <p>We sent a link to <strong id="login-ok-email"></strong>. It should arrive within a minute or two.</p>
             <p class="muted">Check spam too if you don't see it.</p>
         </div>
