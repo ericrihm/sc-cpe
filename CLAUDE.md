@@ -36,11 +36,13 @@ db/
 scripts/              smoke, schema check, audit verifier, tests
   backup_d1.sh        weekly D1 export
   get_oauth_token.mjs YouTube OAuth token setup helper
+  rescan_chat.py      chat replay rescan for missed attendance (needs chat_downloader)
 .github/workflows/    CI: ci.yml (tests+gitleaks), smoke.yml (hourly),
                       watchdog.yml, monthly-certs.yml (bundled sweep),
                       cert-sign-pending.yml (2h pending-cert pickup),
                       schema-drift.yml (weekly D1 vs schema.sql),
-                      backup.yml (weekly D1 backup)
+                      backup.yml (weekly D1 backup),
+                      rescan-chat.yml (daily chat replay rescan)
 .githooks/pre-push    runs scripts/test.sh before push
 docs/DESIGN.md        architecture decisions
 docs/PITCH.md         Simply Cyber team pitch
@@ -258,8 +260,18 @@ ADMIN_TOKEN="$(tr -d '\n' < ~/.cloudflare/sc-cpe-admin-token)" \
   extracts URLs from host/mod chat; purge worker enriches with titles
   daily. Public page at `/links.html`, API at `/api/links`.
 - Poller had zero messages scanned for Apr 15-21 streams (all flagged).
-  No raw chat in R2 for those dates; links archive starts from first
-  show after 2026-04-22 deploy.
+  Root cause was three stacked bugs: wrong API URL (`/liveChatMessages`
+  vs `/liveChat/messages`), silent OAuth-to-API-key fallback (API key
+  can't read liveChatMessages), and expired OAuth refresh token. All
+  three fixed 2026-04-23 and deployed. No raw chat in R2 for those
+  dates; links archive starts from first show after 2026-04-22 deploy.
+- **Chat replay rescan** (`scripts/rescan_chat.py`) uses `chat_downloader`
+  to pull chat replays from ended streams and retroactively credit
+  attendance. Workflow: `.github/workflows/rescan-chat.yml` (daily 16:00
+  UTC + manual). **Blocker:** Simply Cyber channel currently has chat
+  replay disabled — all 6 flagged streams return "Live chat replay is
+  not available." Gerald must enable it in YouTube Studio → Settings →
+  Community → Defaults → Live chat replay for this to work.
 - **Admin attendance window check was sign-inverted** — fixed 2026-04-22.
   `admin/attendance.js:81` had `startMs + grace` (rejected pre-stream
   evidence, accepted post-stream). Corrected to `startMs - grace` to
