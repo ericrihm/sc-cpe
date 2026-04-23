@@ -1,0 +1,28 @@
+.lb-period { color: var(--muted); font-size: 14px; margin-bottom: 1rem; }
+.lb-table { width: 100%; border-collapse: collapse; }
+.lb-table th { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-weight: 600; padding: 8px 10px; border-bottom: 2px solid var(--border-strong); }
+.lb-table td { padding: 10px; border-bottom: 1px solid var(--border); font-size: 15px; }
+.lb-rank { font-weight: 700; color: var(--fg-strong); width: 40px; text-align: center; }
+.lb-rank-1 { color: #d4a73a; font-size: 18px; }
+.lb-rank-2 { color: #95a4b3; font-size: 17px; }
+.lb-rank-3 { color: #b87333; font-size: 17px; }
+.lb-name { font-weight: 600; }
+.lb-cpe { font-weight: 700; color: var(--fg-strong); }
+.lb-sessions { color: var(--muted); font-size: 13px; }
+.lb-empty { text-align: center; color: var(--muted); padding: 3rem 1rem; }
+
+@media (max-width: 640px) {
+    .lb-table { display: block; }
+    .lb-table thead { display: none; }
+    .lb-table tbody { display: block; }
+    .lb-table tr { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .lb-table td { display: inline; padding: 0; border-bottom: none; font-size: 14px; }
+    .lb-rank { width: auto; text-align: left; }
+    .lb-rank::after { content: "."; }
+}
+
+.lb-disclaimer { margin-top: 1rem; font-size: 12px; }
+
+@media (prefers-color-scheme: dark) {
+    .lb-rank-1 { text-shadow: 0 0 8px rgba(212, 167, 58, 0.3); }
+}

@@ -6,3 +6,4 @@
           color: var(--neutral-soft-text);
           padding: 12px 16px; border-radius: 4px; margin: 8px 0;
           font-family: ui-sans-serif, system-ui, sans-serif; }
+.faq-footer-note { margin-top: 32px; font-size: 12px; }

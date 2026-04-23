@@ -21,15 +21,15 @@
   </div>
 
   <div id="login" class="login">
-    <p style="margin:0 0 12px;color:var(--fg2,#666);">Enter your admin email and we'll send you a login link — no token needed.</p>
+    <p style="margin:0 0 12px;color:var(--adm-muted);">Enter your admin email and we'll send you a login link — no token needed.</p>
     <form id="login-form" style="display:flex;flex-direction:column;gap:8px;max-width:340px;">
-      <input type="email" id="admin-email" placeholder="admin@example.com" required autocomplete="email" style="padding:8px;border:1px solid var(--border,#ccc);border-radius:4px;font-size:1rem;">
+      <input type="email" id="admin-email" placeholder="admin@example.com" required autocomplete="email" style="padding:8px;border:1px solid var(--adm-border);border-radius:4px;font-size:1rem;background:var(--adm-card);color:var(--adm-fg);">
       <div class="cf-turnstile" data-sitekey="0x4AAAAAAC9lHHxbfTKNzdFN" data-theme="auto"></div>
       <button type="submit">Send login link</button>
     </form>
     <div id="login-err" class="err" hidden></div>
     <div id="login-ok" hidden>
-      <p style="color:var(--ok-fg,#16a34a);font-weight:600;">Check your inbox!</p>
+      <p style="color:var(--adm-ok);font-weight:600;">Check your inbox!</p>
       <p class="muted">If that email is an admin account, we sent a login link. It expires in 15 minutes.</p>
     </div>
   </div>
@@ -41,7 +41,7 @@
       <button class="range-btn" data-range="90d">90d</button>
       <button class="range-btn" data-range="all">All</button>
       <span class="muted" id="ts" style="margin-left:auto;font-size:12px;"></span>
-      <button class="refresh" id="signout" style="background:transparent;border:1px solid var(--border,#ccc);color:var(--fg2,#999);">Sign out</button>
+      <button class="refresh" id="signout" style="background:transparent;border:1px solid var(--adm-border);color:var(--adm-muted);">Sign out</button>
     </div>
     <div id="err"></div>
 
