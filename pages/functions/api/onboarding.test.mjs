@@ -81,7 +81,7 @@ test("register: kill switch set → 503", async () => {
         request: new Request(`${BASE}/api/register`, {
             method: "POST",
             body: JSON.stringify({ email: "a@example.com", legal_name: "A B",
-                legal_name_attested: true, age_attested_13plus: true }),
+                legal_name_attested: true, tos: true }),
         }),
     });
     assert.equal(r.status, 503);
@@ -107,7 +107,7 @@ test("register: invalid email returns 400", async () => {
         request: new Request(`${BASE}/api/register`, {
             method: "POST",
             body: JSON.stringify({ email: "not-an-email", legal_name: "Alice Smith",
-                legal_name_attested: true, age_attested_13plus: true }),
+                legal_name_attested: true, tos: true }),
         }),
     });
     assert.equal(r.status, 400);
@@ -121,7 +121,7 @@ test("register: invalid name returns 400", async () => {
         request: new Request(`${BASE}/api/register`, {
             method: "POST",
             body: JSON.stringify({ email: "alice@example.com", legal_name: "X",
-                legal_name_attested: true, age_attested_13plus: true }),
+                legal_name_attested: true, tos: true }),
         }),
     });
     assert.equal(r.status, 400);
@@ -135,7 +135,7 @@ test("register: missing attestation returns 400", async () => {
         request: new Request(`${BASE}/api/register`, {
             method: "POST",
             body: JSON.stringify({ email: "alice@example.com", legal_name: "Alice Smith",
-                legal_name_attested: false, age_attested_13plus: true }),
+                legal_name_attested: false, tos: true }),
         }),
     });
     assert.equal(r.status, 400);
@@ -155,7 +155,7 @@ test("register: existing active user → 409 without token", async () => {
         request: new Request(`${BASE}/api/register`, {
             method: "POST",
             body: JSON.stringify({ email: "alice@example.com", legal_name: "Alice Smith",
-                legal_name_attested: true, age_attested_13plus: true }),
+                legal_name_attested: true, tos: true }),
         }),
     });
     assert.equal(r.status, 409);
@@ -188,7 +188,7 @@ test("register: new user → 200 must NOT leak dashboard_token or verification_c
         request: new Request(`${BASE}/api/register`, {
             method: "POST",
             body: JSON.stringify({ email: "alice@example.com", legal_name: "Alice Smith",
-                legal_name_attested: true, age_attested_13plus: true }),
+                legal_name_attested: true, tos: true }),
         }),
     });
     assert.equal(r.status, 200);
@@ -214,7 +214,7 @@ test("register: rate limit trips when KV reports 10 prior hits this hour", async
         request: new Request(`${BASE}/api/register`, {
             method: "POST",
             body: JSON.stringify({ email: "alice@example.com", legal_name: "Alice Smith",
-                legal_name_attested: true, age_attested_13plus: true }),
+                legal_name_attested: true, tos: true }),
         }),
     });
     assert.equal(r.status, 429);
@@ -245,7 +245,7 @@ test("register: existing pending user re-registers → 200 must NOT leak dashboa
         request: new Request(`${BASE}/api/register`, {
             method: "POST",
             body: JSON.stringify({ email: "alice@example.com", legal_name: "Alice Smith",
-                legal_name_attested: true, age_attested_13plus: true }),
+                legal_name_attested: true, tos: true }),
         }),
     });
     assert.equal(r.status, 200);

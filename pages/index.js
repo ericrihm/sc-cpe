@@ -18,7 +18,7 @@ var ERROR_COPY = {
     invalid_email: "That email address doesn\u2019t look right.",
     invalid_name: "Legal name must be 2\u2013100 letters.",
     legal_name_attestation_required: "Please tick the legal-name attestation.",
-    age_attestation_required: "You must confirm you are 13 or older.",
+    tos_required: "Please accept the Terms of Service and Privacy Policy.",
     captcha_failed: "Anti-bot challenge failed \u2014 please try again.",
     already_registered: "That email is already registered.",
     invalid_json: "Something went wrong submitting the form.",
@@ -43,7 +43,7 @@ document.getElementById("f").addEventListener("submit", async function (e) {
         email: fd.get("email"),
         legal_name: fd.get("legal_name"),
         legal_name_attested: fd.get("legal_name_attested") === "on",
-        age_attested_13plus: fd.get("age_attested_13plus") === "on",
+        tos: fd.get("tos") === "on",
         tos_version: "v1",
         turnstile_token: turnstileToken,
     };

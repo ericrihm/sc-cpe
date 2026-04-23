@@ -3,8 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>SC-CPE — Register for CPE Credits</title>
+<title>SC-CPE — Verifiable CPE Credits for Simply Cyber</title>
+<meta name="description" content="Earn 0.5 CPE credit for every Simply Cyber Daily Threat Briefing you attend. Cryptographically signed certificates, hash-chained audit trail, zero manual tracking.">
 <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/landing.css">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <meta name="theme-color" content="#0b3d5c">
 <meta name="color-scheme" content="light dark">
@@ -12,62 +14,116 @@
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 <body>
-<main class="narrow">
-    <h1>Simply Cyber CPE Registration</h1>
-    <p class="lead">Earn 0.5 CPE credit for each Daily Threat Briefing you attend live, weekdays. Post at least one message in the YouTube live chat during the briefing and you're counted.</p>
+<main class="landing">
 
-    <form id="f">
-        <label>
-            Legal name (must match your professional certifications)
-            <input name="legal_name" required minlength="2" maxlength="100" autocomplete="name">
-        </label>
-        <label>
-            Email
-            <input name="email" type="email" required maxlength="254" autocomplete="email">
-        </label>
-        <label class="check">
-            <input type="checkbox" name="legal_name_attested" required>
-            <span>I certify the name above is my legal name and matches the name on my professional certifications.</span>
-        </label>
-        <label class="check">
-            <input type="checkbox" name="age_attested_13plus" required>
-            <span>I am 13 years of age or older.</span>
-        </label>
-        <label class="check">
-            <input type="checkbox" name="tos" required>
-            <span>I accept the <a href="/terms.html">Terms of Service</a> and <a href="/privacy.html">Privacy Policy</a>.</span>
-        </label>
-        <div class="cf-turnstile" data-sitekey="0x4AAAAAAC9lHHxbfTKNzdFN" data-theme="auto"></div>
-        <button type="submit">Register</button>
-    </form>
-
-    <div id="err" class="err" hidden></div>
-
-    <section id="ok" hidden>
-        <h2>Check your email</h2>
-        <p>We sent your verification code and dashboard link to the address you entered. Email typically arrives within a few minutes; during launch-period bursts it may take longer. If nothing has landed after 10 minutes, check <a href="/status.html">/status.html</a> for current email-delivery health and check spam.</p>
-        <p>Your code expires: <span id="expires"></span></p>
-        <p class="muted">We deliberately don't show the code here: possession of your inbox is the only way to activate the account, so a bot that knows your address can't register on your behalf.</p>
+    <!-- Hero -->
+    <section class="hero">
+        <h1 class="hero-title">Earn CPE credits by showing up.</h1>
+        <p class="hero-sub">Daily briefing: post in chat, earn <strong class="hero-accent">0.5 CPE</strong> per session, and get cryptographically signed certificates.</p>
+        <div class="hero-ctas">
+            <a href="#register" class="hero-cta">Get started free &darr;</a>
+            <a href="/verify.html" class="hero-cta-ghost">Verify a real cert &rarr;</a>
+        </div>
+        <p class="hero-proof">200+ sessions tracked &middot; digitally signed PDFs &middot; independently verifiable</p>
     </section>
 
-    <div id="return-card" class="card" hidden style="border-left:4px solid var(--accent);margin-top:1.5rem;">
-        <p style="margin:0;font-size:14px;">
-            Welcome back, <strong id="return-name"></strong>.
-            <a href="/dashboard" style="margin-left:6px;">Go to my dashboard</a>
+    <!-- Trust strip -->
+    <div class="trust-strip">Trusted by professionals holding CISSP &middot; CISM &middot; Security+ &middot; CEH &middot; CISA certifications</div>
+
+    <!-- How It Works -->
+    <section class="how-section">
+        <div class="section-label">How It Works</div>
+        <h2 class="section-title">Three steps. Zero paperwork.</h2>
+        <div class="how-steps">
+            <div class="how-step">
+                <div class="step-icon">1</div>
+                <div class="step-body">
+                    <div class="step-title">Register</div>
+                    <div class="step-desc">Legal name and email. Takes 30 seconds. Your name must match your professional certifications.</div>
+                </div>
+            </div>
+            <div class="how-step">
+                <div class="step-icon">2</div>
+                <div class="step-body">
+                    <div class="step-title">Watch &amp; Chat</div>
+                    <div class="step-desc">Post your code in live chat. Detected automatically — no spreadsheets, no logging. Every record is <strong>hash-chained</strong> for tamper-proof verification.</div>
+                </div>
+            </div>
+            <div class="how-step">
+                <div class="step-icon">3</div>
+                <div class="step-body">
+                    <div class="step-title">Get Certified</div>
+                    <div class="step-desc"><strong>PAdES-T signed PDF</strong> arrives by email — verifiable offline, years from now. Track your streak on the <a href="/leaderboard.html">leaderboard</a> and share your <a href="/badge.html">badge</a> on LinkedIn.</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Proof callout -->
+    <aside class="proof-callout">
+        <p>Every certificate is <a href="/verify.html">publicly verifiable</a> — by employers, auditors, ISACA, ISC2, CompTIA — without an API key, an account, or a phone call.</p>
+    </aside>
+
+    <!-- Registration form -->
+    <div class="register-section" id="register">
+        <div class="section-label">Get Started</div>
+        <h2 class="section-title">Register in 30 seconds.</h2>
+
+        <div id="return-card" class="card return-card" hidden>
+            <p>
+                Welcome back, <strong id="return-name"></strong>.
+                <a href="/dashboard">Go to my dashboard</a>
+            </p>
+        </div>
+
+        <div class="register-card">
+            <form id="f">
+                <label>
+                    Legal name (must match your professional certifications)
+                    <input name="legal_name" required minlength="2" maxlength="100" autocomplete="name" placeholder="Jane Smith">
+                </label>
+                <label>
+                    Email
+                    <input name="email" type="email" required maxlength="254" autocomplete="email" placeholder="jane@example.com">
+                </label>
+                <label class="check">
+                    <input type="checkbox" name="legal_name_attested" required>
+                    <span>I certify the name above is my legal name and matches the name on my professional certifications.</span>
+                </label>
+                <label class="check">
+                    <input type="checkbox" name="tos" required>
+                    <span>I accept the <a href="/terms.html">Terms of Service</a> and <a href="/privacy.html">Privacy Policy</a> and confirm I am 13 or older.</span>
+                </label>
+                <div class="cf-turnstile" data-sitekey="0x4AAAAAAC9lHHxbfTKNzdFN" data-theme="auto"></div>
+                <button type="submit">Register</button>
+            </form>
+
+            <div id="err" class="err" hidden></div>
+
+            <section id="ok" hidden>
+                <h2>Check your email</h2>
+                <p>We sent your verification code and dashboard link to <strong>your email</strong>.</p>
+                <p class="muted">Usually arrives in a few minutes. Check spam if needed.</p>
+                <p>Your code expires: <span id="expires"></span></p>
+            </section>
+        </div>
+
+        <p class="login-prompt">
+            Already registered? <a href="/dashboard.html">Sign in to your dashboard</a>
         </p>
     </div>
 
-    <p class="muted" style="margin-top:2rem;font-size:0.9rem;">
-        Already registered? <a href="/dashboard.html">Sign in to your dashboard</a>
-    </p>
-    <p class="muted" style="font-size:0.85rem;">
+    <!-- Footer -->
+    <footer class="landing-footer">
         <a href="/faq.html">FAQ</a>
-        · <a href="/leaderboard.html">Leaderboard</a>
-        · <a href="/links.html">Show Links</a>
-        · <a href="/status.html">Status</a>
-        · <a href="/verify.html">Verify a cert</a><br>
-        <a href="/terms.html">Terms</a> &amp; <a href="/privacy.html">Privacy</a>
-    </p>
+        <a href="/leaderboard.html">Leaderboard</a>
+        <a href="/links.html">Show Links</a>
+        <a href="/status.html">Status</a>
+        <a href="/verify.html">Verify a cert</a>
+        <a href="/terms.html">Terms</a>
+        <a href="/privacy.html">Privacy</a>
+    </footer>
+
 </main>
 <script src="/index.js"></script>
 </body>
