@@ -48,6 +48,8 @@ except ImportError:
 CODE_RE = re.compile(
     r"SC-CPE[-{]([0-9A-HJKMNP-TV-Z]{4})-?([0-9A-HJKMNP-TV-Z]{4})\}?", re.I
 )
+RESTREAM_RE = re.compile(r"^\[YouTube:\s*(@?\S+)\]\s*(.*)", re.DOTALL)
+RESTREAM_BOT_ID = "491614535812120596"
 DEFAULT_DB_ID = "28218db6-6f35-4bfb-85cd-abd2881b6049"
 CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 DISCORD_EPOCH_MS = 1420070400000
@@ -233,19 +235,32 @@ def download_discord_chat(sess: requests.Session, token: str,
         for m in batch:
             if int(m["id"]) > end_sf:
                 return messages
-            messages.append({
-                "id": f"discord:{m['id']}",
-                "text": m.get("content", ""),
-                "channel_id": m["author"]["id"],
-                "display_name": (m["author"].get("global_name")
-                                 or m["author"].get("username", "?")),
-                "published_at": int(
-                    dt.datetime.fromisoformat(
-                        m["timestamp"].replace("+00:00", "+00:00")
-                    ).timestamp() * 1000
-                ),
-                "source": "discord",
-            })
+            content = m.get("content", "")
+            ts_ms = int(
+                dt.datetime.fromisoformat(m["timestamp"]).timestamp() * 1000
+            )
+            restream = RESTREAM_RE.match(content)
+            if m["author"]["id"] == RESTREAM_BOT_ID and restream:
+                yt_handle = restream.group(1)
+                actual_text = restream.group(2)
+                messages.append({
+                    "id": f"discord:{m['id']}",
+                    "text": actual_text,
+                    "channel_id": yt_handle,
+                    "display_name": yt_handle,
+                    "published_at": ts_ms,
+                    "source": "restream",
+                })
+            else:
+                messages.append({
+                    "id": f"discord:{m['id']}",
+                    "text": content,
+                    "channel_id": m["author"]["id"],
+                    "display_name": (m["author"].get("global_name")
+                                     or m["author"].get("username", "?")),
+                    "published_at": ts_ms,
+                    "source": "discord",
+                })
         after_sf = batch[-1]["id"]
         time.sleep(0.5)
     return messages
@@ -306,22 +321,30 @@ def rescan_stream(d1: D1Client, stream: dict, messages: list[dict],
         )
     code_map = {u["verification_code"]: u for u in code_users}
 
+    active_users = d1.query(
+        "SELECT id, yt_channel_id, yt_display_name_seen FROM users "
+        "WHERE state = 'active' AND deleted_at IS NULL"
+    )
+    yt_channel_to_user = {u["yt_channel_id"]: u["id"]
+                          for u in active_users if u["yt_channel_id"]}
+    yt_name_to_user = {}
+    for u in active_users:
+        name = u.get("yt_display_name_seen")
+        if name:
+            yt_name_to_user[name] = u["id"]
+            yt_name_to_user[name.lstrip("@")] = u["id"]
+            if not name.startswith("@"):
+                yt_name_to_user[f"@{name}"] = u["id"]
+
+    discord_to_user: dict[str, str] = {}
     if source == "discord" and has_discord_col:
-        active_users = d1.query(
+        discord_users = d1.query(
             "SELECT id, discord_user_id FROM users "
             "WHERE state = 'active' AND discord_user_id IS NOT NULL "
             "AND deleted_at IS NULL"
         )
-        id_to_user = {u["discord_user_id"]: u["id"] for u in active_users}
-    elif source == "discord":
-        id_to_user = {}
-    else:
-        active_users = d1.query(
-            "SELECT id, yt_channel_id FROM users "
-            "WHERE state = 'active' AND yt_channel_id IS NOT NULL "
-            "AND deleted_at IS NULL"
-        )
-        id_to_user = {u["yt_channel_id"]: u["id"] for u in active_users}
+        discord_to_user = {u["discord_user_id"]: u["id"]
+                           for u in discord_users}
 
     existing_att = d1.query(
         "SELECT user_id FROM attendance WHERE stream_id = ?", [stream_id]
@@ -333,9 +356,21 @@ def rescan_stream(d1: D1Client, stream: dict, messages: list[dict],
     codes_linked = 0
     attendance_credited = 0
 
+    def resolve_user(msg: dict) -> str | None:
+        """Map a message to a user_id based on its source."""
+        ms = msg.get("source", source)
+        author = msg["channel_id"]
+        if ms == "restream":
+            return (yt_name_to_user.get(author)
+                    or yt_name_to_user.get(author.lstrip("@")))
+        if ms == "discord":
+            return discord_to_user.get(author)
+        return yt_channel_to_user.get(author)
+
     for msg in messages:
         text = msg["text"].strip()
         author_id = msg["channel_id"]
+        msg_source = msg.get("source", source)
         msg_ms = msg.get("published_at")
         if isinstance(msg_ms, (int, float)) and msg_ms < 1e12:
             msg_ms = msg_ms * 1000
@@ -359,7 +394,16 @@ def rescan_stream(d1: D1Client, stream: dict, messages: list[dict],
                         if window_open_ms and msg_ms and msg_ms < window_open_ms:
                             print(f"  Code {code}: outside window, skipping")
                         elif not dry_run:
-                            if source == "discord" and has_discord_col:
+                            if msg_source == "restream":
+                                d1.execute(
+                                    "UPDATE users SET "
+                                    "yt_display_name_seen = ?, state = 'active', "
+                                    "verification_code = NULL, "
+                                    "verified_at = COALESCE(verified_at, ?) "
+                                    "WHERE id = ?",
+                                    [author_id, now_iso_str, user["id"]],
+                                )
+                            elif msg_source == "discord" and has_discord_col:
                                 d1.execute(
                                     "UPDATE users SET discord_user_id = ?, "
                                     "yt_display_name_seen = ?, state = 'active', "
@@ -367,16 +411,6 @@ def rescan_stream(d1: D1Client, stream: dict, messages: list[dict],
                                     "verified_at = COALESCE(verified_at, ?) "
                                     "WHERE id = ?",
                                     [author_id, msg["display_name"],
-                                     now_iso_str, user["id"]],
-                                )
-                            elif source == "discord":
-                                d1.execute(
-                                    "UPDATE users SET "
-                                    "yt_display_name_seen = ?, state = 'active', "
-                                    "verification_code = NULL, "
-                                    "verified_at = COALESCE(verified_at, ?) "
-                                    "WHERE id = ?",
-                                    [msg["display_name"],
                                      now_iso_str, user["id"]],
                                 )
                             else:
@@ -394,11 +428,11 @@ def rescan_stream(d1: D1Client, stream: dict, messages: list[dict],
                             audit(d1, "cron", None, action, "user", user["id"],
                                   {"state": user["state"]},
                                   {"state": "active",
-                                   "discord_user_id" if source == "discord"
+                                   "yt_handle" if msg_source == "restream"
                                    else "yt_channel_id": author_id,
                                    "stream_id": stream_id,
-                                   "source": source})
-                            id_to_user[author_id] = user["id"]
+                                   "source": msg_source})
+                            yt_name_to_user[author_id] = user["id"]
                             already_credited.discard(user["id"])
                             del code_map[code]
                             codes_linked += 1
@@ -407,14 +441,13 @@ def rescan_stream(d1: D1Client, stream: dict, messages: list[dict],
                         print(f"  Code {code}: expired")
 
         # --- Attendance ---
-        if not author_id or author_id not in id_to_user:
+        user_id = resolve_user(msg)
+        if not user_id:
             continue
         if not passes_message_filter(text, rule["min_msg_len"]):
             continue
         if window_open_ms and msg_ms and msg_ms < window_open_ms:
             continue
-
-        user_id = id_to_user[author_id]
         if user_id in already_credited:
             continue
 
@@ -427,7 +460,13 @@ def rescan_stream(d1: D1Client, stream: dict, messages: list[dict],
                 msg_ms / 1000, tz=dt.timezone.utc,
             ).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        if not dry_run:
+        if dry_run:
+            attendance_credited += 1
+            already_credited.add(user_id)
+            print(f"  [DRY-RUN] ATTENDANCE: {user_id} would get "
+                  f"{rule['cpe_per_day']} CPE (via {msg.get('source', source)}, "
+                  f"name={msg.get('display_name')})")
+        else:
             try:
                 d1.execute(
                     "INSERT OR IGNORE INTO attendance "
