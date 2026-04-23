@@ -203,6 +203,11 @@ main.landing {
     color: var(--muted);
     line-height: 1.45;
 }
+.step-desc strong {
+    font-family: ui-monospace, 'Cascadia Code', 'Fira Code', monospace;
+    letter-spacing: -0.01em;
+    color: var(--accent);
+}
 .step-desc a {
     color: var(--accent);
 }
@@ -260,6 +265,31 @@ main.landing {
     font-size: 0.9rem;
     text-align: center;
     color: var(--muted);
+}
+
+/* ── Cyberpunk accents (dark mode only) ────────────────── */
+
+@media (prefers-color-scheme: dark) {
+    .hero {
+        background-image:
+            repeating-linear-gradient(0deg, transparent, transparent 49px, rgba(124, 195, 255, 0.03) 50px),
+            repeating-linear-gradient(90deg, transparent, transparent 49px, rgba(124, 195, 255, 0.03) 50px);
+    }
+    .hero-title {
+        text-shadow: 0 0 40px rgba(124, 195, 255, 0.15), 0 0 80px rgba(124, 195, 255, 0.05);
+    }
+    .hero-cta:hover {
+        box-shadow: 0 0 20px rgba(124, 195, 255, 0.25), 0 4px 16px rgba(124, 195, 255, 0.15);
+    }
+    .hero-cta-ghost:hover {
+        box-shadow: 0 0 15px rgba(124, 195, 255, 0.15), inset 0 0 15px rgba(124, 195, 255, 0.05);
+    }
+    .proof-callout {
+        background-image: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.03) 0px, rgba(0, 0, 0, 0.03) 1px, transparent 1px, transparent 3px);
+    }
+    .step-icon {
+        box-shadow: 0 0 12px rgba(124, 195, 255, 0.2), 0 2px 8px rgba(124, 195, 255, 0.15);
+    }
 }
 
 /* ── Responsive ────────────────────────────────────────── */
