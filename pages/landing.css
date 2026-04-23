@@ -135,22 +135,7 @@ main.landing {
     padding-top: 1rem;
 }
 
-.section-label {
-    text-align: center;
-    font-size: 0.75rem;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: light-dark(#0b3d5c, #f4d66a);
-    margin-bottom: 0.5rem;
-}
-.section-title {
-    text-align: center;
-    font-size: clamp(1.4rem, 3vw, 1.75rem);
-    font-weight: 700;
-    margin: 0 0 2rem;
-    line-height: 1.2;
-}
+/* .section-label and .section-title live in style.css */
 
 /* ── How It Works ──────────────────────────────────────── */
 
