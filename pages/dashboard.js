@@ -468,6 +468,9 @@ document.getElementById("link-resend-btn").addEventListener("click", async funct
         } else if (r.status === 429) {
             msg.textContent = "Too many requests \u2014 try again in an hour.";
             msg.style.color = "var(--bad-soft-text)";
+        } else if (r.status === 409) {
+            msg.textContent = "YouTube channel already linked — no code needed. Refresh the page.";
+            msg.style.color = "var(--ok-soft-text)";
         } else {
             msg.textContent = "Couldn\u2019t send code (" + r.status + ").";
             msg.style.color = "var(--bad-soft-text)";
