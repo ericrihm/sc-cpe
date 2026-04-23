@@ -63,12 +63,18 @@ export default {
     async scheduled(event, env, ctx) {
         const now = new Date();
         if (!inPollWindow(now, env).ok) return;
+        let authMethod = "none";
+        try {
+            const t = await getAccessToken(env);
+            authMethod = t ? "oauth" : "api_key";
+        } catch { authMethod = "api_key"; }
         try {
             await tick(env, now);
-            await heartbeat(env, "poller", "ok", { at: now.toISOString() });
+            await heartbeat(env, "poller", "ok", { at: now.toISOString(), auth_method: authMethod });
         } catch (err) {
             await heartbeat(env, "poller", "error", {
                 at: now.toISOString(),
+                auth_method: authMethod,
                 msg: String(err && err.message || err),
             });
             throw err;
@@ -169,15 +175,23 @@ const FINALIZE_ELAPSED_MIN = 90;
 
 async function pollOnePage(env, session, now) {
     let token;
+    let oauthError = null;
     try { token = await getAccessToken(env); }
-    catch (e) { console.error(`[poller] OAuth error in poll: ${e.message}`); token = null; }
-    const authParam = token ? "" : `&key=${env.YOUTUBE_API_KEY}`;
+    catch (e) { oauthError = e.message; token = null; }
+
+    // liveChatMessages.list requires OAuth — API key gets 404.
+    // Don't burn strikes on an auth problem; surface it clearly.
+    if (!token) {
+        const detail = { stream_id: session.stream_id, reason: oauthError || "no_oauth_secrets" };
+        await audit(env, "poller", null, "oauth_unavailable", "stream", session.stream_id, null, detail);
+        return;
+    }
+
     const params = new URLSearchParams({
         liveChatId: session.live_chat_id,
         part: "snippet,authorDetails",
         maxResults: "2000",
     });
-    if (!token) params.set("key", env.YOUTUBE_API_KEY);
     if (session.page_token) params.set("pageToken", session.page_token);
 
     let data;
@@ -204,7 +218,7 @@ async function pollOnePage(env, session, now) {
 
         let confirmedEnded = false;
         try {
-            const v = await ytGet(`${YT}/videos?part=liveStreamingDetails&id=${session.video_id}${authParam}`, token);
+            const v = await ytGet(`${YT}/videos?part=liveStreamingDetails&id=${session.video_id}`, token);
             const end = v?.items?.[0]?.liveStreamingDetails?.actualEndTime;
             if (end) confirmedEnded = true;
         } catch { /* treat as inconclusive */ }
