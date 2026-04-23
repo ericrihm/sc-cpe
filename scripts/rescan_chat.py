@@ -391,7 +391,7 @@ def rescan_stream(d1: D1Client, stream: dict, messages: list[dict],
                                 )
                             action = ("channel_linked" if user["state"] == "active"
                                       else "user_verified")
-                            audit(d1, "rescan", None, action, "user", user["id"],
+                            audit(d1, "cron", None, action, "user", user["id"],
                                   {"state": user["state"]},
                                   {"state": "active",
                                    "discord_user_id" if source == "discord"
@@ -440,7 +440,7 @@ def rescan_stream(d1: D1Client, stream: dict, messages: list[dict],
                 )
                 attendance_credited += 1
                 already_credited.add(user_id)
-                audit(d1, "rescan", None, "attendance_credited", "user", user_id,
+                audit(d1, "cron", None, "attendance_credited", "user", user_id,
                       None, {"stream_id": stream_id,
                              "earned_cpe": rule["cpe_per_day"],
                              "source": f"rescan_{source}"})
@@ -460,7 +460,7 @@ def rescan_stream(d1: D1Client, stream: dict, messages: list[dict],
             "UPDATE streams SET distinct_attendees = ? WHERE id = ?",
             [att_count[0]["n"] if att_count else 0, stream_id],
         )
-        audit(d1, "rescan", None, "stream_rescanned", "stream", stream_id,
+        audit(d1, "cron", None, "stream_rescanned", "stream", stream_id,
               None, {"messages": len(messages), "codes_linked": codes_linked,
                      "attendance_credited": attendance_credited,
                      "source": source})
