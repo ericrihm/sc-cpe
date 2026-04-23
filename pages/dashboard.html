@@ -50,7 +50,7 @@
         </div>
         <div class="card">
             <div class="skeleton skeleton-line medium"></div>
-            <div class="skeleton skeleton-grid" style="margin-top:10px;">
+            <div class="skeleton skeleton-grid">
                 <div class="skeleton skeleton-cell"></div><div class="skeleton skeleton-cell"></div>
                 <div class="skeleton skeleton-cell"></div><div class="skeleton skeleton-cell"></div>
                 <div class="skeleton skeleton-cell"></div><div class="skeleton skeleton-cell"></div>
@@ -244,7 +244,7 @@
                 <div class="renewal-bar-track"><div class="renewal-bar-fill" id="renewal-bar"></div></div>
                 <div class="renewal-deadline" id="renewal-deadline"></div>
                 <button type="button" class="renewal-edit-btn" id="renewal-edit-btn">Edit</button>
-                <button type="button" class="renewal-edit-btn" id="renewal-remove-btn" style="margin-left:8px;color:var(--bad-soft-text);">Remove</button>
+                <button type="button" class="renewal-edit-btn renewal-remove-btn" id="renewal-remove-btn">Remove</button>
             </div>
             <div id="renewal-setup">
                 <p class="muted rotate-desc">Track progress toward your certification renewal CPE requirement.</p>
@@ -256,7 +256,7 @@
                         <button type="submit">Save</button>
                         <button type="button" class="appeal-cancel" id="renewal-cancel-btn" hidden>Cancel</button>
                     </div>
-                    <span id="renewal-msg" class="muted" style="font-size:11px;" hidden></span>
+                    <span id="renewal-msg" class="muted prefs-hint" hidden></span>
                 </form>
             </div>
         </div>
