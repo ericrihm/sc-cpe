@@ -33,4 +33,6 @@ node --test \
     pages/functions/api/admin/audit-chain.test.mjs \
     pages/functions/api/admin/appeals.test.mjs \
     pages/functions/api/admin/revoke.test.mjs \
-    pages/functions/api/admin/cert-reissue.test.mjs
+    pages/functions/api/admin/cert-reissue.test.mjs \
+    pages/functions/_lib-security.test.mjs \
+    workers/email-sender/src/email-sender.test.mjs
