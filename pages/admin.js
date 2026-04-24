@@ -58,6 +58,7 @@ async function load() {
     renderWarnings(stats);
     renderStats(stats);
     renderToggles(toggles);
+    renderCronTriggers();
     if (supp) renderSuppression(supp);
     renderHeartbeats(hb);
     renderChain(chain, stats);
@@ -101,7 +102,7 @@ function renderToggles(d) {
     wrap.style.gap = "10px";
     wrap.style.minWidth = "240px";
     var label = document.createElement("div");
-    label.innerHTML = '<span class="k">/api/' + t.name + '</span><div class="v ' + (t.killed ? "stale" : "ok") + '" style="font-size:14px;">' + (t.killed ? "KILLED (503)" : "live") + '</div>';
+    label.innerHTML = '<span class="k">/api/' + escapeHtml(t.name) + '</span><div class="v ' + (t.killed ? "stale" : "ok") + '" style="font-size:14px;">' + (t.killed ? "KILLED (503)" : "live") + '</div>';
     var btn = document.createElement("button");
     btn.className = "refresh";
     btn.style.marginLeft = "auto";
@@ -128,6 +129,50 @@ function renderToggles(d) {
     })(t, btn);
     wrap.append(label, btn);
     box.appendChild(wrap);
+  }
+}
+function renderCronTriggers() {
+  var box = $("#cron-triggers");
+  if (!box || box.childNodes.length > 0) return;
+  var blocks = ["purge", "security_alerts", "weekly_digest", "cert_nudge", "link_enrichment", "all"];
+  var PURGE_URL = "https://sc-cpe-purge.ericrihm.workers.dev/";
+  for (var i = 0; i < blocks.length; i++) {
+    (function (block) {
+      var wrap = document.createElement("div");
+      wrap.className = "card";
+      wrap.style.cssText = "padding:10px 14px;display:flex;align-items:center;gap:10px;min-width:180px;";
+      var label = document.createElement("div");
+      var labelK = document.createElement("div");
+      labelK.className = "k";
+      labelK.textContent = block;
+      label.appendChild(labelK);
+      var btn = document.createElement("button");
+      btn.className = "refresh";
+      btn.style.cssText = "margin-left:auto;font-size:11px;padding:3px 10px;";
+      btn.textContent = "Run";
+      btn.addEventListener("click", async function () {
+        if (!confirm("Run " + block + " now?")) return;
+        btn.disabled = true;
+        btn.textContent = "running…";
+        try {
+          var r = await fetch(PURGE_URL + "?only=" + encodeURIComponent(block), {
+            method: "POST",
+            headers: { "Authorization": "Bearer " + TOKEN },
+          });
+          if (!r.ok) throw new Error("HTTP " + r.status);
+          btn.textContent = "done";
+          btn.style.color = "var(--adm-ok)";
+          setTimeout(function () { btn.textContent = "Run"; btn.style.color = ""; btn.disabled = false; }, 3000);
+        } catch (e) {
+          btn.textContent = "failed";
+          btn.title = e.message;
+          btn.style.color = "var(--adm-bad)";
+          setTimeout(function () { btn.textContent = "Run"; btn.style.color = ""; btn.disabled = false; }, 3000);
+        }
+      });
+      wrap.append(label, btn);
+      box.appendChild(wrap);
+    })(blocks[i]);
   }
 }
 function renderSuppression(d) {
@@ -547,6 +592,37 @@ function buildUserRow(u) {
         meta.appendChild(appSpan);
     }
 
+    var detail = document.createElement("div");
+    detail.className = "user-detail";
+    detail.style.cssText = "display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--adm-border);font-size:12px;";
+    var detailGrid = document.createElement("div");
+    detailGrid.style.cssText = "display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px 16px;";
+    var fields = [
+        ["Created", u.created_at], ["Verified", u.verified_at],
+        ["Email", u.email], ["Legal name", u.legal_name],
+        ["YT Channel", u.yt_channel_id], ["YT Display Name", u.yt_display_name_seen],
+        ["Suspended", u.suspended_at], ["Deleted", u.deleted_at],
+    ];
+    for (var fi = 0; fi < fields.length; fi++) {
+        var fd = document.createElement("div");
+        var fl = document.createElement("div");
+        fl.style.cssText = "color:var(--adm-muted-dim);font-size:10px;text-transform:uppercase;letter-spacing:0.06em;";
+        fl.textContent = fields[fi][0];
+        var fv = document.createElement("div");
+        fv.style.fontFamily = "monospace";
+        fv.style.wordBreak = "break-all";
+        fv.textContent = fields[fi][1] || "—";
+        fd.append(fl, fv);
+        detailGrid.appendChild(fd);
+    }
+    detail.appendChild(detailGrid);
+
+    var detailToggle = document.createElement("button");
+    detailToggle.className = "refresh detail-toggle-btn";
+    detailToggle.dataset.uid = u.id;
+    detailToggle.style.cssText = "font-size:11px;padding:3px 10px;background:transparent;border:1px solid var(--adm-border);color:var(--adm-muted);";
+    detailToggle.textContent = "Details";
+
     var actions = document.createElement("div");
     actions.className = "user-actions";
     var certsBtn = document.createElement("button");
@@ -565,13 +641,13 @@ function buildUserRow(u) {
     suspendBtn.dataset.suspended = u.suspended_at ? "1" : "";
     suspendBtn.style.cssText = "font-size:11px;padding:3px 10px;" + (u.suspended_at ? "" : "background:#5c1515;");
     suspendBtn.textContent = u.suspended_at ? "Unsuspend" : "Suspend";
-    actions.append(certsBtn, grantBtn, suspendBtn);
+    actions.append(certsBtn, grantBtn, suspendBtn, detailToggle);
 
     var expand = document.createElement("div");
     expand.className = "cert-expand";
     expand.id = "certs-" + u.id;
 
-    row.append(header, meta, actions, expand);
+    row.append(header, meta, actions, detail, expand);
     return row;
 }
 
@@ -647,6 +723,16 @@ function renderCertSubTable(container, certs) {
 var userResultsBox = $("#user-results");
 if (userResultsBox) {
     userResultsBox.addEventListener("click", async function (e) {
+        var detailBtn = e.target.closest(".detail-toggle-btn");
+        if (detailBtn) {
+            var detailEl = detailBtn.closest(".user-row").querySelector(".user-detail");
+            if (detailEl) {
+                var showing = detailEl.style.display !== "none";
+                detailEl.style.display = showing ? "none" : "";
+                detailBtn.textContent = showing ? "Details" : "Hide details";
+            }
+            return;
+        }
         var certsBtn = e.target.closest(".view-certs-btn");
         if (certsBtn && !certsBtn.disabled) {
             var uid = certsBtn.dataset.uid;
@@ -1040,6 +1126,128 @@ if (attendanceForm) {
         }
     });
 }
+async function loadStreams() {
+  var days = ($("#streams-days") || {}).value || "30";
+  var tb = $("#streams-table tbody");
+  var empty = $("#streams-empty");
+  if (tb) tb.textContent = "";
+  if (empty) empty.hidden = true;
+  try {
+    var data = await fetchJson("/api/admin/streams?days=" + days);
+    var streams = data.streams || [];
+    if (streams.length === 0) { if (empty) empty.hidden = false; return; }
+    for (var i = 0; i < streams.length; i++) {
+      var s = streams[i];
+      var tr = document.createElement("tr");
+      var tdDate = document.createElement("td"); tdDate.textContent = s.scheduled_date || "—";
+      var tdTitle = document.createElement("td");
+      if (s.yt_video_id) {
+        var a = document.createElement("a");
+        a.href = "https://www.youtube.com/watch?v=" + encodeURIComponent(s.yt_video_id);
+        a.target = "_blank"; a.rel = "noopener"; a.style.color = "#7cc3ff";
+        a.textContent = s.title || s.yt_video_id;
+        tdTitle.appendChild(a);
+      } else {
+        tdTitle.textContent = s.title || "—";
+      }
+      var tdState = document.createElement("td");
+      tdState.className = s.state === "ended" ? "ok" : (s.state === "live" ? "warn" : "muted");
+      tdState.textContent = s.state || "—";
+      var tdAtt = document.createElement("td"); tdAtt.textContent = s.attendance_count != null ? s.attendance_count : "—";
+      var tdStart = document.createElement("td"); tdStart.className = "muted"; tdStart.textContent = s.actual_start_at ? s.actual_start_at.slice(11, 19) : "—";
+      var tdEnd = document.createElement("td"); tdEnd.className = "muted"; tdEnd.textContent = s.actual_end_at ? s.actual_end_at.slice(11, 19) : "—";
+      tr.append(tdDate, tdTitle, tdState, tdAtt, tdStart, tdEnd);
+      tb.appendChild(tr);
+    }
+  } catch (e) {
+    if (tb) { var errTr = document.createElement("tr"); var errTd = document.createElement("td"); errTd.colSpan = 6; errTd.className = "stale"; errTd.textContent = e.message; errTr.appendChild(errTd); tb.appendChild(errTr); }
+  }
+}
+var streamsLoadBtn = $("#streams-load");
+if (streamsLoadBtn) streamsLoadBtn.addEventListener("click", loadStreams);
+async function loadAnalytics() {
+  var range = ($("#analytics-range") || {}).value || "30d";
+  var qs = "?range=" + range;
+  var sections = ["growth", "engagement", "certs", "system"];
+  for (var i = 0; i < sections.length; i++) {
+    var el = $("#analytics-" + sections[i]);
+    if (el) { el.textContent = ""; var p = document.createElement("p"); p.className = "muted"; p.style.fontSize = "12px"; p.textContent = "Loading…"; el.appendChild(p); }
+  }
+  try {
+    var results = await Promise.all([
+      fetchJson("/api/admin/analytics/growth" + qs),
+      fetchJson("/api/admin/analytics/engagement" + qs),
+      fetchJson("/api/admin/analytics/certs" + qs),
+      fetchJson("/api/admin/analytics/system" + qs),
+    ]);
+    renderAnalyticsSection("analytics-growth", "Growth", results[0].headlines, {
+      total_users: "Total users", active_users: "Active", verified_users: "Verified",
+      active_attenders_30d: "Active attenders (30d)", new_registrations: "New registrations",
+    }, results[0].series);
+    renderAnalyticsSection("analytics-engagement", "Engagement", results[1].headlines, {
+      avg_attendance_per_stream: "Avg attendance / stream",
+      total_cpe_awarded: "Total CPE awarded",
+      streams_with_zero_attendance: "Streams (0 attendance)",
+    }, results[1].series);
+    renderAnalyticsSection("analytics-certs", "Certificates", results[2].headlines, {
+      issued_this_period: "Issued (period)",
+      pending_now: "Pending now",
+      avg_delivery_seconds: "Avg delivery (s)",
+      view_rate_pct: "View rate %",
+    }, results[2].series);
+    renderAnalyticsSection("analytics-system", "System", results[3].headlines, {
+      email_success_rate_pct: "Email success %",
+      emails_sent: "Emails sent",
+      appeals_open: "Open appeals",
+      avg_appeal_resolution_seconds: "Avg appeal resolution (s)",
+    }, results[3].series);
+  } catch (e) {
+    var el = $("#analytics-growth");
+    if (el) { el.textContent = ""; var d = document.createElement("div"); d.className = "err"; d.textContent = e.message; el.appendChild(d); }
+  }
+}
+function renderAnalyticsSection(containerId, title, headlines, labels, series) {
+  var el = $("#" + containerId);
+  if (!el) return;
+  el.textContent = "";
+  var hdr = document.createElement("div");
+  hdr.style.cssText = "font-size:12px;font-weight:600;color:var(--adm-muted);margin-bottom:6px;";
+  hdr.textContent = title;
+  el.appendChild(hdr);
+  var grid = document.createElement("div");
+  grid.className = "grid";
+  var keys = Object.keys(labels);
+  for (var i = 0; i < keys.length; i++) {
+    var val = headlines[keys[i]];
+    grid.appendChild(card(labels[keys[i]], val != null ? escapeHtml(String(val)) : "—"));
+  }
+  el.appendChild(grid);
+  if (series && series.length > 0) {
+    var tbl = document.createElement("table");
+    tbl.style.fontSize = "12px";
+    var cols = Object.keys(series[0]);
+    var thead = document.createElement("thead");
+    var headTr = document.createElement("tr");
+    for (var c = 0; c < cols.length; c++) {
+      var th = document.createElement("th"); th.textContent = cols[c]; headTr.appendChild(th);
+    }
+    thead.appendChild(headTr);
+    tbl.appendChild(thead);
+    var tbody = document.createElement("tbody");
+    var limit = Math.min(series.length, 30);
+    for (var r = 0; r < limit; r++) {
+      var tr = document.createElement("tr");
+      for (var c = 0; c < cols.length; c++) {
+        var td = document.createElement("td"); td.textContent = String(series[r][cols[c]] ?? ""); tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    }
+    tbl.appendChild(tbody);
+    el.appendChild(tbl);
+  }
+}
+var analyticsLoadBtn = $("#analytics-load");
+if (analyticsLoadBtn) analyticsLoadBtn.addEventListener("click", loadAnalytics);
 (async function init() {
     try {
         var testR = await fetch("/api/admin/ops-stats", { credentials: "include" });

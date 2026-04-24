@@ -1,4 +1,4 @@
-import { json, isAdmin } from "../../../_lib.js";
+import { json, isAdmin, rateLimit, clientIp, ipHash } from "../../../_lib.js";
 
 export function parseRange(url) {
     const range = url.searchParams.get("range") || "30d";
@@ -26,5 +26,8 @@ export async function guardAdmin(env, request) {
     if (!(await isAdmin(env, request))) {
         return json({ error: "unauthorized" }, 401);
     }
+    const ipH = await ipHash(clientIp(request));
+    const rl = await rateLimit(env, `admin_analytics:${ipH}`, 60);
+    if (!rl.ok) return json(rl.body, rl.status, rl.headers);
     return null;
 }

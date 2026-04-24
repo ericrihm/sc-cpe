@@ -285,6 +285,21 @@
             <p id="prefs-msg" class="muted prefs-hint" hidden></p>
         </div>
 
+        <div class="card" id="email-prefs-card" hidden>
+            <h2 class="card-heading">Email preferences</h2>
+            <p class="muted rotate-desc">
+                Choose which engagement emails you receive. Transactional emails
+                (registration, cert delivery, security) are always sent.
+            </p>
+            <div class="prefs-radios" id="email-prefs-checks">
+                <label><input type="checkbox" data-cat="monthly_digest" checked> Monthly digest</label>
+                <label><input type="checkbox" data-cat="cert_nudge" checked> Certificate reminders</label>
+                <label><input type="checkbox" data-cat="renewal_nudge" checked> Renewal reminders</label>
+                <label><input type="checkbox" data-cat="streak_milestone" checked> Streak milestones</label>
+            </div>
+            <p id="email-prefs-msg" class="muted prefs-hint" hidden></p>
+        </div>
+
         <div class="card" id="leaderboard-card" hidden>
             <h2 class="card-heading">Community leaderboard</h2>
             <label class="check">
