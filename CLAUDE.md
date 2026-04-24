@@ -346,6 +346,31 @@ ADMIN_TOKEN="$(tr -d '\n' < ~/.cloudflare/sc-cpe-admin-token)" \
   `/^[a-z0-9_-]{1,32}$/` to `/^[a-z0-9_:.-]{1,64}$/` to support `warn:`
   prefix and `heal:` tracking keys. The old regex silently rejected ops-stats
   warning dedup writes.
+- **Resend bounce/complaint webhook** — added 2026-04-24. New endpoint
+  `/api/email-webhook` processes Resend Svix-signed webhook events
+  (`email.bounced`, `email.complained`). Marks outbox rows `bounced`,
+  inserts into `email_suppression` table (migration 012). Email-sender
+  checks suppression before sending — suppressed rows get `bounced`
+  immediately with `last_error = 'suppressed:hard_bounce'`. Requires
+  `RESEND_WEBHOOK_SECRET` Pages secret (passes through if unset during
+  initial setup). Configure webhook URL in Resend dashboard.
+- **Email unsubscribe** — added 2026-04-24. `/api/me/{token}/unsubscribe`
+  endpoint (GET = confirmation page, POST = one-click per RFC 8058).
+  Categories: `monthly_digest`, `cert_nudge`, `renewal_nudge`,
+  `streak_milestone`. `email_prefs.unsubscribed` array stores opt-outs.
+  All engagement emails include `List-Unsubscribe` + `List-Unsubscribe-Post`
+  headers and footer unsubscribe link. Prefs endpoint accepts
+  `unsubscribed[]` for dashboard re-subscribe.
+- **Streak milestone emails** — added 2026-04-24. Poller queues celebration
+  emails at 5, 10, 25, 50, 100-day streaks. `updateStreak()` now returns
+  the new streak value. Idempotency key `streak:<userId>:<milestone>`
+  ensures each milestone emailed once per user ever.
+- **OpenGraph/Twitter Card tags** — added 2026-04-24. Verify, leaderboard,
+  and CPE guide pages now have OG + Twitter Card meta tags for rich social
+  previews when shared.
+- **Schema drift daily** — changed 2026-04-24. `schema-drift.yml` cron
+  changed from weekly (Mon 10:00 UTC) to daily (10:00 UTC), closing the
+  6-day blind spot after mid-week migrations.
 
 ## Where to look for more context
 
