@@ -1,4 +1,4 @@
-import { audit, clientIp, ipHash } from "../../_lib.js";
+import { json, audit, clientIp, ipHash, rateLimit } from "../../_lib.js";
 
 // Durable cert-PDF download endpoint. Email links point here instead of at
 // a presigned R2 URL because S3 presigned URLs cap at 604800s (7 days) —
@@ -14,6 +14,10 @@ export async function onRequestGet({ params, env, request }) {
     if (!token || token.length < 32 || token.length > 128) {
         return new Response("invalid token", { status: 400 });
     }
+
+    const ipH = await ipHash(clientIp(request));
+    const rl = await rateLimit(env, `download:${ipH}`, 60);
+    if (!rl.ok) return json(rl.body, rl.status, rl.headers);
 
     const row = await env.DB.prepare(`
         SELECT id, pdf_r2_key, pdf_sha256, state, period_yyyymm, recipient_name_snapshot
