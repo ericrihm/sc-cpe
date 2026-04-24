@@ -260,11 +260,40 @@ export function escapeHtml(s) {
     ));
 }
 
-// Shared email chrome. All user-facing emails (register, cert delivery,
-// resend, recovery) pass through this so the navy header, footer, and
-// deliverability boilerplate stay consistent. bodyHtml must already be
-// escaped where needed; preheader is the grey preview-pane text.
-export function emailShell({ title, preheader = "", bodyHtml }) {
+export function emailButton(text, url) {
+    return `<p style="text-align:center;margin:24px 0;">
+  <a href="${url}" style="display:inline-block;background:#d4a73a;color:#0b3d5c;
+     font-weight:bold;padding:12px 28px;border-radius:6px;text-decoration:none;
+     font-size:14px;letter-spacing:0.02em;">${escapeHtml(text)}</a>
+</p>`;
+}
+
+export function emailCode(code) {
+    return `<div style="text-align:center;margin:20px 0;">
+  <div style="display:inline-block;background:#0b3d5c;color:#d4a73a;
+       font-family:Menlo,Consolas,monospace;font-size:22px;font-weight:bold;
+       padding:14px 28px;border-radius:8px;letter-spacing:0.06em;">
+       ${escapeHtml(code)}</div>
+</div>`;
+}
+
+export function emailProgress(pct) {
+    const clamped = Math.max(0, Math.min(100, Math.round(pct)));
+    return `<div style="margin:16px 0;">
+  <div style="background:#e6eaee;border-radius:8px;height:20px;overflow:hidden;">
+    <div style="background:linear-gradient(90deg,#0b3d5c,#d4a73a);
+         width:${clamped}%;height:100%;border-radius:8px;"></div>
+  </div>
+  <div style="text-align:center;font-size:13px;color:#555;margin-top:4px;">
+    ${clamped}% complete</div>
+</div>`;
+}
+
+export function emailDivider() {
+    return `<hr style="border:none;border-top:1px solid #e6eaee;margin:20px 0;">`;
+}
+
+export function emailShell({ title, preheader = "", bodyHtml, siteBase = "https://sc-cpe-web.pages.dev" }) {
     const safeTitle = escapeHtml(title);
     return `<!doctype html>
 <html><body style="margin:0;padding:0;background:#f4f6f8;font-family:Helvetica,Arial,sans-serif;color:#111;line-height:1.5;">
@@ -278,7 +307,8 @@ export function emailShell({ title, preheader = "", bodyHtml }) {
     ${bodyHtml}
   </div>
   <div style="padding:16px 24px;border-top:1px solid #e6eaee;font-size:11px;color:#777;">
-    You're receiving this because you registered for Simply Cyber CPE.<br/>
+    You're receiving this because you registered at
+    <a href="${siteBase}" style="color:#777;">Simply Cyber CPE</a>.<br/>
     Questions? Reply to this email.
   </div>
 </div>
@@ -291,8 +321,10 @@ export function emailShell({ title, preheader = "", bodyHtml }) {
 // text_body — the drainer does not re-render. `idempotencyKey` must be
 // stable for the logical event (e.g. "register:<userId>:<code>") so a
 // producer retry on the same event doesn't duplicate the email.
-export async function queueEmail(env, { userId, template, to, subject, html, text, idempotencyKey }) {
-    const payload = JSON.stringify({ html_body: html, text_body: text });
+export async function queueEmail(env, { userId, template, to, subject, html, text, idempotencyKey, headers }) {
+    const payloadObj = { html_body: html, text_body: text };
+    if (headers) payloadObj.headers = headers;
+    const payload = JSON.stringify(payloadObj);
     try {
         await env.DB.prepare(`
             INSERT INTO email_outbox
