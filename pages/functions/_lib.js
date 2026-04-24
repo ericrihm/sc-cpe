@@ -26,6 +26,9 @@ export function randomToken() {
     return [...rnd].map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
+const HEX_RE = /^[0-9a-f]{64}$/;
+export function isValidToken(t) { return typeof t === "string" && HEX_RE.test(t); }
+
 export function json(obj, status = 200, extraHeaders = {}) {
     return new Response(JSON.stringify(obj), {
         status,

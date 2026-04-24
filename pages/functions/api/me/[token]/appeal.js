@@ -1,4 +1,4 @@
-import { json, audit, clientIp, ipHash, rateLimit, now, ulid, isSameOrigin } from "../../../_lib.js";
+import { json, audit, clientIp, ipHash, rateLimit, now, ulid, isSameOrigin, isValidToken } from "../../../_lib.js";
 
 // POST /api/me/{token}/appeal
 // Body: { "claimed_date": "YYYY-MM-DD", "evidence_text"?: string }
@@ -10,7 +10,7 @@ import { json, audit, clientIp, ipHash, rateLimit, now, ulid, isSameOrigin } fro
 // CSRF gate: dashboard_token in URL -> Origin check required.
 export async function onRequestPost({ params, request, env }) {
     const token = params.token;
-    if (!token || token.length < 32) return json({ error: "invalid_token" }, 400);
+    if (!isValidToken(token)) return json({ error: "invalid_token" }, 400);
     if (!isSameOrigin(request, env)) return json({ error: "forbidden_origin" }, 403);
 
     let body;

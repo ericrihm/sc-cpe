@@ -1,4 +1,4 @@
-import { json, audit, clientIp, ipHash, now, ulid, isSameOrigin, rateLimit } from "../../../_lib.js";
+import { json, audit, clientIp, ipHash, now, ulid, isSameOrigin, rateLimit, isValidToken } from "../../../_lib.js";
 
 // POST /api/me/{token}/cert-feedback
 // Body: { "cert_id": "<ULID>", "rating": "ok"|"typo"|"wrong", "note"?: string }
@@ -13,9 +13,7 @@ import { json, audit, clientIp, ipHash, now, ulid, isSameOrigin, rateLimit } fro
 // bogus feedback for any user whose token leaked via Referer.
 export async function onRequestPost({ params, request, env }) {
     const token = params.token;
-    if (!token || token.length < 32) {
-        return json({ error: "invalid_token" }, 400);
-    }
+    if (!isValidToken(token)) return json({ error: "invalid_token" }, 400);
     if (!isSameOrigin(request, env)) {
         return json({ error: "forbidden_origin" }, 403);
     }

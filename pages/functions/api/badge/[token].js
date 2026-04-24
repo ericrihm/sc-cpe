@@ -1,8 +1,8 @@
-import { clientIp, ipHash, rateLimit } from "../../_lib.js";
+import { clientIp, ipHash, rateLimit, isValidToken } from "../../_lib.js";
 
 export async function onRequestGet({ params, env, request }) {
     const token = params.token;
-    if (!token || token.length < 32) {
+    if (!isValidToken(token)) {
         return new Response("invalid token", { status: 400 });
     }
 
