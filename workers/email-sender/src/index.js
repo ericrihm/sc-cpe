@@ -185,6 +185,14 @@ async function sendViaResend(env, row) {
     const timer = setTimeout(() => controller.abort(), 10_000);
     let resp;
     try {
+        const resendBody = {
+            from: env.FROM_EMAIL,
+            to: [row.to_email],
+            subject: row.subject,
+            html,
+            text,
+        };
+        if (payload.headers) resendBody.headers = payload.headers;
         resp = await fetch(RESEND_URL, {
             method: "POST",
             headers: {
@@ -192,13 +200,7 @@ async function sendViaResend(env, row) {
                 "Content-Type": "application/json",
                 "Idempotency-Key": row.idempotency_key,
             },
-            body: JSON.stringify({
-                from: env.FROM_EMAIL,
-                to: [row.to_email],
-                subject: row.subject,
-                html,
-                text,
-            }),
+            body: JSON.stringify(resendBody),
             signal: controller.signal,
         });
     } finally {
