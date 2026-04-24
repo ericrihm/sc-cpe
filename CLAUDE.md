@@ -371,6 +371,32 @@ ADMIN_TOKEN="$(tr -d '\n' < ~/.cloudflare/sc-cpe-admin-token)" \
 - **Schema drift daily** — changed 2026-04-24. `schema-drift.yml` cron
   changed from weekly (Mon 10:00 UTC) to daily (10:00 UTC), closing the
   6-day blind spot after mid-week migrations.
+- **User suspension** — added 2026-04-24. Migration 013 adds
+  `suspended_at TEXT` to users. `POST /api/admin/suspend` sets/clears
+  with audit trail. Poller skips `suspended_at IS NOT NULL` users;
+  `generate.py` excludes from ELIGIBLE_SQL. Dashboard shows suspension
+  banner. Admin user search includes SUSPENDED pill and toggle button.
+- **Email suppression admin UI** — added 2026-04-24.
+  `GET /api/admin/email-suppression` lists masked suppressed addresses;
+  `DELETE` removes by full email with audit. Admin dashboard renders
+  suppression list below kill switches.
+- **Email delivery status on dashboard** — added 2026-04-24.
+  `GET /api/me/{token}` now batch-joins certs against `email_outbox` on
+  raw cert ULID (idempotency_key), returning `email_status` and
+  `email_error` per cert. Dashboard shows delivery pills (sent/queued/
+  bounced/failed) on cert cards.
+- **User cert resend** — added 2026-04-24. `POST /api/me/{token}/
+  cert-resend/{cert_id}` re-queues delivery for bounced/failed emails.
+  CSRF-gated, rate-limited 2/hr per user. Dashboard shows "Retry email
+  delivery" button on bounced/failed certs.
+- **Secret rotation reminders** — added 2026-04-24.
+  `.github/workflows/secret-rotation.yml` runs monthly on the 1st.
+  Reads `secrets_rotation_log.json` (tracks 7 secrets with `rotated_at`
+  and `max_age_days`), creates/comments on GitHub issues with label
+  `secret-rotation-overdue` for overdue secrets.
+- **RUNBOOK incident response SLA** — added 2026-04-24. Severity levels
+  P1 (4h), P2 (24h), P3 (1 week) with escalation path and post-incident
+  template.
 
 ## Where to look for more context
 
