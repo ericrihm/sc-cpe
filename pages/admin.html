@@ -41,6 +41,21 @@
     <div class="section-h">Overview (last 24h)</div>
     <div class="grid" id="stats"></div>
 
+    <div class="section-h">Analytics <span class="muted" style="font-size:11px;text-transform:none;letter-spacing:0;">— registration, engagement, certs, system health</span></div>
+    <div style="margin-bottom:12px;display:flex;gap:6px;align-items:center;">
+      <select id="analytics-range" style="background:var(--adm-card);color:var(--adm-fg);border:1px solid var(--adm-border);padding:4px 8px;border-radius:4px;font-size:12px;">
+        <option value="7d">Last 7 days</option>
+        <option value="30d" selected>Last 30 days</option>
+        <option value="90d">Last 90 days</option>
+        <option value="all">All time</option>
+      </select>
+      <button class="refresh" id="analytics-load" style="font-size:11px;padding:3px 10px;">Load</button>
+    </div>
+    <div id="analytics-growth"></div>
+    <div id="analytics-engagement"></div>
+    <div id="analytics-certs"></div>
+    <div id="analytics-system"></div>
+
     <div class="section-h" style="color:var(--bad);">War Room <span class="muted" style="font-size:11px;text-transform:none;letter-spacing:0;">— live attack monitoring (rate limit trips, auth failures)</span></div>
     <div id="sec-events"></div>
 

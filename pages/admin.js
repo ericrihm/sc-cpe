@@ -1040,6 +1040,89 @@ if (attendanceForm) {
         }
     });
 }
+async function loadAnalytics() {
+  var range = ($("#analytics-range") || {}).value || "30d";
+  var qs = "?range=" + range;
+  var sections = ["growth", "engagement", "certs", "system"];
+  for (var i = 0; i < sections.length; i++) {
+    var el = $("#analytics-" + sections[i]);
+    if (el) { el.textContent = ""; var p = document.createElement("p"); p.className = "muted"; p.style.fontSize = "12px"; p.textContent = "Loading…"; el.appendChild(p); }
+  }
+  try {
+    var results = await Promise.all([
+      fetchJson("/api/admin/analytics/growth" + qs),
+      fetchJson("/api/admin/analytics/engagement" + qs),
+      fetchJson("/api/admin/analytics/certs" + qs),
+      fetchJson("/api/admin/analytics/system" + qs),
+    ]);
+    renderAnalyticsSection("analytics-growth", "Growth", results[0].headlines, {
+      total_users: "Total users", active_users: "Active", verified_users: "Verified",
+      active_attenders_30d: "Active attenders (30d)", new_registrations: "New registrations",
+    }, results[0].series);
+    renderAnalyticsSection("analytics-engagement", "Engagement", results[1].headlines, {
+      avg_attendance_per_stream: "Avg attendance / stream",
+      total_cpe_awarded: "Total CPE awarded",
+      streams_with_zero_attendance: "Streams (0 attendance)",
+    }, results[1].series);
+    renderAnalyticsSection("analytics-certs", "Certificates", results[2].headlines, {
+      issued_this_period: "Issued (period)",
+      pending_now: "Pending now",
+      avg_delivery_seconds: "Avg delivery (s)",
+      view_rate_pct: "View rate %",
+    }, results[2].series);
+    renderAnalyticsSection("analytics-system", "System", results[3].headlines, {
+      email_success_rate_pct: "Email success %",
+      emails_sent: "Emails sent",
+      appeals_open: "Open appeals",
+      avg_appeal_resolution_seconds: "Avg appeal resolution (s)",
+    }, results[3].series);
+  } catch (e) {
+    var el = $("#analytics-growth");
+    if (el) { el.textContent = ""; var d = document.createElement("div"); d.className = "err"; d.textContent = e.message; el.appendChild(d); }
+  }
+}
+function renderAnalyticsSection(containerId, title, headlines, labels, series) {
+  var el = $("#" + containerId);
+  if (!el) return;
+  el.textContent = "";
+  var hdr = document.createElement("div");
+  hdr.style.cssText = "font-size:12px;font-weight:600;color:var(--adm-muted);margin-bottom:6px;";
+  hdr.textContent = title;
+  el.appendChild(hdr);
+  var grid = document.createElement("div");
+  grid.className = "grid";
+  var keys = Object.keys(labels);
+  for (var i = 0; i < keys.length; i++) {
+    var val = headlines[keys[i]];
+    grid.appendChild(card(labels[keys[i]], val != null ? escapeHtml(String(val)) : "—"));
+  }
+  el.appendChild(grid);
+  if (series && series.length > 0) {
+    var tbl = document.createElement("table");
+    tbl.style.fontSize = "12px";
+    var cols = Object.keys(series[0]);
+    var thead = document.createElement("thead");
+    var headTr = document.createElement("tr");
+    for (var c = 0; c < cols.length; c++) {
+      var th = document.createElement("th"); th.textContent = cols[c]; headTr.appendChild(th);
+    }
+    thead.appendChild(headTr);
+    tbl.appendChild(thead);
+    var tbody = document.createElement("tbody");
+    var limit = Math.min(series.length, 30);
+    for (var r = 0; r < limit; r++) {
+      var tr = document.createElement("tr");
+      for (var c = 0; c < cols.length; c++) {
+        var td = document.createElement("td"); td.textContent = String(series[r][cols[c]] ?? ""); tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    }
+    tbl.appendChild(tbody);
+    el.appendChild(tbl);
+  }
+}
+var analyticsLoadBtn = $("#analytics-load");
+if (analyticsLoadBtn) analyticsLoadBtn.addEventListener("click", loadAnalytics);
 (async function init() {
     try {
         var testR = await fetch("/api/admin/ops-stats", { credentials: "include" });
