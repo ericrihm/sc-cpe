@@ -8,6 +8,15 @@ import { onRequestGet as systemGet } from "./system.js";
 
 const BASE = "https://sc-cpe-web.pages.dev";
 
+function mkKV(initial = {}) {
+    const store = new Map(Object.entries(initial));
+    return {
+        get: async (k) => store.get(k) ?? null,
+        put: async (k, v, opts) => { store.set(k, v); },
+        delete: async (k) => { store.delete(k); },
+    };
+}
+
 function auth(url) {
     return new Request(url, {
         headers: { Authorization: "Bearer adm" },
@@ -69,7 +78,7 @@ test("analytics/growth: valid → 200 with headlines and series", async () => {
         "COUNT.*FROM users": () => ({ n: 3 }),
     });
     const r = await growthGet({
-        env: { DB: db, ADMIN_TOKEN: "adm" },
+        env: { DB: db, ADMIN_TOKEN: "adm", RATE_KV: mkKV() },
         request: auth(`${BASE}/api/admin/analytics/growth?range=30d`),
     });
     assert.equal(r.status, 200);
@@ -94,7 +103,7 @@ test("analytics/engagement: unauthorized → 401", async () => {
 
 test("analytics/engagement: valid → 200 with attendance data", async () => {
     const r = await engagementGet({
-        env: { DB: analyticsDB(), ADMIN_TOKEN: "adm" },
+        env: { DB: analyticsDB(), ADMIN_TOKEN: "adm", RATE_KV: mkKV() },
         request: auth(`${BASE}/api/admin/analytics/engagement?range=7d`),
     });
     assert.equal(r.status, 200);
@@ -117,7 +126,7 @@ test("analytics/certs: unauthorized → 401", async () => {
 
 test("analytics/certs: valid → 200 with cert stats", async () => {
     const r = await certsGet({
-        env: { DB: analyticsDB(), ADMIN_TOKEN: "adm" },
+        env: { DB: analyticsDB(), ADMIN_TOKEN: "adm", RATE_KV: mkKV() },
         request: auth(`${BASE}/api/admin/analytics/certs?range=90d`),
     });
     assert.equal(r.status, 200);
@@ -140,7 +149,7 @@ test("analytics/system: unauthorized → 401", async () => {
 
 test("analytics/system: valid → 200 with email throughput", async () => {
     const r = await systemGet({
-        env: { DB: analyticsDB(), ADMIN_TOKEN: "adm" },
+        env: { DB: analyticsDB(), ADMIN_TOKEN: "adm", RATE_KV: mkKV() },
         request: auth(`${BASE}/api/admin/analytics/system?range=all`),
     });
     assert.equal(r.status, 200);

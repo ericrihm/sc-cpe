@@ -80,7 +80,7 @@ test("suspend: unauthorized → 401", async () => {
 
 test("suspend: missing fields → 400", async () => {
     const r = await suspendPost({
-        env: { DB: auditDB(), ADMIN_TOKEN: "adm" },
+        env: { DB: auditDB(), ADMIN_TOKEN: "adm", RATE_KV: mkKV() },
         request: postAuth(`${BASE}/api/admin/suspend`, { user_id: "01U" }),
     });
     assert.equal(r.status, 400);
@@ -93,7 +93,7 @@ test("suspend: user not found → 404", async () => {
         "FROM users WHERE id": () => null,
     });
     const r = await suspendPost({
-        env: { DB: db, ADMIN_TOKEN: "adm" },
+        env: { DB: db, ADMIN_TOKEN: "adm", RATE_KV: mkKV() },
         request: postAuth(`${BASE}/api/admin/suspend`, {
             user_id: "01NOTEXIST12345",
             suspended: true,
@@ -111,7 +111,7 @@ test("suspend: valid suspend → 200", async () => {
         "UPDATE users SET suspended_at": () => null,
     });
     const r = await suspendPost({
-        env: { DB: db, ADMIN_TOKEN: "adm" },
+        env: { DB: db, ADMIN_TOKEN: "adm", RATE_KV: mkKV() },
         request: postAuth(`${BASE}/api/admin/suspend`, {
             user_id: "01USERID1234",
             suspended: true,
@@ -132,7 +132,7 @@ test("suspend: valid unsuspend → 200", async () => {
         "UPDATE users SET suspended_at": () => null,
     });
     const r = await suspendPost({
-        env: { DB: db, ADMIN_TOKEN: "adm" },
+        env: { DB: db, ADMIN_TOKEN: "adm", RATE_KV: mkKV() },
         request: postAuth(`${BASE}/api/admin/suspend`, {
             user_id: "01USERID1234",
             suspended: false,

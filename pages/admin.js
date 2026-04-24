@@ -102,7 +102,7 @@ function renderToggles(d) {
     wrap.style.gap = "10px";
     wrap.style.minWidth = "240px";
     var label = document.createElement("div");
-    label.innerHTML = '<span class="k">/api/' + t.name + '</span><div class="v ' + (t.killed ? "stale" : "ok") + '" style="font-size:14px;">' + (t.killed ? "KILLED (503)" : "live") + '</div>';
+    label.innerHTML = '<span class="k">/api/' + escapeHtml(t.name) + '</span><div class="v ' + (t.killed ? "stale" : "ok") + '" style="font-size:14px;">' + (t.killed ? "KILLED (503)" : "live") + '</div>';
     var btn = document.createElement("button");
     btn.className = "refresh";
     btn.style.marginLeft = "auto";
