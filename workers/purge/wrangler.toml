@@ -24,3 +24,5 @@ SITE_BASE = "https://sc-cpe-web.pages.dev"
 #   RESEND_API_KEY     - for the daily security-alerts digest
 #   FROM_EMAIL         - e.g. certs@signalplane.co
 #   ADMIN_ALERT_EMAIL  - where the digest is delivered
+#   ADMIN_TOKEN        - bearer token for on-demand trigger
+#   DISCORD_WEBHOOK    - community Discord posts (certs, leaderboard)

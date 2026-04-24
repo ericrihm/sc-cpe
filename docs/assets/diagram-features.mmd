@@ -1,0 +1,43 @@
+flowchart TD
+    subgraph dashboard["User Dashboard"]
+        streak["Streaks · Current & Best"]
+        renewal["Renewal Countdown"]
+        calendar["Attendance Calendar"]
+        annual["Annual Summary"]
+        bulk["Bulk Cert Download"]
+    end
+
+    subgraph community["Community"]
+        leaderboard["Leaderboard + Streaks"]
+        profile["Public Profile"]
+        badge["Shareable Badge"]
+        links["Show Links Archive"]
+        rss["RSS Feed"]
+    end
+
+    subgraph admin["Admin & Ops"]
+        analytics["Analytics Dashboard"]
+        export["CSV Export"]
+        appeals["Appeal Queue"]
+        toggles["Feature Toggles"]
+    end
+
+    subgraph comms["Communications"]
+        digest["Monthly Digest"]
+        weekly["Weekly Digest"]
+        nudge["Cert Nudge"]
+        renewal_nudge["Renewal Nudges"]
+        discord["Discord Webhooks"]
+    end
+
+    style streak fill:#3b82f6,stroke:#1e40af,color:#fff
+    style leaderboard fill:#10b981,stroke:#047857,color:#fff
+    style profile fill:#06b6d4,stroke:#0e7490,color:#fff
+    style badge fill:#f59e0b,stroke:#d97706,color:#fff
+    style links fill:#8b5cf6,stroke:#6d28d9,color:#fff
+    style rss fill:#8b5cf6,stroke:#6d28d9,color:#fff
+    style digest fill:#ec4899,stroke:#be185d,color:#fff
+    style discord fill:#5865f2,stroke:#4752c4,color:#fff
+    style renewal_nudge fill:#f97316,stroke:#ea580c,color:#fff
+    style analytics fill:#3b82f6,stroke:#1e40af,color:#fff
+    style export fill:#10b981,stroke:#047857,color:#fff

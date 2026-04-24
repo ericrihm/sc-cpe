@@ -28,6 +28,9 @@ CREATE TABLE users (
     show_on_leaderboard   INTEGER NOT NULL DEFAULT 0,
     badge_token           TEXT,
     discord_user_id       TEXT,
+    current_streak        INTEGER NOT NULL DEFAULT 0,
+    longest_streak        INTEGER NOT NULL DEFAULT 0,
+    last_attendance_date  TEXT,
     CHECK (legal_name_attested IN (0,1)),
     CHECK (age_attested_13plus IN (0,1)),
     CHECK (show_on_leaderboard IN (0,1))
