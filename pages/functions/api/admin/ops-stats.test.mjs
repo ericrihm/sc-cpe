@@ -55,6 +55,7 @@ function cleanRules(overrides = {}) {
         { match: /FROM appeals WHERE state = 'open'/, handler: () => ({ n: 0 }) },
         { match: /FROM streams WHERE id LIKE '01KTEST/, handler: () => ({ n: 0 }) },
         { match: /FROM audit_log ORDER BY ts DESC/, handler: () => ({ id: "01X", ts: "2026-04-16T00:00:00Z", prev_hash: "abc" }) },
+        { match: /detail_json FROM heartbeats WHERE source = 'poller'/, handler: () => overrides.pollerBeat ?? ({ detail_json: '{"auth_method":"oauth","at":"2026-04-22T10:00:00Z"}' }) },
     ];
 }
 
@@ -133,6 +134,7 @@ function baseStats(overrides = {}) {
         },
         certs: { pending: 0, oldest_pending_age_seconds: null, ...overrides.certs },
         fixture_pollution: { streams: 0, attendance: 0, users: 0, ...overrides.fixture_pollution },
+        poller: { auth_method: "oauth", ...overrides.poller },
         ...overrides,
     };
 }
@@ -195,6 +197,13 @@ test("computeWarnings: active users without YouTube channel → warn", () => {
 test("computeWarnings: fixture pollution in prod triggers warn", () => {
     const w = computeWarnings(baseStats({ fixture_pollution: { streams: 2, attendance: 0, users: 0 } }));
     assert.equal(w.find(x => x.code === "fixture_pollution")?.level, "warn");
+});
+
+test("computeWarnings: poller OAuth degraded → warn", () => {
+    const w = computeWarnings(baseStats({ poller: { auth_method: "api_key" } }));
+    assert.equal(w.find(x => x.code === "poller_oauth_degraded")?.level, "warn");
+    const none = computeWarnings(baseStats({ poller: { auth_method: "oauth" } }));
+    assert.equal(none.find(x => x.code === "poller_oauth_degraded"), undefined);
 });
 
 // ── ops-stats response integration ──────────────────────────────────────
