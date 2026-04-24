@@ -1,0 +1,138 @@
+name: heal
+
+# Self-healing playbook. Manually dispatchable for testing, and called
+# inline by the watchdog after it detects stale sources or critical
+# warnings. Runs scripts/self-heal.sh for safe idempotent fixes.
+#
+# On failure: collects diagnostics, creates a GitHub issue with a
+# Claude Code triage prompt, and alerts Discord.
+#
+# Safety: self-heal.sh enforces max 1 heal per source per 2h and
+# max 3 heals per day (tracked in watchdog KV).
+
+on:
+  workflow_dispatch:
+    inputs:
+      sources:
+        description: 'Space-separated source names to heal (e.g. "purge email_sender")'
+        required: true
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: heal
+  cancel-in-progress: false
+
+jobs:
+  heal:
+    name: Self-heal
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+      WATCHDOG_SECRET: ${{ secrets.WATCHDOG_SECRET }}
+      WATCHDOG_STATE_URL: ${{ vars.WATCHDOG_STATE_URL }}
+      DISCORD_ALERT_WEBHOOK: ${{ secrets.DISCORD_ALERT_WEBHOOK }}
+      ORIGIN: https://sc-cpe-web.pages.dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run self-heal playbook
+        id: heal
+        continue-on-error: true
+        run: bash scripts/self-heal.sh ${{ inputs.sources }}
+
+      - name: Escalate on failure
+        if: steps.heal.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCES: ${{ inputs.sources }}
+        run: |
+          echo "Collecting diagnostic bundle..."
+          health=$(curl -fsS --max-time 10 "$ORIGIN/api/health" 2>/dev/null \
+            | jq . || echo '"unreachable"')
+          ops=$(curl -fsS --max-time 10 \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            "$ORIGIN/api/admin/ops-stats" 2>/dev/null \
+            | jq '.warnings // []' || echo '"unreachable"')
+          chain=$(curl -fsS --max-time 10 \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            "$ORIGIN/api/admin/audit-chain-verify?limit=10" 2>/dev/null \
+            | jq . || echo '"unreachable"')
+          runs=$(gh run list --limit 8 \
+            --json name,status,conclusion,startedAt 2>/dev/null \
+            | jq . || echo '[]')
+          ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+          cat > /tmp/issue-body.md <<BODYEOF
+          ## Auto-Heal Escalation
+
+          The self-healing system tried to fix **${SOURCES}** but failed.
+          Triggered: \`${ts}\` | Run: [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+          ---
+
+          <details><summary>Health endpoint</summary>
+
+          \`\`\`json
+          ${health}
+          \`\`\`
+          </details>
+
+          <details><summary>Ops-stats warnings</summary>
+
+          \`\`\`json
+          ${ops}
+          \`\`\`
+          </details>
+
+          <details><summary>Audit chain</summary>
+
+          \`\`\`json
+          ${chain}
+          \`\`\`
+          </details>
+
+          <details><summary>Recent workflow runs</summary>
+
+          \`\`\`json
+          ${runs}
+          \`\`\`
+          </details>
+
+          ---
+
+          ### Claude Code Triage
+
+          Open Claude Code in \`sc-cpe\` and paste:
+
+          \`\`\`
+          The SC-CPE self-healing system escalated because it couldn't fix: ${SOURCES}
+          Read CLAUDE.md for project context, then docs/RUNBOOK.md for ops procedures.
+          Diagnose by checking /api/health, /api/admin/ops-stats, and recent workflow
+          runs (gh run list --limit 10). The diagnostic bundle is in the GitHub issue.
+          Identify root cause and either fix it directly or provide step-by-step instructions.
+          \`\`\`
+          BODYEOF
+
+          # Create or reuse the label
+          gh label create auto-heal-escalation \
+            --color D93F0B --description "Self-healing system escalation" \
+            2>/dev/null || true
+
+          issue_url=$(gh issue create \
+            --title "Self-heal escalation: ${SOURCES}" \
+            --label "auto-heal-escalation" \
+            --body-file /tmp/issue-body.md 2>/dev/null || echo "")
+
+          echo "Issue: $issue_url"
+
+          if [[ -n "${DISCORD_ALERT_WEBHOOK:-}" ]]; then
+            jq -cn --arg c ":sos: **SC-CPE self-heal escalation** — sources: ${SOURCES}. ${issue_url:-Check Actions log.}" \
+              '{content: $c, username: "SC-CPE Healer"}' \
+              | curl -fsS --max-time 20 \
+                    -H "Content-Type: application/json" \
+                    -X POST -d @- "$DISCORD_ALERT_WEBHOOK" >/dev/null 2>&1 || true
+          fi
