@@ -181,10 +181,11 @@ One-time setup step (not automated in code). Operator runs:
 
 ```bash
 node -e "
-const kp = await crypto.subtle.generateKey('Ed25519', true, ['sign','verify']);
-const raw = new Uint8Array(await crypto.subtle.exportKey('raw', kp.privateKey));
-console.log(Buffer.from(raw).toString('base64'));
-" 
+const crypto = require('crypto');
+const kp = crypto.generateKeyPairSync('ed25519');
+const der = kp.privateKey.export({ type: 'pkcs8', format: 'der' });
+console.log(der.slice(-32).toString('base64'));
+"
 ```
 
 Then stores result as `OB_SIGNING_KEY` Pages secret:
