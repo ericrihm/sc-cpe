@@ -3,7 +3,7 @@ import { json, clientIp, ipHash, rateLimit } from "../_lib.js";
 export async function onRequestGet({ env, request }) {
     const ipH = await ipHash(clientIp(request));
     const rl = await rateLimit(env, `leaderboard:${ipH}`, 120);
-    if (!rl.ok) return json(rl.body, rl.status);
+    if (!rl.ok) return json(rl.body, rl.status, rl.headers);
 
     const now = new Date();
     const yyyymm = `${now.getUTCFullYear()}${String(now.getUTCMonth() + 1).padStart(2, "0")}`;

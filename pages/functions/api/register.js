@@ -76,7 +76,7 @@ export async function onRequestPost({ request, env }) {
     const ipH = await ipHash(clientIp(request));
     const hourBucket = new Date().toISOString().slice(0, 13); // "YYYY-MM-DDTHH"
     const rl = await rateLimit(env, `register:${ipH}:${hourBucket}`, MAX_REGISTRATIONS_PER_HOUR);
-    if (!rl.ok) return json(rl.body, rl.status);
+    if (!rl.ok) return json(rl.body, rl.status, rl.headers);
 
     const existing = await env.DB.prepare(
         "SELECT id, state, dashboard_token FROM users WHERE lower(email) = ?1 AND deleted_at IS NULL"

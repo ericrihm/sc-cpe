@@ -17,6 +17,7 @@ const EVENT_PREFIXES = [
     "rl_trip:delete",
     "rl_trip:admin_login",
     "auth_fail:bearer",
+    "csp_violation",
 ];
 
 export async function onRequestGet({ request, env }) {

@@ -62,7 +62,7 @@ export async function onRequestPost({ params, request, env }) {
 
     const ipH = await ipHash(clientIp(request));
     const rl = await rateLimit(env, `delete:${ipH}`, 5);
-    if (!rl.ok) return json(rl.body, rl.status);
+    if (!rl.ok) return json(rl.body, rl.status, rl.headers);
 
     const user = await env.DB.prepare(`
         SELECT id, email, state, deleted_at

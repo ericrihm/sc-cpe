@@ -35,7 +35,7 @@ export async function onRequestPost({ params, request, env }) {
     if (!owner) return json({ error: "not_found_or_not_attended" }, 404);
 
     const rl = await rateLimit(env, `cert_per_session:${owner.user_id}`, 20, 86400);
-    if (!rl.ok) return json(rl.body, rl.status);
+    if (!rl.ok) return json(rl.body, rl.status, rl.headers);
 
     const existing = await env.DB.prepare(`
         SELECT id, state, public_token FROM certs

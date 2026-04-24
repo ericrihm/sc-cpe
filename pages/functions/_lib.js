@@ -26,12 +26,13 @@ export function randomToken() {
     return [...rnd].map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
-export function json(obj, status = 200) {
+export function json(obj, status = 200, extraHeaders = {}) {
     return new Response(JSON.stringify(obj), {
         status,
         headers: {
             "Content-Type": "application/json",
             "Cache-Control": "no-store",
+            ...extraHeaders,
         },
     });
 }
@@ -190,15 +191,22 @@ export async function rateLimit(env, key, max, ttlSec = 3700) {
         return { ok: false, status: 503, body: { error: "rate_limiter_unavailable" } };
     }
     const current = parseInt(await env.RATE_KV.get(key), 10) || 0;
+    const headers = {
+        "X-RateLimit-Limit": String(max),
+        "X-RateLimit-Remaining": String(Math.max(0, max - current - 1)),
+        "X-RateLimit-Reset": String(Math.ceil(Date.now() / 1000) + ttlSec),
+    };
     if (current >= max) {
         const bucket = new Date().toISOString().slice(0, 13);
         const evtKey = `sec:rl_trip:${key.split(":")[0]}:${bucket}`;
         env.RATE_KV.put(evtKey, String((parseInt(await env.RATE_KV.get(evtKey), 10) || 0) + 1),
             { expirationTtl: 86400 }).catch(() => {});
-        return { ok: false, status: 429, body: { error: "rate_limited" } };
+        headers["X-RateLimit-Remaining"] = "0";
+        headers["Retry-After"] = String(ttlSec);
+        return { ok: false, status: 429, body: { error: "rate_limited" }, headers };
     }
     await env.RATE_KV.put(key, String(current + 1), { expirationTtl: ttlSec });
-    return { ok: true };
+    return { ok: true, headers };
 }
 
 export async function securityEvent(env, category, detail) {

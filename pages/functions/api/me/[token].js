@@ -11,7 +11,7 @@ export async function onRequestGet({ params, env, request }) {
     // legitimate dashboard polling cadence (30s = 120/hr at the busy end).
     const ipH = await ipHash(clientIp(request));
     const rl = await rateLimit(env, `me_get:${ipH}`, 600);
-    if (!rl.ok) return json(rl.body, rl.status);
+    if (!rl.ok) return json(rl.body, rl.status, rl.headers);
 
     const user = await env.DB.prepare(`
         SELECT id, email, legal_name, yt_channel_id, yt_display_name_seen,

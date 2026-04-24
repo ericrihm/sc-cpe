@@ -3,7 +3,7 @@ import { json, clientIp, ipHash, rateLimit } from "../_lib.js";
 export async function onRequestGet({ env, request }) {
     const ipH = await ipHash(clientIp(request));
     const rl = await rateLimit(env, `links:${ipH}`, 120);
-    if (!rl.ok) return json(rl.body, rl.status);
+    if (!rl.ok) return json(rl.body, rl.status, rl.headers);
 
     const url = new URL(request.url);
     const dateParam = url.searchParams.get("date");

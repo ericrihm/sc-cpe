@@ -27,6 +27,7 @@ const CSP = [
     "base-uri 'self'",
     "object-src 'none'",
     "upgrade-insecure-requests",
+    "report-uri /api/csp-report",
 ].join("; ");
 
 const PERMISSIONS = [
@@ -43,6 +44,10 @@ const PERMISSIONS = [
 export async function onRequest({ request, next }) {
     const res = await next();
     const ct = res.headers.get("Content-Type") || "";
+
+    const requestId = request.headers.get("cf-ray")
+        || crypto.randomUUID();
+    res.headers.set("X-Request-Id", requestId);
 
     // Applied to every response type.
     res.headers.set("X-Content-Type-Options", "nosniff");

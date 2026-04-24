@@ -9,7 +9,7 @@ export async function onRequestGet({ params, env, request }) {
     const ipH = await ipHash(clientIp(request));
     const rl = await rateLimit(env, `badge:${ipH}`, 300);
     if (!rl.ok) {
-        return new Response("rate limited", { status: rl.status });
+        return new Response("rate limited", { status: rl.status, headers: rl.headers || {} });
     }
 
     const user = await env.DB.prepare(`

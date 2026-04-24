@@ -76,7 +76,7 @@ export async function onRequestPost({ params, request, env }) {
     // Fail-closed via rateLimit() so a missing RATE_KV returns 503.
     const hourBucket = new Date().toISOString().slice(0, 13);
     const rl = await rateLimit(env, `rotate:${user.id}:${hourBucket}`, MAX_PER_HOUR);
-    if (!rl.ok) return json(rl.body, rl.status);
+    if (!rl.ok) return json(rl.body, rl.status, rl.headers);
 
     const newToken = randomToken();
     const newBadgeToken = randomToken();

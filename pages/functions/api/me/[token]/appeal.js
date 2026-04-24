@@ -38,7 +38,7 @@ export async function onRequestPost({ params, request, env }) {
 
     const ip = await ipHash(clientIp(request));
     const rl = await rateLimit(env, `appeal:${user.id}`, 10);
-    if (!rl.ok) return json(rl.body, rl.status);
+    if (!rl.ok) return json(rl.body, rl.status, rl.headers);
 
     const openCount = await env.DB.prepare(
         "SELECT COUNT(*) AS n FROM appeals WHERE user_id = ?1 AND state = 'open'"
