@@ -245,7 +245,7 @@ D1 migrations in `db/migrations/` are applied automatically during deploy — th
 ---
 
 <details>
-<summary><strong>API Surface (46 endpoints)</strong></summary>
+<summary><strong>API Surface (49 endpoints)</strong></summary>
 
 ### Public
 
@@ -297,6 +297,9 @@ D1 migrations in `db/migrations/` are applied automatically during deploy — th
 | `POST /api/admin/revoke` | bearer | Revoke a certificate |
 | `GET /api/admin/export` | bearer | CSV export (users, attendance, certs) |
 | `GET /api/admin/security-events` | bearer | Security event log |
+| `GET /api/admin/streams` | bearer | Recent streams with attendance counts |
+| `POST /api/admin/suspend` | bearer | Suspend / unsuspend a user |
+| `GET/DELETE /api/admin/email-suppression` | bearer | Email suppression list management |
 | `GET /api/admin/analytics/growth` | bearer | User growth time series |
 | `GET /api/admin/analytics/engagement` | bearer | Attendance engagement metrics |
 | `GET /api/admin/analytics/certs` | bearer | Certificate issuance stats |
