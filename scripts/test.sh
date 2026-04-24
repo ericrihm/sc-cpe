@@ -29,4 +29,8 @@ node --test \
     scripts/test_e2e.mjs \
     pages/functions/api/admin/analytics/analytics.test.mjs \
     pages/functions/api/admin/new-admin-features.test.mjs \
-    pages/functions/api/me/user-features.test.mjs
+    pages/functions/api/me/user-features.test.mjs \
+    pages/functions/api/admin/audit-chain.test.mjs \
+    pages/functions/api/admin/appeals.test.mjs \
+    pages/functions/api/admin/revoke.test.mjs \
+    pages/functions/api/admin/cert-reissue.test.mjs
