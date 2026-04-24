@@ -1,6 +1,6 @@
 import {
     ulid, randomCode, formatCode, json, now, audit, clientIp, ipHash,
-    queueEmail, escapeHtml, emailShell, isSameOrigin, rateLimit,
+    queueEmail, escapeHtml, emailShell, isSameOrigin, rateLimit, isValidToken,
 } from "../../../_lib.js";
 
 // POST /api/me/{dashboard_token}/resend-code
@@ -54,7 +54,7 @@ you can ignore this email — your account is unchanged.</p>`;
 
 export async function onRequestPost({ params, request, env }) {
     const token = params.token;
-    if (!token || token.length < 32) return json({ error: "invalid_token" }, 400);
+    if (!isValidToken(token)) return json({ error: "invalid_token" }, 400);
 
     // CSRF gate — see delete.js for rationale.
     if (!isSameOrigin(request, env)) {

@@ -68,7 +68,7 @@ const emailOutboxRule = {
 // Stable fake IDs
 const FAKE_ULID = "01HZ99AABBCCDDEEFFGGHH0001";
 const FAKE_TOKEN = "a".repeat(64); // 64-char hex dashboard token
-const SHORT_TOKEN = "a".repeat(32); // minimal valid token
+const SHORT_TOKEN = "a".repeat(64); // valid 64-char hex token
 
 const BASE = "https://sc-cpe-web.pages.dev";
 

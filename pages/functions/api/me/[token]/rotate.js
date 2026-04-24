@@ -1,6 +1,7 @@
 import {
     randomToken, json, now, audit, clientIp, ipHash,
     queueEmail, escapeHtml, emailShell, isSameOrigin, rateLimit, sha256Hex,
+    isValidToken,
 } from "../../../_lib.js";
 
 // POST /api/me/{dashboard_token}/rotate
@@ -55,7 +56,7 @@ your account is now safe: the old link can no longer access the dashboard.</p>`;
 
 export async function onRequestPost({ params, request, env }) {
     const token = params.token;
-    if (!token || token.length < 32) return json({ error: "invalid_token" }, 400);
+    if (!isValidToken(token)) return json({ error: "invalid_token" }, 400);
 
     // CSRF gate — the dashboard token sits in the URL, so a browser will
     // happily POST here from any page that knows it. Same-origin only.
