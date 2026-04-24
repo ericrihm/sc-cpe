@@ -23,4 +23,5 @@ node --test \
     workers/purge/src/purge-expired.test.mjs \
     scripts/test_chain_parity.mjs \
     scripts/test_source_parity.mjs \
+    pages/functions/api/ob/credential.test.mjs \
     scripts/test_audit_pii_scrub.mjs
