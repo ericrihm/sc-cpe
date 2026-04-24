@@ -1,4 +1,4 @@
-import { json, audit, clientIp, ipHash, isSameOrigin, rateLimit, ulid, now } from "../../../../_lib.js";
+import { json, audit, clientIp, ipHash, isSameOrigin, rateLimit, ulid, now, isValidToken } from "../../../../_lib.js";
 
 // POST /api/me/{token}/cert-per-session/{stream_id}
 // Queues a per-session cert request. The monthly + pending-pickup cron
@@ -18,7 +18,7 @@ import { json, audit, clientIp, ipHash, isSameOrigin, rateLimit, ulid, now } fro
 export async function onRequestPost({ params, request, env }) {
     const token = params.token;
     const streamId = params.stream_id;
-    if (!token || token.length < 32) return json({ error: "invalid_token" }, 400);
+    if (!isValidToken(token)) return json({ error: "invalid_token" }, 400);
     if (!streamId || streamId.length < 10) return json({ error: "invalid_stream_id" }, 400);
     if (!isSameOrigin(request, env)) return json({ error: "forbidden_origin" }, 403);
 

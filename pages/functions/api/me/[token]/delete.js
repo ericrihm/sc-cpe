@@ -1,4 +1,4 @@
-import { json, audit, clientIp, ipHash, now, isSameOrigin, rateLimit } from "../../../_lib.js";
+import { json, audit, clientIp, ipHash, now, isSameOrigin, rateLimit, isValidToken } from "../../../_lib.js";
 
 // POST /api/me/{token}/delete
 // Body: { "confirm": "DELETE" }  (explicit confirmation, prevents XSRF-ish
@@ -40,9 +40,7 @@ import { json, audit, clientIp, ipHash, now, isSameOrigin, rateLimit } from "../
 // The privacy policy documents this carve-out; it must stay in sync.
 export async function onRequestPost({ params, request, env }) {
     const token = params.token;
-    if (!token || token.length < 32) {
-        return json({ error: "invalid_token" }, 400);
-    }
+    if (!isValidToken(token)) return json({ error: "invalid_token" }, 400);
 
     // CSRF gate: dashboard_token sits in URLs and can leak via Referer or
     // shared bookmarks. Without an Origin check, a third-party page that

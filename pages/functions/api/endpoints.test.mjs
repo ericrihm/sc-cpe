@@ -51,7 +51,7 @@ function req(url, { method = "POST", headers = {}, body } = {}) {
 
 test("prefs: rejects missing Origin (CSRF)", async () => {
     const r = await prefsPost({
-        params: { token: "a".repeat(32) },
+        params: { token: "a".repeat(64) },
         env: { DB: mockDB([]), RATE_KV: kvPermissive },
         request: new Request("https://sc-cpe-web.pages.dev/api/me/x/prefs",
             { method: "POST", body: "{}" }),
@@ -61,7 +61,7 @@ test("prefs: rejects missing Origin (CSRF)", async () => {
 
 test("prefs: rejects invalid cert_style", async () => {
     const r = await prefsPost({
-        params: { token: "a".repeat(32) },
+        params: { token: "a".repeat(64) },
         env: { DB: mockDB([]), RATE_KV: kvPermissive },
         request: req("https://sc-cpe-web.pages.dev/api/me/x/prefs",
             { body: { cert_style: "bogus" } }),
@@ -81,7 +81,7 @@ test("prefs: merges into existing email_prefs JSON", async () => {
         }},
     ]);
     const r = await prefsPost({
-        params: { token: "a".repeat(32) },
+        params: { token: "a".repeat(64) },
         env: { DB: db, RATE_KV: kvPermissive },
         request: req("https://sc-cpe-web.pages.dev/api/me/x/prefs",
             { body: { cert_style: "per_session" } }),
@@ -96,7 +96,7 @@ test("prefs: merges into existing email_prefs JSON", async () => {
 
 test("cert-per-session: rejects missing Origin", async () => {
     const r = await perSessionPost({
-        params: { token: "a".repeat(32), stream_id: "stream-0001" },
+        params: { token: "a".repeat(64), stream_id: "stream-0001" },
         env: { DB: mockDB([]), RATE_KV: kvPermissive },
         request: new Request(
             "https://sc-cpe-web.pages.dev/api/me/x/cert-per-session/stream-0001",
@@ -110,7 +110,7 @@ test("cert-per-session: owner mismatch → 404", async () => {
         { match: /FROM users u.*JOIN attendance/s, handler: () => ({ first: null }) },
     ]);
     const r = await perSessionPost({
-        params: { token: "a".repeat(32), stream_id: "stream-0001" },
+        params: { token: "a".repeat(64), stream_id: "stream-0001" },
         env: { DB: db, RATE_KV: kvPermissive },
         request: req(
             "https://sc-cpe-web.pages.dev/api/me/x/cert-per-session/stream-0001"),
@@ -132,7 +132,7 @@ test("cert-per-session: existing non-revoked cert → returns it, no insert", as
         { match: /INSERT INTO certs/, handler: () => { inserted = true; return { run: {} }; }},
     ]);
     const r = await perSessionPost({
-        params: { token: "a".repeat(32), stream_id: "stream-0001" },
+        params: { token: "a".repeat(64), stream_id: "stream-0001" },
         env: { DB: db, RATE_KV: kvPermissive },
         request: req(
             "https://sc-cpe-web.pages.dev/api/me/x/cert-per-session/stream-0001"),
