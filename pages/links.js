@@ -1,5 +1,6 @@
 let availableDates = [];
 let currentIndex = 0;
+let dateLinkCounts = {};
 
 async function load(date) {
     const errEl = document.getElementById("err");
@@ -15,6 +16,7 @@ async function load(date) {
     listEl.textContent = "";
     streamEl.hidden = true;
     streamEl.textContent = "";
+    document.getElementById("copy-wrap").hidden = true;
 
     try {
         const params = date ? `?date=${encodeURIComponent(date)}` : "";
@@ -32,6 +34,7 @@ async function load(date) {
         }
 
         availableDates = d.available_dates;
+        dateLinkCounts = d.date_link_counts || {};
         currentIndex = availableDates.indexOf(d.date);
         if (currentIndex === -1) currentIndex = 0;
 
@@ -56,6 +59,17 @@ async function load(date) {
 
         const links = d.links || [];
         if (links.length === 0) {
+            if (d.stream && d.stream.yt_video_id) {
+                emptyEl.textContent = "No links were shared during this show. ";
+                var watchLink = document.createElement("a");
+                watchLink.href = "https://www.youtube.com/watch?v=" + encodeURIComponent(d.stream.yt_video_id);
+                watchLink.target = "_blank";
+                watchLink.rel = "noopener";
+                watchLink.textContent = "Watch on YouTube";
+                watchLink.style.display = "inline-block";
+                watchLink.style.marginTop = "0.5rem";
+                emptyEl.appendChild(watchLink);
+            }
             emptyEl.hidden = false;
             return;
         }
@@ -63,6 +77,7 @@ async function load(date) {
         for (const link of links) {
             listEl.appendChild(renderCard(link));
         }
+        document.getElementById("copy-wrap").hidden = links.length === 0;
     } catch {
         errEl.textContent = "Failed to load links.";
         errEl.hidden = false;
@@ -137,7 +152,9 @@ function updateNav() {
     var next = document.getElementById("next-date");
 
     var d = availableDates[currentIndex];
-    label.textContent = formatDate(d);
+    var cnt = dateLinkCounts[d];
+    var countSuffix = (cnt !== undefined) ? " (" + cnt + ")" : "";
+    label.textContent = formatDate(d) + countSuffix;
     prev.disabled = currentIndex >= availableDates.length - 1;
     next.disabled = currentIndex <= 0;
 
@@ -174,6 +191,19 @@ document.getElementById("next-date").addEventListener("click", function() {
         currentIndex--;
         load(availableDates[currentIndex]);
     }
+});
+
+document.getElementById("copy-all").addEventListener("click", function() {
+    var cards = document.querySelectorAll(".link-title a[href]");
+    var urls = [];
+    for (var i = 0; i < cards.length; i++) urls.push(cards[i].href);
+    if (!urls.length) return;
+    navigator.clipboard.writeText(urls.join("\n")).then(function() {
+        var btn = document.getElementById("copy-all");
+        var orig = btn.textContent;
+        btn.textContent = "Copied!";
+        setTimeout(function() { btn.textContent = orig; }, 2000);
+    });
 });
 
 var params = new URLSearchParams(window.location.search);

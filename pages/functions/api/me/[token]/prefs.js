@@ -1,4 +1,4 @@
-import { json, isSameOrigin } from "../../../_lib.js";
+import { json, isSameOrigin, isValidToken } from "../../../_lib.js";
 
 // POST /api/me/{token}/prefs
 // Body: { "cert_style"?: "bundled"|"per_session"|"both",
@@ -11,7 +11,7 @@ import { json, isSameOrigin } from "../../../_lib.js";
 // CSRF gate: dashboard_token sits in URL → Origin check required.
 export async function onRequestPost({ params, request, env }) {
     const token = params.token;
-    if (!token || token.length < 32) return json({ error: "invalid_token" }, 400);
+    if (!isValidToken(token)) return json({ error: "invalid_token" }, 400);
     if (!isSameOrigin(request, env)) return json({ error: "forbidden_origin" }, 403);
 
     let body;
@@ -30,6 +30,13 @@ export async function onRequestPost({ params, request, env }) {
             return json({ error: "invalid_monthly_cert" }, 400);
         }
         patch.monthly_cert = body.monthly_cert;
+    }
+    const VALID_UNSUB = ["monthly_digest", "cert_nudge", "renewal_nudge", "streak_milestone"];
+    if (body?.unsubscribed !== undefined) {
+        if (!Array.isArray(body.unsubscribed) || !body.unsubscribed.every(c => VALID_UNSUB.includes(c))) {
+            return json({ error: "invalid_unsubscribed", valid: VALID_UNSUB }, 400);
+        }
+        patch.unsubscribed = body.unsubscribed;
     }
     if (body?.renewal_tracker !== undefined) {
         if (body.renewal_tracker === null) {

@@ -12,6 +12,7 @@ import { onRequestGet as annualSummaryGet } from "./me/[token]/annual-summary.js
 import { onRequestGet as leaderboardGet } from "./leaderboard.js";
 import { onRequestGet as linksGet } from "./links.js";
 import { onRequestGet as badgeGet } from "./badge/[token].js";
+import { onRequestGet as rssGet } from "./links/rss.js";
 
 // ── helpers ───────────────────────────────────────────────────────────────
 
@@ -54,7 +55,7 @@ function getReq(url) {
 
 test("appeal: rejects missing Origin (CSRF)", async () => {
     const r = await appealPost({
-        params: { token: "a".repeat(32) },
+        params: { token: "a".repeat(64) },
         env: { DB: mockDB([]), RATE_KV: kvPermissive },
         request: new Request("https://sc-cpe-web.pages.dev/api/me/x/appeal",
             { method: "POST", body: JSON.stringify({ claimed_date: "2026-04-20" }) }),
@@ -64,7 +65,7 @@ test("appeal: rejects missing Origin (CSRF)", async () => {
 
 test("appeal: rejects invalid date format", async () => {
     const r = await appealPost({
-        params: { token: "a".repeat(32) },
+        params: { token: "a".repeat(64) },
         env: { DB: mockDB([]), RATE_KV: kvPermissive },
         request: req("https://sc-cpe-web.pages.dev/api/me/x/appeal",
             { body: { claimed_date: "not-a-date" } }),
@@ -76,7 +77,7 @@ test("appeal: rejects invalid date format", async () => {
 
 test("appeal: rejects future date", async () => {
     const r = await appealPost({
-        params: { token: "a".repeat(32) },
+        params: { token: "a".repeat(64) },
         env: { DB: mockDB([]), RATE_KV: kvPermissive },
         request: req("https://sc-cpe-web.pages.dev/api/me/x/appeal",
             { body: { claimed_date: "2099-01-01" } }),
@@ -88,7 +89,7 @@ test("appeal: rejects future date", async () => {
 
 test("appeal: rejects evidence over 500 chars", async () => {
     const r = await appealPost({
-        params: { token: "a".repeat(32) },
+        params: { token: "a".repeat(64) },
         env: { DB: mockDB([]), RATE_KV: kvPermissive },
         request: req("https://sc-cpe-web.pages.dev/api/me/x/appeal",
             { body: { claimed_date: "2026-04-10", evidence_text: "x".repeat(501) } }),
@@ -103,7 +104,7 @@ test("appeal: unknown token → 404", async () => {
         { match: /FROM users WHERE dashboard_token/, handler: () => ({ first: null }) },
     ]);
     const r = await appealPost({
-        params: { token: "a".repeat(32) },
+        params: { token: "a".repeat(64) },
         env: { DB: db, RATE_KV: kvPermissive },
         request: req("https://sc-cpe-web.pages.dev/api/me/x/appeal",
             { body: { claimed_date: "2026-04-10" } }),
@@ -121,7 +122,7 @@ test("appeal: duplicate open appeal → 409", async () => {
         })},
     ]);
     const r = await appealPost({
-        params: { token: "a".repeat(32) },
+        params: { token: "a".repeat(64) },
         env: { DB: db, RATE_KV: kvPermissive },
         request: req("https://sc-cpe-web.pages.dev/api/me/x/appeal",
             { body: { claimed_date: "2026-04-10" } }),
@@ -140,7 +141,7 @@ test("appeal: already credited → 409", async () => {
         { match: /FROM attendance a JOIN streams/, handler: () => ({ first: { "1": 1 } })},
     ]);
     const r = await appealPost({
-        params: { token: "a".repeat(32) },
+        params: { token: "a".repeat(64) },
         env: { DB: db, RATE_KV: kvPermissive },
         request: req("https://sc-cpe-web.pages.dev/api/me/x/appeal",
             { body: { claimed_date: "2026-04-10" } }),
@@ -164,7 +165,7 @@ test("appeal: valid submission → 200 with id", async () => {
         { match: /SELECT.*FROM audit_log/s, handler: () => ({ first: null })},
     ]);
     const r = await appealPost({
-        params: { token: "a".repeat(32) },
+        params: { token: "a".repeat(64) },
         env: { DB: db, RATE_KV: kvPermissive },
         request: req("https://sc-cpe-web.pages.dev/api/me/x/appeal",
             { body: { claimed_date: "2026-04-10", evidence_text: "I was there" } }),
@@ -182,7 +183,7 @@ test("appeal: rate limit trips → 429 (keyed on user id)", async () => {
         })},
     ]);
     const r = await appealPost({
-        params: { token: "a".repeat(32) },
+        params: { token: "a".repeat(64) },
         env: { DB: db, RATE_KV: kvTripped },
         request: req("https://sc-cpe-web.pages.dev/api/me/x/appeal",
             { body: { claimed_date: "2026-04-10" } }),
@@ -200,7 +201,7 @@ test("appeal: no stream on claimed date → 404", async () => {
         { match: /FROM streams WHERE scheduled_date/, handler: () => ({ first: null })},
     ]);
     const r = await appealPost({
-        params: { token: "a".repeat(32) },
+        params: { token: "a".repeat(64) },
         env: { DB: db, RATE_KV: kvPermissive },
         request: req("https://sc-cpe-web.pages.dev/api/me/x/appeal",
             { body: { claimed_date: "2026-04-10" } }),
@@ -214,7 +215,7 @@ test("appeal: no stream on claimed date → 404", async () => {
 
 test("cert-feedback: rejects missing Origin (CSRF)", async () => {
     const r = await certFeedbackPost({
-        params: { token: "a".repeat(32) },
+        params: { token: "a".repeat(64) },
         env: { DB: mockDB([]) },
         request: new Request("https://sc-cpe-web.pages.dev/api/me/x/cert-feedback",
             { method: "POST", body: JSON.stringify({ cert_id: "c1", rating: "ok" }) }),
@@ -224,7 +225,7 @@ test("cert-feedback: rejects missing Origin (CSRF)", async () => {
 
 test("cert-feedback: rejects invalid rating", async () => {
     const r = await certFeedbackPost({
-        params: { token: "a".repeat(32) },
+        params: { token: "a".repeat(64) },
         env: { DB: mockDB([]) },
         request: req("https://sc-cpe-web.pages.dev/api/me/x/cert-feedback",
             { body: { cert_id: "c1", rating: "bad" } }),
@@ -236,7 +237,7 @@ test("cert-feedback: rejects invalid rating", async () => {
 
 test("cert-feedback: rejects note over 500 chars", async () => {
     const r = await certFeedbackPost({
-        params: { token: "a".repeat(32) },
+        params: { token: "a".repeat(64) },
         env: { DB: mockDB([]) },
         request: req("https://sc-cpe-web.pages.dev/api/me/x/cert-feedback",
             { body: { cert_id: "c1", rating: "typo", note: "x".repeat(501) } }),
@@ -248,7 +249,7 @@ test("cert-feedback: rejects note over 500 chars", async () => {
 
 test("cert-feedback: rejects cert_id over 40 chars", async () => {
     const r = await certFeedbackPost({
-        params: { token: "a".repeat(32) },
+        params: { token: "a".repeat(64) },
         env: { DB: mockDB([]) },
         request: req("https://sc-cpe-web.pages.dev/api/me/x/cert-feedback",
             { body: { cert_id: "x".repeat(41), rating: "ok" } }),
@@ -263,8 +264,8 @@ test("cert-feedback: ownership check — wrong user → 404", async () => {
         { match: /FROM users u.*JOIN certs c/s, handler: () => ({ first: null })},
     ]);
     const r = await certFeedbackPost({
-        params: { token: "a".repeat(32) },
-        env: { DB: db },
+        params: { token: "a".repeat(64) },
+        env: { DB: db, RATE_KV: kvPermissive },
         request: req("https://sc-cpe-web.pages.dev/api/me/x/cert-feedback",
             { body: { cert_id: "c1", rating: "typo" } }),
     });
@@ -281,8 +282,8 @@ test("cert-feedback: valid ok rating → 200, no audit row", async () => {
         { match: /INSERT INTO audit_log/, handler: () => { auditWritten = true; return { run: {} }; }},
     ]);
     const r = await certFeedbackPost({
-        params: { token: "a".repeat(32) },
-        env: { DB: db },
+        params: { token: "a".repeat(64) },
+        env: { DB: db, RATE_KV: kvPermissive },
         request: req("https://sc-cpe-web.pages.dev/api/me/x/cert-feedback",
             { body: { cert_id: "c1", rating: "ok" } }),
     });
@@ -303,8 +304,8 @@ test("cert-feedback: typo rating → 200 + audit row", async () => {
         { match: /SELECT.*FROM audit_log/s, handler: () => ({ first: null })},
     ]);
     const r = await certFeedbackPost({
-        params: { token: "a".repeat(32) },
-        env: { DB: db },
+        params: { token: "a".repeat(64) },
+        env: { DB: db, RATE_KV: kvPermissive },
         request: req("https://sc-cpe-web.pages.dev/api/me/x/cert-feedback",
             { body: { cert_id: "c1", rating: "typo", note: "name misspelled" } }),
     });
@@ -319,7 +320,7 @@ test("annual-summary: GET without Origin header still works (read-only, no CSRF 
         { match: /FROM users WHERE dashboard_token/, handler: () => ({ first: null })},
     ]);
     const r = await annualSummaryGet({
-        params: { token: "a".repeat(32) },
+        params: { token: "a".repeat(64) },
         env: { DB: db },
         request: new Request("https://sc-cpe-web.pages.dev/api/me/x/annual-summary?year=2026"),
     });
@@ -328,7 +329,7 @@ test("annual-summary: GET without Origin header still works (read-only, no CSRF 
 
 test("annual-summary: rejects invalid year", async () => {
     const r = await annualSummaryGet({
-        params: { token: "a".repeat(32) },
+        params: { token: "a".repeat(64) },
         env: { DB: mockDB([]) },
         request: getReq("https://sc-cpe-web.pages.dev/api/me/x/annual-summary?year=1999"),
     });
@@ -342,7 +343,7 @@ test("annual-summary: unknown token → 404", async () => {
         { match: /FROM users WHERE dashboard_token/, handler: () => ({ first: null })},
     ]);
     const r = await annualSummaryGet({
-        params: { token: "a".repeat(32) },
+        params: { token: "a".repeat(64) },
         env: { DB: db },
         request: getReq("https://sc-cpe-web.pages.dev/api/me/x/annual-summary?year=2026"),
     });
@@ -362,7 +363,7 @@ test("annual-summary: valid request → 200 with 12 months", async () => {
         { match: /FROM certs/, handler: () => ({ all: [{ id: "c1" }] })},
     ]);
     const r = await annualSummaryGet({
-        params: { token: "a".repeat(32) },
+        params: { token: "a".repeat(64) },
         env: { DB: db },
         request: getReq("https://sc-cpe-web.pages.dev/api/me/x/annual-summary?year=2026"),
     });
@@ -413,7 +414,7 @@ test("leaderboard: rate limit trips → 429", async () => {
 
 test("links: no data → empty response", async () => {
     const db = mockDB([
-        { match: /FROM streams.*show_links.*ORDER BY.*DESC.*LIMIT 1/s, handler: () => ({ first: null })},
+        { match: /LEFT JOIN show_links/, handler: () => ({ all: [] })},
     ]);
     const r = await linksGet({
         env: { DB: db, RATE_KV: kvPermissive },
@@ -423,19 +424,24 @@ test("links: no data → empty response", async () => {
     const j = await r.json();
     assert.equal(j.date, null);
     assert.deepEqual(j.links, []);
+    assert.deepEqual(j.available_dates, []);
+    assert.deepEqual(j.date_link_counts, {});
 });
 
 test("links: with date param → returns links for that date", async () => {
     const db = mockDB([
+        { match: /LEFT JOIN show_links/, handler: () => ({
+            all: [
+                { scheduled_date: "2026-04-10", cnt: 3 },
+                { scheduled_date: "2026-04-09", cnt: 0 },
+            ],
+        })},
         { match: /FROM streams\s+WHERE scheduled_date/s, handler: () => ({
             first: { id: "s1", title: "DTB 2026-04-10", yt_video_id: "v1" },
         })},
-        { match: /FROM show_links/, handler: () => ({
+        { match: /FROM show_links\s+WHERE stream_id/s, handler: () => ({
             all: [{ url: "https://example.com", domain: "example.com", title: "Test",
-                     description: null, author_type: "host", author_name: "SC", posted_at: "2026-04-10T10:00:00Z" }],
-        })},
-        { match: /DISTINCT.*scheduled_date/, handler: () => ({
-            all: [{ scheduled_date: "2026-04-10" }, { scheduled_date: "2026-04-09" }],
+                     description: null, author_type: "owner", author_name: "SC", posted_at: "2026-04-10T10:00:00Z" }],
         })},
     ]);
     const r = await linksGet({
@@ -460,14 +466,16 @@ test("links: rate limit trips → 429", async () => {
 
 test("links: invalid date param falls back to latest", async () => {
     const db = mockDB([
-        { match: /FROM streams.*show_links.*ORDER BY.*DESC.*LIMIT 1/s, handler: () => ({
-            first: { scheduled_date: "2026-04-10" },
+        { match: /LEFT JOIN show_links/, handler: () => ({
+            all: [
+                { scheduled_date: "2026-04-10", cnt: 3 },
+                { scheduled_date: "2026-04-09", cnt: 0 },
+            ],
         })},
         { match: /FROM streams\s+WHERE scheduled_date/s, handler: () => ({
             first: { id: "s1", title: "DTB", yt_video_id: "v1" },
         })},
-        { match: /FROM show_links/, handler: () => ({ all: [] })},
-        { match: /DISTINCT.*scheduled_date/, handler: () => ({ all: [{ scheduled_date: "2026-04-10" }] })},
+        { match: /FROM show_links\s+WHERE stream_id/s, handler: () => ({ all: [] })},
     ]);
     const r = await linksGet({
         env: { DB: db, RATE_KV: kvPermissive },
@@ -476,6 +484,130 @@ test("links: invalid date param falls back to latest", async () => {
     assert.equal(r.status, 200);
     const j = await r.json();
     assert.equal(j.date, "2026-04-10");
+});
+
+test("links: response includes date_link_counts object", async () => {
+    const db = mockDB([
+        { match: /LEFT JOIN show_links/, handler: () => ({
+            all: [
+                { scheduled_date: "2026-04-10", cnt: 5 },
+                { scheduled_date: "2026-04-09", cnt: 2 },
+                { scheduled_date: "2026-04-08", cnt: 0 },
+            ],
+        })},
+        { match: /FROM streams\s+WHERE scheduled_date/s, handler: () => ({
+            first: { id: "s1", title: "DTB 2026-04-10", yt_video_id: "v1" },
+        })},
+        { match: /FROM show_links\s+WHERE stream_id/s, handler: () => ({ all: [] })},
+    ]);
+    const r = await linksGet({
+        env: { DB: db, RATE_KV: kvPermissive },
+        request: getReq("https://sc-cpe-web.pages.dev/api/links"),
+    });
+    assert.equal(r.status, 200);
+    const j = await r.json();
+    assert.equal(typeof j.date_link_counts, "object");
+    assert.equal(j.date_link_counts["2026-04-10"], 5);
+    assert.equal(j.date_link_counts["2026-04-09"], 2);
+    assert.equal(j.date_link_counts["2026-04-08"], 0);
+});
+
+test("links: empty show day — stream exists, no links", async () => {
+    const db = mockDB([
+        { match: /LEFT JOIN show_links/, handler: () => ({
+            all: [
+                { scheduled_date: "2026-04-10", cnt: 3 },
+                { scheduled_date: "2026-04-09", cnt: 0 },
+            ],
+        })},
+        { match: /FROM streams\s+WHERE scheduled_date/s, handler: () => ({
+            first: { id: "s2", title: "DTB 2026-04-09", yt_video_id: "v2" },
+        })},
+        { match: /FROM show_links\s+WHERE stream_id/s, handler: () => ({ all: [] })},
+    ]);
+    const r = await linksGet({
+        env: { DB: db, RATE_KV: kvPermissive },
+        request: getReq("https://sc-cpe-web.pages.dev/api/links?date=2026-04-09"),
+    });
+    assert.equal(r.status, 200);
+    const j = await r.json();
+    assert.equal(j.date, "2026-04-09");
+    assert.ok(j.stream, "stream info should be present");
+    assert.equal(j.stream.title, "DTB 2026-04-09");
+    assert.deepEqual(j.links, []);
+});
+
+test("links: viewer links excluded from response", async () => {
+    let showLinksSql = null;
+    const db = mockDB([
+        { match: /LEFT JOIN show_links/, handler: () => ({
+            all: [{ scheduled_date: "2026-04-10", cnt: 1 }],
+        })},
+        { match: /FROM streams\s+WHERE scheduled_date/s, handler: () => ({
+            first: { id: "s1", title: "DTB", yt_video_id: "v1" },
+        })},
+        { match: /FROM show_links\s+WHERE stream_id/s, handler: (sql) => {
+            showLinksSql = sql;
+            return { all: [] };
+        }},
+    ]);
+    await linksGet({
+        env: { DB: db, RATE_KV: kvPermissive },
+        request: getReq("https://sc-cpe-web.pages.dev/api/links?date=2026-04-10"),
+    });
+    assert.ok(showLinksSql, "show_links query must have been executed");
+    assert.ok(/author_type IN/.test(showLinksSql), "show_links query must filter by author_type");
+});
+
+// ── rss ──────────────────────────────────────────────────────────────────
+
+test("rss: returns valid XML with content-type application/rss+xml", async () => {
+    const db = mockDB([
+        { match: /LEFT JOIN show_links.*GROUP BY/s, handler: () => ({
+            all: [{ scheduled_date: "2026-04-10", cnt: 2 }],
+        })},
+        { match: /FROM streams\s+WHERE scheduled_date/s, handler: () => ({
+            first: { id: "s1", title: "DTB 2026-04-10", yt_video_id: "v1" },
+        })},
+        { match: /FROM show_links\s+WHERE stream_id/s, handler: () => ({
+            all: [
+                { url: "https://example.com", domain: "example.com", title: "Test Link",
+                  description: "A test", author_type: "owner", author_name: "SC", posted_at: "2026-04-10T10:00:00Z" },
+            ],
+        })},
+    ]);
+    const r = await rssGet({
+        env: { DB: db, RATE_KV: kvPermissive },
+        request: getReq("https://sc-cpe-web.pages.dev/api/links/rss"),
+    });
+    assert.equal(r.status, 200);
+    assert.ok(r.headers.get("Content-Type").includes("application/rss+xml"));
+    const body = await r.text();
+    assert.ok(body.includes("<rss"));
+    assert.ok(body.includes("Test Link"));
+    assert.ok(body.includes("2026-04-10"));
+});
+
+test("rss: rate limit trips → 429", async () => {
+    const r = await rssGet({
+        env: { DB: mockDB([]), RATE_KV: kvTripped },
+        request: getReq("https://sc-cpe-web.pages.dev/api/links/rss"),
+    });
+    assert.equal(r.status, 429);
+});
+
+test("rss: no data → valid XML with zero items", async () => {
+    const db = mockDB([
+        { match: /LEFT JOIN show_links.*GROUP BY/s, handler: () => ({ all: [] })},
+    ]);
+    const r = await rssGet({
+        env: { DB: db, RATE_KV: kvPermissive },
+        request: getReq("https://sc-cpe-web.pages.dev/api/links/rss"),
+    });
+    assert.equal(r.status, 200);
+    const body = await r.text();
+    assert.ok(body.includes("<rss"));
+    assert.ok(!body.includes("<item>"));
 });
 
 // ── badge ────────────────────────────────────────────────────────────────
@@ -491,19 +623,19 @@ test("badge: short token → 400", async () => {
 
 test("badge: unknown token → 404", async () => {
     const db = mockDB([
-        { match: /FROM users WHERE dashboard_token/, handler: () => ({ first: null })},
+        { match: /FROM users WHERE badge_token/, handler: () => ({ first: null })},
     ]);
     const r = await badgeGet({
-        params: { token: "a".repeat(32) },
+        params: { token: "a".repeat(64) },
         env: { DB: db, RATE_KV: kvPermissive },
-        request: getReq("https://sc-cpe-web.pages.dev/api/badge/" + "a".repeat(32)),
+        request: getReq("https://sc-cpe-web.pages.dev/api/badge/" + "a".repeat(64)),
     });
     assert.equal(r.status, 404);
 });
 
 test("badge: valid user → SVG with correct content type", async () => {
     const db = mockDB([
-        { match: /FROM users WHERE dashboard_token/, handler: () => ({
+        { match: /FROM users WHERE badge_token/, handler: () => ({
             first: { id: "u1", legal_name: "Alice Test", state: "active" },
         })},
         { match: /FROM attendance a JOIN streams/, handler: () => ({
@@ -514,9 +646,9 @@ test("badge: valid user → SVG with correct content type", async () => {
         })},
     ]);
     const r = await badgeGet({
-        params: { token: "a".repeat(32) },
+        params: { token: "a".repeat(64) },
         env: { DB: db, RATE_KV: kvPermissive },
-        request: getReq("https://sc-cpe-web.pages.dev/api/badge/" + "a".repeat(32)),
+        request: getReq("https://sc-cpe-web.pages.dev/api/badge/" + "a".repeat(64)),
     });
     assert.equal(r.status, 200);
     assert.equal(r.headers.get("Content-Type"), "image/svg+xml");
@@ -528,15 +660,15 @@ test("badge: valid user → SVG with correct content type", async () => {
 
 test("badge: XSS in legal_name is escaped in SVG", async () => {
     const db = mockDB([
-        { match: /FROM users WHERE dashboard_token/, handler: () => ({
+        { match: /FROM users WHERE badge_token/, handler: () => ({
             first: { id: "u1", legal_name: '<script>alert("xss")</script>', state: "active" },
         })},
         { match: /FROM attendance a JOIN streams/, handler: () => ({ all: [] })},
     ]);
     const r = await badgeGet({
-        params: { token: "a".repeat(32) },
+        params: { token: "a".repeat(64) },
         env: { DB: db, RATE_KV: kvPermissive },
-        request: getReq("https://sc-cpe-web.pages.dev/api/badge/" + "a".repeat(32)),
+        request: getReq("https://sc-cpe-web.pages.dev/api/badge/" + "a".repeat(64)),
     });
     assert.equal(r.status, 200);
     const svg = await r.text();
@@ -546,9 +678,9 @@ test("badge: XSS in legal_name is escaped in SVG", async () => {
 
 test("badge: rate limit trips → rate limited response", async () => {
     const r = await badgeGet({
-        params: { token: "a".repeat(32) },
+        params: { token: "a".repeat(64) },
         env: { DB: mockDB([]), RATE_KV: kvTripped },
-        request: getReq("https://sc-cpe-web.pages.dev/api/badge/" + "a".repeat(32)),
+        request: getReq("https://sc-cpe-web.pages.dev/api/badge/" + "a".repeat(64)),
     });
     assert.equal(r.status, 429);
 });

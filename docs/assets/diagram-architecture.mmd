@@ -1,0 +1,53 @@
+graph TD
+    subgraph cf["Cloudflare Edge"]
+        pages["Pages · API + UI"]
+        d1[("D1 · SQLite")]
+        r2[("R2 · Object Storage")]
+        kv[("KV · Rate Limits")]
+        poller["Poller · per-min"]
+        email["Email Sender"]
+        purge["Purge + Digests"]
+    end
+
+    subgraph ext["External"]
+        yt["YouTube API v3"]
+        resend["Resend"]
+        tsa["RFC-3161 TSA"]
+        discord["Discord Webhooks"]
+    end
+
+    subgraph gh["GitHub Actions"]
+        deploy["deploy-prod"]
+        certs["Cert Signer · Python"]
+        smoke["Smoke + Watchdog"]
+        backup["Weekly Backup"]
+        rescan["Chat Rescan"]
+    end
+
+    yt --> poller --> d1
+    pages --> d1
+    pages --> r2
+    pages --> kv
+    certs --> r2
+    certs --> d1
+    certs --> tsa
+    email --> resend
+    purge --> r2
+    purge --> d1
+    purge --> discord
+    deploy --> cf
+    smoke --> pages
+    backup --> r2
+    rescan --> d1
+
+    style d1 fill:#10b981,stroke:#047857,color:#fff
+    style r2 fill:#06b6d4,stroke:#0e7490,color:#fff
+    style kv fill:#14b8a6,stroke:#0d9488,color:#fff
+    style poller fill:#3b82f6,stroke:#1e40af,color:#fff
+    style email fill:#f59e0b,stroke:#d97706,color:#fff
+    style purge fill:#a855f7,stroke:#7c3aed,color:#fff
+    style certs fill:#8b5cf6,stroke:#6d28d9,color:#fff
+    style yt fill:#ef4444,stroke:#b91c1c,color:#fff
+    style discord fill:#5865f2,stroke:#4752c4,color:#fff
+    style backup fill:#f97316,stroke:#ea580c,color:#fff
+    style rescan fill:#ec4899,stroke:#be185d,color:#fff

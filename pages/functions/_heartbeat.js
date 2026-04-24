@@ -17,6 +17,8 @@ export const EXPECTED_CADENCE_S = {
     canary: 3600,           // hourly synthetic smoke
     monthly_digest: 2678400, // ~31 days; fires 1st of month
     link_enrichment: 86400, // daily; piggybacks on purge
+    cert_nudge: 2678400,    // ~31 days; fires 1st of month via purge
+    renewal_nudge: 86400,   // daily; piggybacks on purge
 };
 
 // True when `now` falls inside the poller's ET weekday window. Vars come from

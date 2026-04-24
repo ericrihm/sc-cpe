@@ -8,7 +8,7 @@ export async function onRequestGet({ params, env, request }) {
 
     const ipH = await ipHash(clientIp(request));
     const rl = await rateLimit(env, `verify:${ipH}`, 120);
-    if (!rl.ok) return json(rl.body, rl.status);
+    if (!rl.ok) return json(rl.body, rl.status, rl.headers);
 
     const row = await env.DB.prepare(`
         SELECT c.id, c.public_token, c.period_yyyymm, c.period_start, c.period_end,
@@ -33,7 +33,7 @@ export async function onRequestGet({ params, env, request }) {
         WHERE id = ?2 AND first_viewed_at IS NULL
     `).bind(new Date().toISOString(), row.id).run();
 
-    await audit(env, "api", null, "cert_verified", "cert", row.id, null, {
+    await audit(env, "api", null, "cert_verified", "cert", row.id, null, null, {
         ip_hash: await ipHash(clientIp(request)),
     });
 

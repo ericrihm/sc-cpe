@@ -15,6 +15,7 @@ pages/                Cloudflare Pages Functions — the public web surface
   functions/api/      JSON API
     admin/            bearer-token (ADMIN_TOKEN) gated endpoints
     me/[token]/       dashboard-token gated endpoints (CSRF-sensitive)
+    ob/               Open Badges v3 (credential export, JWKS, signing)
     badge/[token].js  SVG badge endpoint
     leaderboard.js    public leaderboard API
   _lib.js             shared helpers (audit, isAdmin, rateLimit, etc.)
@@ -36,11 +37,17 @@ db/
 scripts/              smoke, schema check, audit verifier, tests
   backup_d1.sh        weekly D1 export
   get_oauth_token.mjs YouTube OAuth token setup helper
+  rescan_chat.py      chat replay rescan for missed attendance (needs chat_downloader)
+  self-heal.sh        automated remediation playbook (called by watchdog)
+  claude-heal-prompt.md  per-source diagnostic playbooks for Claude Code triage
 .github/workflows/    CI: ci.yml (tests+gitleaks), smoke.yml (hourly),
-                      watchdog.yml, monthly-certs.yml (bundled sweep),
+                      watchdog.yml (15min + self-heal + escalation),
+                      heal.yml (manual self-heal dispatch),
+                      monthly-certs.yml (bundled sweep),
                       cert-sign-pending.yml (2h pending-cert pickup),
                       schema-drift.yml (weekly D1 vs schema.sql),
-                      backup.yml (weekly D1 backup)
+                      backup.yml (weekly D1 backup),
+                      rescan-chat.yml (daily chat replay rescan)
 .githooks/pre-push    runs scripts/test.sh before push
 docs/DESIGN.md        architecture decisions
 docs/PITCH.md         Simply Cyber team pitch
@@ -248,14 +255,28 @@ ADMIN_TOKEN="$(tr -d '\n' < ~/.cloudflare/sc-cpe-admin-token)" \
   scripts extracted to external files. `style-src 'unsafe-inline'` retained
   — removing it requires refactoring all inline `style=` attributes.
 - Leaderboard migration (004) applied to prod on 2026-04-17.
-- CF Pages PR previews remain disabled — current bindings are prod;
-  enabling them requires a separate `sc-cpe-preview` D1/R2/KV.
+- CF Pages PR previews active — `[env.preview]` in `wrangler.toml` has
+  real D1/KV/R2 bindings. Preview D1: `sc-cpe-preview`
+  (`8aa974e0-e0d8-4120-b2c3-172f441b2520`), KV: `sc-cpe-rate-preview`
+  (`3eecd067a6bf44eca56a8feaca4d127c`), R2: `sc-cpe-certs-preview`.
+  Backup bucket: `sc-cpe-backups`. Deploy workflow:
+  `.github/workflows/deploy-preview.yml`.
 - Show Links Archive (migration 005) deployed 2026-04-22. Poller
   extracts URLs from host/mod chat; purge worker enriches with titles
   daily. Public page at `/links.html`, API at `/api/links`.
 - Poller had zero messages scanned for Apr 15-21 streams (all flagged).
-  No raw chat in R2 for those dates; links archive starts from first
-  show after 2026-04-22 deploy.
+  Root cause was three stacked bugs: wrong API URL (`/liveChatMessages`
+  vs `/liveChat/messages`), silent OAuth-to-API-key fallback (API key
+  can't read liveChatMessages), and expired OAuth refresh token. All
+  three fixed 2026-04-23 and deployed. No raw chat in R2 for those
+  dates; links archive starts from first show after 2026-04-22 deploy.
+- **Chat replay rescan** (`scripts/rescan_chat.py`) uses `chat_downloader`
+  to pull chat replays from ended streams and retroactively credit
+  attendance. Workflow: `.github/workflows/rescan-chat.yml` (daily 16:00
+  UTC + manual). **Blocker:** Simply Cyber channel currently has chat
+  replay disabled — all 6 flagged streams return "Live chat replay is
+  not available." Gerald must enable it in YouTube Studio → Settings →
+  Community → Defaults → Live chat replay for this to work.
 - **Admin attendance window check was sign-inverted** — fixed 2026-04-22.
   `admin/attendance.js:81` had `startMs + grace` (rejected pre-stream
   evidence, accepted post-stream). Corrected to `startMs - grace` to
@@ -275,6 +296,116 @@ ADMIN_TOKEN="$(tr -d '\n' < ~/.cloudflare/sc-cpe-admin-token)" \
       name at binding time is lost.
     - PAdES-LTA re-sign ceremony needed before the signing cert's 10-year
       expiry. See `docs/LTV.md` for the full analysis.
+- **Hardcoded SITE_BASE removed** — fixed 2026-04-22 (PR #55). All 5 API
+  endpoint files (`register`, `recover`, `rotate`, `resend-code`,
+  `admin/cert/resend`) now derive the origin from `request.url` instead of
+  hardcoding `sc-cpe-web.pages.dev`. URLs in emails will automatically
+  work when `cpe.simplycyber.io` custom domain is added.
+- **OAuth degradation alerting** — added 2026-04-22 (PR #56). Poller
+  heartbeat now includes `auth_method` (`oauth`/`api_key`/`none`) in
+  `detail_json`. `/api/health` surfaces detail per source.
+  `/api/admin/ops-stats` warns when poller falls back to API key.
+- **Security audit fixes** — 2026-04-22. Migrations 006 (cert reissue
+  index) + 007 (badge_token). Key changes:
+    - `badge_token` column on `users` — badge/share URLs use this instead
+      of `dashboard_token`, preventing credential leak in shared links.
+      Badge endpoint looks up by `badge_token`. Rotate regenerates both.
+    - Cert reissue unique index: partial unique indexes now exclude
+      `state = 'regenerated'`; reissue endpoint sets old cert to
+      `regenerated` before INSERT to avoid constraint violation.
+    - XSS: admin.js `innerHTML` calls now use `escapeHtml()`;
+      generate.py uses `html.escape()` for recipient_name;
+      cert resend email escapes `sessionsCount`.
+    - enrichShowLinks always sets `enriched_at` (even on fetch failure)
+      to prevent infinite retry loop.
+    - `cert_nudge` added to `EXPECTED_CADENCE_S` in both `_heartbeat.js`
+      and purge worker mirror.
+    - `ip_hash` moved from `after` to `opts` param in 4 audit callers
+      (download, verify, register ×2) so it lands in the `ip_hash` column.
+    - generate.py email claim sets `sent_at` so the email-sender's
+      stuck-row rescue can reclaim it.
+    - Security alert cursor advances to `nowIso` on stale-only digests.
+    - resend-code "within 7 days" corrected to "before it expires".
+    - CRL endpoint sets `Cross-Origin-Resource-Policy: cross-origin`.
+    - admin.js reissue click listener moved to one-time registration.
+- **Credential portability** — added 2026-04-24. OBv3 credential export
+  (`/api/ob/credential/[token].json`), Ed25519 signed with DataIntegrityProof
+  (`eddsa-rdfc-2022`), JWKS at `/api/ob/jwks`. LinkedIn "Add to Profile"
+  deep-link + CPE submission guide page (`cpe-guide.html`) with CompTIA/
+  ISC2/ISACA tabs and copy-to-clipboard. Requires `OB_SIGNING_KEY` Pages
+  secret (see RUNBOOK "Open Badge Signing Key"). HSTS preload directive added.
+- **Self-healing watchdog** — added 2026-04-24. `watchdog.yml` now runs
+  `scripts/self-heal.sh` after detecting stale sources. Playbook: purge-family
+  sources re-triggered via on-demand HTTP endpoint; email-sender/poller wait
+  for transient recovery. Safety: 2h cooldown per source, 3 heals/day max
+  (tracked in watchdog KV). On heal failure: creates GitHub issue with
+  diagnostic bundle + Claude Code triage prompt (`auto-heal-escalation` label).
+  Manual dispatch: `gh workflow run heal.yml -f sources="purge email_sender"`.
+  Per-source playbooks in `scripts/claude-heal-prompt.md`.
+- **Watchdog-state regex fix** — 2026-04-24. Source name regex changed from
+  `/^[a-z0-9_-]{1,32}$/` to `/^[a-z0-9_:.-]{1,64}$/` to support `warn:`
+  prefix and `heal:` tracking keys. The old regex silently rejected ops-stats
+  warning dedup writes.
+- **Resend bounce/complaint webhook** — added 2026-04-24. New endpoint
+  `/api/email-webhook` processes Resend Svix-signed webhook events
+  (`email.bounced`, `email.complained`). Marks outbox rows `bounced`,
+  inserts into `email_suppression` table (migration 012). Email-sender
+  checks suppression before sending — suppressed rows get `bounced`
+  immediately with `last_error = 'suppressed:hard_bounce'`. Requires
+  `RESEND_WEBHOOK_SECRET` Pages secret (passes through if unset during
+  initial setup). Configure webhook URL in Resend dashboard.
+- **Email unsubscribe** — added 2026-04-24. `/api/me/{token}/unsubscribe`
+  endpoint (GET = confirmation page, POST = one-click per RFC 8058).
+  Categories: `monthly_digest`, `cert_nudge`, `renewal_nudge`,
+  `streak_milestone`. `email_prefs.unsubscribed` array stores opt-outs.
+  All engagement emails include `List-Unsubscribe` + `List-Unsubscribe-Post`
+  headers and footer unsubscribe link. Prefs endpoint accepts
+  `unsubscribed[]` for dashboard re-subscribe.
+- **Streak milestone emails** — added 2026-04-24. Poller queues celebration
+  emails at 5, 10, 25, 50, 100-day streaks. `updateStreak()` now returns
+  the new streak value. Idempotency key `streak:<userId>:<milestone>`
+  ensures each milestone emailed once per user ever.
+- **OpenGraph/Twitter Card tags** — added 2026-04-24. Verify, leaderboard,
+  and CPE guide pages now have OG + Twitter Card meta tags for rich social
+  previews when shared.
+- **Schema drift daily** — changed 2026-04-24. `schema-drift.yml` cron
+  changed from weekly (Mon 10:00 UTC) to daily (10:00 UTC), closing the
+  6-day blind spot after mid-week migrations.
+- **User suspension** — added 2026-04-24. Migration 013 adds
+  `suspended_at TEXT` to users. `POST /api/admin/suspend` sets/clears
+  with audit trail. Poller skips `suspended_at IS NOT NULL` users;
+  `generate.py` excludes from ELIGIBLE_SQL. Dashboard shows suspension
+  banner. Admin user search includes SUSPENDED pill and toggle button.
+- **Email suppression admin UI** — added 2026-04-24.
+  `GET /api/admin/email-suppression` lists masked suppressed addresses;
+  `DELETE` removes by full email with audit. Admin dashboard renders
+  suppression list below kill switches.
+- **Email delivery status on dashboard** — added 2026-04-24.
+  `GET /api/me/{token}` now batch-joins certs against `email_outbox` on
+  raw cert ULID (idempotency_key), returning `email_status` and
+  `email_error` per cert. Dashboard shows delivery pills (sent/queued/
+  bounced/failed) on cert cards.
+- **User cert resend** — added 2026-04-24. `POST /api/me/{token}/
+  cert-resend/{cert_id}` re-queues delivery for bounced/failed emails.
+  CSRF-gated, rate-limited 2/hr per user. Dashboard shows "Retry email
+  delivery" button on bounced/failed certs.
+- **Secret rotation reminders** — added 2026-04-24.
+  `.github/workflows/secret-rotation.yml` runs monthly on the 1st.
+  Reads `secrets_rotation_log.json` (tracks 7 secrets with `rotated_at`
+  and `max_age_days`), creates/comments on GitHub issues with label
+  `secret-rotation-overdue` for overdue secrets.
+- **RUNBOOK incident response SLA** — added 2026-04-24. Severity levels
+  P1 (4h), P2 (24h), P3 (1 week) with escalation path and post-incident
+  template.
+- **Ops-polish feature bundle** — added 2026-04-24 (PR #67). Admin
+  analytics dashboard with 4 sub-endpoints (growth, engagement, certs,
+  system) rendered as stat-card grids + time-series tables.
+  `GET /api/admin/streams` returns recent streams with attendance counts.
+  Admin dashboard has manual cron trigger buttons for each purge worker
+  block. User detail expansion in admin user search. Dashboard email
+  prefs UI with 4-category unsubscribe checkboxes. Test coverage: 22 new
+  unit tests across 3 test files. Docs: `docs/DEV_SETUP.md` (developer
+  setup) and `docs/ADMIN_ONBOARDING.md` (admin guide).
 
 ## Where to look for more context
 
@@ -282,5 +413,7 @@ ADMIN_TOKEN="$(tr -d '\n' < ~/.cloudflare/sc-cpe-admin-token)" \
 - `docs/LTV.md` — legal/compliance reasoning (GDPR Art. 17(3)(e) carve-out)
 - `docs/DESIGN.md` — architecture decisions
 - `docs/PITCH.md` — Simply Cyber team pitch
+- `docs/DEV_SETUP.md` — developer environment setup
+- `docs/ADMIN_ONBOARDING.md` — admin dashboard guide + common tasks
 - `outputs/handoffs/` — session-end briefs; the most recent one is always
   the fastest way to understand "where we are right now"

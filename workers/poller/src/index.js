@@ -63,15 +63,18 @@ export default {
     async scheduled(event, env, ctx) {
         const now = new Date();
         if (!inPollWindow(now, env).ok) return;
+        let authMethod = "none";
         try {
-            const meta = await tick(env, now);
-            await heartbeat(env, "poller", "ok", {
-                at: now.toISOString(),
-                auth_method: meta?.auth_method ?? "none",
-            });
+            const t = await getAccessToken(env);
+            authMethod = t ? "oauth" : "api_key";
+        } catch { authMethod = "api_key"; }
+        try {
+            await tick(env, now);
+            await heartbeat(env, "poller", "ok", { at: now.toISOString(), auth_method: authMethod });
         } catch (err) {
             await heartbeat(env, "poller", "error", {
                 at: now.toISOString(),
+                auth_method: authMethod,
                 msg: String(err && err.message || err),
             });
             throw err;
@@ -176,21 +179,26 @@ const FINALIZE_ELAPSED_MIN = 90;
 
 async function pollOnePage(env, session, now) {
     let token;
+    let oauthError = null;
     try { token = await getAccessToken(env); }
-    catch (e) { console.error(`[poller] OAuth error in poll: ${e.message}`); token = null; }
-    const authMethod = token ? "oauth" : "api_key";
-    const authParam = token ? "" : `&key=${env.YOUTUBE_API_KEY}`;
+    catch (e) { oauthError = e.message; token = null; }
+
+    if (!token) {
+        const detail = { stream_id: session.stream_id, reason: oauthError || "no_oauth_secrets" };
+        await audit(env, "poller", null, "oauth_unavailable", "stream", session.stream_id, null, detail);
+        return;
+    }
+
     const params = new URLSearchParams({
         liveChatId: session.live_chat_id,
         part: "snippet,authorDetails",
         maxResults: "2000",
     });
-    if (!token) params.set("key", env.YOUTUBE_API_KEY);
     if (session.page_token) params.set("pageToken", session.page_token);
 
     let data;
     try {
-        data = await ytGet(`${YT}/liveChatMessages?${params}`, token);
+        data = await ytGet(`${YT}/liveChat/messages?${params}`, token);
     } catch (err) {
         const msg = String(err && err.message || err);
         const is403or404 = msg.includes(" 403") || msg.includes(" 404");
@@ -212,7 +220,7 @@ async function pollOnePage(env, session, now) {
 
         let confirmedEnded = false;
         try {
-            const v = await ytGet(`${YT}/videos?part=liveStreamingDetails&id=${session.video_id}${authParam}`, token);
+            const v = await ytGet(`${YT}/videos?part=liveStreamingDetails&id=${session.video_id}`, token);
             const end = v?.items?.[0]?.liveStreamingDetails?.actualEndTime;
             if (end) confirmedEnded = true;
         } catch { /* treat as inconclusive */ }
@@ -398,7 +406,7 @@ async function processAttendance(env, session, items, now) {
 
     const placeholders = channelIds.map((_, i) => `?${i + 1}`).join(",");
     const usersRs = await env.DB.prepare(
-        `SELECT id, yt_channel_id FROM users WHERE state = 'active' AND yt_channel_id IN (${placeholders})`
+        `SELECT id, yt_channel_id FROM users WHERE state = 'active' AND suspended_at IS NULL AND yt_channel_id IN (${placeholders})`
     ).bind(...channelIds).all();
     const byChannel = new Map((usersRs.results || []).map(r => [r.yt_channel_id, r.id]));
     if (byChannel.size === 0) return;
@@ -454,6 +462,14 @@ async function processAttendance(env, session, items, now) {
             "UPDATE streams SET distinct_attendees = distinct_attendees + 1 WHERE id = ?1"
         ).bind(session.stream_id).run();
 
+        const streakResult = await updateStreak(env, userId, session.stream_id);
+        if (streakResult?.isNew) {
+            const MILESTONES = [5, 10, 25, 50, 100];
+            if (MILESTONES.includes(streakResult.newStreak)) {
+                await queueStreakEmail(env, userId, streakResult.newStreak);
+            }
+        }
+
         await audit(env, "poller", userId, "attendance_credited", "attendance",
             `${userId}:${session.stream_id}`, null,
             { stream_id: session.stream_id, cpe: rule.cpe_per_day, rule_version: rule.version });
@@ -495,6 +511,42 @@ async function extractShowLinks(env, session, items, now) {
             ).run();
         }
     }
+}
+
+export async function updateStreak(env, userId, streamId) {
+    const stream = await env.DB.prepare(
+        "SELECT scheduled_date FROM streams WHERE id = ?1"
+    ).bind(streamId).first();
+    if (!stream?.scheduled_date) return null;
+    const today = stream.scheduled_date;
+
+    const user = await env.DB.prepare(
+        "SELECT current_streak, longest_streak, last_attendance_date FROM users WHERE id = ?1"
+    ).bind(userId).first();
+    if (!user) return null;
+
+    let newStreak = 1;
+    if (user.last_attendance_date && user.last_attendance_date !== today) {
+        const expected = prevWeekday(today);
+        if (user.last_attendance_date >= expected) {
+            newStreak = (user.current_streak || 0) + 1;
+        }
+    } else if (user.last_attendance_date === today) {
+        return null;
+    }
+
+    const newLongest = Math.max(newStreak, user.longest_streak || 0);
+    await env.DB.prepare(
+        "UPDATE users SET current_streak = ?1, longest_streak = ?2, last_attendance_date = ?3 WHERE id = ?4"
+    ).bind(newStreak, newLongest, today, userId).run();
+    return { newStreak, isNew: true };
+}
+
+export function prevWeekday(iso) {
+    const d = new Date(iso + "T12:00:00Z");
+    d.setDate(d.getDate() - 1);
+    while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() - 1);
+    return d.toISOString().slice(0, 10);
 }
 
 function passesMessageFilter(text, minLen) {
@@ -698,6 +750,60 @@ async function audit(env, actorType, actorId, action, entityType, entityId, befo
 }
 
 function isoDate(d) { return d.toISOString().slice(0, 10); }
+
+function escapeHtml(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+async function queueStreakEmail(env, userId, streak) {
+    const user = await env.DB.prepare(
+        "SELECT email, legal_name, dashboard_token FROM users WHERE id = ?1 AND state = 'active'"
+    ).bind(userId).first();
+    if (!user?.email || user.email.endsWith("@invalid")) return;
+
+    const siteBase = env.SITE_URL || "https://sc-cpe-web.pages.dev";
+    const dashUrl = siteBase + "/dashboard.html?t=" + user.dashboard_token;
+    const emoji = streak >= 100 ? "🏆" : streak >= 50 ? "🔥" : streak >= 25 ? "⭐" : "🎯";
+    const subject = emoji + " " + streak + "-day streak! You're on fire";
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="margin:0;padding:0;background:#f4f6f8;font-family:-apple-system,system-ui,sans-serif;">
+<div style="max-width:580px;margin:0 auto;background:#fff;">
+  <div style="background:#0b3d5c;padding:18px 24px;">
+    <div style="color:#fff;font-size:11pt;letter-spacing:0.18em;text-transform:uppercase;">Simply Cyber CPE</div>
+    <div style="color:#d4a73a;font-size:9pt;margin-top:2px;">Streak Milestone</div>
+  </div>
+  <div style="padding:24px;text-align:center;">
+    <div style="font-size:48px;margin:16px 0;">${emoji}</div>
+    <h1 style="color:#0b3d5c;margin:0 0 8px;">${streak}-Day Streak!</h1>
+    <p style="color:#555;font-size:15px;">Congratulations, ${escapeHtml(user.legal_name)}! You've attended ${streak} Daily Threat Briefings in a row.</p>
+    <p style="color:#555;font-size:14px;">Keep showing up — your dedication to continuous learning sets you apart.</p>
+    <a href="${dashUrl}" style="display:inline-block;margin:20px 0;padding:12px 28px;background:#d4a73a;color:#0b3d5c;text-decoration:none;border-radius:6px;font-weight:600;">View Your Dashboard</a>
+  </div>
+  <div style="padding:16px 24px;border-top:1px solid #e6eaee;font-size:11px;color:#777;">
+    You're receiving this because you registered at <a href="${siteBase}" style="color:#777;">Simply Cyber CPE</a>.
+  </div>
+</div></body></html>`;
+
+    const text = `${streak}-Day Streak!\n\nCongratulations, ${user.legal_name}! You've attended ${streak} Daily Threat Briefings in a row.\n\nKeep showing up — your dedication to continuous learning sets you apart.\n\nView your dashboard: ${dashUrl}\n\n— SC-CPE`;
+
+    const id = ulid();
+    const now = new Date().toISOString();
+    try {
+        await env.DB.prepare(`
+            INSERT INTO email_outbox
+              (id, user_id, template, to_email, subject, payload_json,
+               idempotency_key, state, attempts, created_at)
+            VALUES (?1, ?2, 'streak_milestone', ?3, ?4, ?5, ?6, 'queued', 0, ?7)
+        `).bind(
+            id, userId, user.email, subject,
+            JSON.stringify({ html_body: html, text_body: text }),
+            "streak:" + userId + ":" + streak,
+            now,
+        ).run();
+    } catch (err) {
+        if (!/UNIQUE/i.test(String(err?.message || err))) throw err;
+    }
+}
 
 function ulid() {
     const A = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";

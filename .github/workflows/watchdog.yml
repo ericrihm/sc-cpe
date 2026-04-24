@@ -1,10 +1,12 @@
 name: watchdog
 
-# External liveness + warnings check. Every 15 minutes:
+# External liveness + warnings check + self-healing. Every 15 minutes:
 #   1. Poll /api/health for per-cron staleness.
 #   2. Poll /api/admin/ops-stats for runtime warnings (email queue stalled,
 #      cert-sign-pending stalled, Resend quota near cap, etc — anything
 #      flagged level=critical by computeWarnings() in ops-stats.js).
+#   3. For newly-stale sources, attempt automated remediation via
+#      scripts/self-heal.sh (idempotent, rate-limited).
 # Alert dedup state lives in Cloudflare KV (/api/watchdog-state) so we send
 # one "down" message per event and one "recovered" per clear — no spam.
 # Heartbeat sources and warning codes share the same dedup namespace
@@ -21,6 +23,7 @@ concurrency:
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
   check:
@@ -34,7 +37,10 @@ jobs:
       ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
       DISCORD_ALERT_WEBHOOK: ${{ secrets.DISCORD_ALERT_WEBHOOK }}
     steps:
+      - uses: actions/checkout@v4
+
       - name: Check liveness and alert on transitions
+        id: detect
         shell: bash
         run: |
           set -euo pipefail
@@ -76,14 +82,17 @@ jobs:
               -X POST -d @- "$WATCHDOG_STATE_URL" >/dev/null
           }
 
+          newly_stale=""
+
           for pair in "${pairs[@]}"; do
             IFS='|' read -r source stale last_beat age <<< "$pair"
             already_alerted=$(echo "$state" | jq -r --arg s "$source" '.alerted[$s] // ""')
 
             if [[ "$stale" == "true" && -z "$already_alerted" ]]; then
               echo "ALERT: $source is stale (last=$last_beat age=${age}s)"
-              post_discord ":rotating_light: **SC-CPE: $source is stale** — last beat $last_beat (${age}s ago). Check Cloudflare logs."
+              post_discord ":rotating_light: **SC-CPE: $source is stale** — last beat $last_beat (${age}s ago). Attempting self-heal..."
               set_state "$source" "$(jq -cn --arg s "$source" '{source: $s}')"
+              newly_stale="$newly_stale $source"
 
             elif [[ "$stale" == "false" && -n "$already_alerted" ]]; then
               echo "RECOVERED: $source (was alerted at $already_alerted)"
@@ -96,53 +105,145 @@ jobs:
           done
 
           # ── ops-stats warnings ────────────────────────────────────────
-          # Poll the admin ops-stats endpoint for level=critical runtime
-          # warnings (email_queue_stalled, certs_pending_stalled,
-          # resend_quota_95pct, etc). Same dedup state; keys prefixed
-          # "warn:" to avoid collision with heartbeat source names.
+          newly_warned=""
+
           if [[ -z "${ADMIN_TOKEN:-}" ]]; then
             echo "ADMIN_TOKEN unset — skipping ops-stats warnings poll"
-            exit 0
-          fi
-          ops_stats_url="${HEALTH_URL%/api/health}/api/admin/ops-stats"
-          ops=$(curl -fsS --max-time 20 \
-            -H "Authorization: Bearer $ADMIN_TOKEN" \
-            "$ops_stats_url" || echo "")
-          if [[ -z "$ops" ]]; then
-            echo "ops-stats poll failed — skipping warnings check"
-            exit 0
-          fi
-          echo "ops-stats.warnings count: $(echo "$ops" | jq '.warnings | length')"
-
-          # Current critical warnings (code|detail each line)
-          mapfile -t crit_lines < <(echo "$ops" | jq -r '.warnings[]? | select(.level=="critical") | "\(.code)|\(.detail)"')
-
-          # Fire alerts for any critical warning not yet alerted
-          for line in "${crit_lines[@]}"; do
-            IFS='|' read -r code detail <<< "$line"
-            dedup_key="warn:$code"
-            already_alerted=$(echo "$state" | jq -r --arg s "$dedup_key" '.alerted[$s] // ""')
-            if [[ -z "$already_alerted" ]]; then
-              echo "ALERT: warning $code — $detail"
-              post_discord ":rotating_light: **SC-CPE warning: $code** — $detail"
-              set_state "$dedup_key" "$(jq -cn --arg s "$dedup_key" '{source: $s}')"
+          else
+            ops_stats_url="${HEALTH_URL%/api/health}/api/admin/ops-stats"
+            ops=$(curl -fsS --max-time 20 \
+              -H "Authorization: Bearer $ADMIN_TOKEN" \
+              "$ops_stats_url" || echo "")
+            if [[ -z "$ops" ]]; then
+              echo "ops-stats poll failed — skipping warnings check"
             else
-              echo "warn:$code alerted=$already_alerted (no change)"
-            fi
-          done
+              echo "ops-stats.warnings count: $(echo "$ops" | jq '.warnings | length')"
 
-          # Clear any previously-alerted warnings no longer in the critical list
-          mapfile -t prev_warn_keys < <(echo "$state" | jq -r '.alerted // {} | keys[] | select(startswith("warn:"))')
-          mapfile -t active_codes < <(echo "$ops" | jq -r '.warnings[]? | select(.level=="critical") | .code')
-          for k in "${prev_warn_keys[@]}"; do
-            code="${k#warn:}"
-            still_active=false
-            for ac in "${active_codes[@]}"; do
-              [[ "$ac" == "$code" ]] && still_active=true
-            done
-            if [[ "$still_active" == "false" ]]; then
-              echo "RECOVERED: warning $code cleared"
-              post_discord ":white_check_mark: **SC-CPE warning cleared: $code**"
-              set_state "$k" "$(jq -cn --arg s "$k" '{source: $s, clear: true}')"
+              mapfile -t crit_lines < <(echo "$ops" | jq -r '.warnings[]? | select(.level=="critical") | "\(.code)|\(.detail)"')
+
+              for line in "${crit_lines[@]}"; do
+                IFS='|' read -r code detail <<< "$line"
+                dedup_key="warn:$code"
+                already_alerted=$(echo "$state" | jq -r --arg s "$dedup_key" '.alerted[$s] // ""')
+                if [[ -z "$already_alerted" ]]; then
+                  echo "ALERT: warning $code — $detail"
+                  post_discord ":rotating_light: **SC-CPE warning: $code** — $detail. Attempting self-heal..."
+                  set_state "$dedup_key" "$(jq -cn --arg s "$dedup_key" '{source: $s}')"
+                  newly_warned="$newly_warned warn:$code"
+                else
+                  echo "warn:$code alerted=$already_alerted (no change)"
+                fi
+              done
+
+              mapfile -t prev_warn_keys < <(echo "$state" | jq -r '.alerted // {} | keys[] | select(startswith("warn:"))')
+              mapfile -t active_codes < <(echo "$ops" | jq -r '.warnings[]? | select(.level=="critical") | .code')
+              for k in "${prev_warn_keys[@]}"; do
+                code="${k#warn:}"
+                still_active=false
+                for ac in "${active_codes[@]}"; do
+                  [[ "$ac" == "$code" ]] && still_active=true
+                done
+                if [[ "$still_active" == "false" ]]; then
+                  echo "RECOVERED: warning $code cleared"
+                  post_discord ":white_check_mark: **SC-CPE warning cleared: $code**"
+                  set_state "$k" "$(jq -cn --arg s "$k" '{source: $s, clear: true}')"
+                fi
+              done
             fi
-          done
+          fi
+
+          all_heal="$(echo "$newly_stale $newly_warned" | xargs)"
+          echo "heal_sources=$all_heal" >> "$GITHUB_OUTPUT"
+
+      - name: Self-heal stale sources
+        if: steps.detect.outputs.heal_sources != ''
+        id: heal
+        continue-on-error: true
+        env:
+          ORIGIN: ${{ vars.HEALTH_URL && format('{0}', '') || 'https://sc-cpe-web.pages.dev' }}
+        run: |
+          ORIGIN="${HEALTH_URL%/api/health}"
+          bash scripts/self-heal.sh ${{ steps.detect.outputs.heal_sources }}
+
+      - name: Escalate heal failures
+        if: steps.heal.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCES: ${{ steps.detect.outputs.heal_sources }}
+          ORIGIN: https://sc-cpe-web.pages.dev
+        run: |
+          echo "Self-heal failed — collecting diagnostics for escalation..."
+          health=$(curl -fsS --max-time 10 "$ORIGIN/api/health" 2>/dev/null \
+            | jq . 2>/dev/null || echo '"unreachable"')
+          ops=$(curl -fsS --max-time 10 \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            "$ORIGIN/api/admin/ops-stats" 2>/dev/null \
+            | jq '.warnings // []' 2>/dev/null || echo '"unreachable"')
+          runs=$(gh run list --limit 8 \
+            --json name,status,conclusion,startedAt 2>/dev/null \
+            | jq . 2>/dev/null || echo '[]')
+          ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          cat > /tmp/issue-body.md <<BODYEOF
+          ## Auto-Heal Escalation
+
+          The self-healing system tried to fix **${SOURCES}** but failed.
+          Triggered: \`${ts}\` | Run: [#${{ github.run_number }}](${run_url})
+
+          ---
+
+          <details><summary>Health endpoint</summary>
+
+          \`\`\`json
+          ${health}
+          \`\`\`
+          </details>
+
+          <details><summary>Ops-stats warnings</summary>
+
+          \`\`\`json
+          ${ops}
+          \`\`\`
+          </details>
+
+          <details><summary>Recent workflow runs</summary>
+
+          \`\`\`json
+          ${runs}
+          \`\`\`
+          </details>
+
+          ---
+
+          ### Claude Code Triage
+
+          Open Claude Code in \`sc-cpe\` and paste:
+
+          \`\`\`
+          The SC-CPE self-healing system escalated because it couldn't fix: ${SOURCES}
+          Read CLAUDE.md for project context, then docs/RUNBOOK.md for ops procedures.
+          Diagnose by checking /api/health, /api/admin/ops-stats, and recent workflow
+          runs (gh run list --limit 10). The diagnostic bundle is in the GitHub issue.
+          Identify root cause and either fix it directly or provide step-by-step instructions.
+          \`\`\`
+          BODYEOF
+
+          gh label create auto-heal-escalation \
+            --color D93F0B --description "Self-healing system escalation" \
+            2>/dev/null || true
+
+          issue_url=$(gh issue create \
+            --title "Self-heal escalation: ${SOURCES}" \
+            --label "auto-heal-escalation" \
+            --body-file /tmp/issue-body.md) || true
+
+          echo "Issue: ${issue_url:-failed}"
+
+          if [[ -n "${DISCORD_ALERT_WEBHOOK:-}" && -n "${issue_url:-}" ]]; then
+            jq -cn --arg c ":sos: **SC-CPE self-heal escalation** — sources: ${SOURCES}. Diagnostic issue: ${issue_url}" \
+              '{content: $c, username: "SC-CPE Healer"}' \
+              | curl -fsS --max-time 20 \
+                    -H "Content-Type: application/json" \
+                    -X POST -d @- "$DISCORD_ALERT_WEBHOOK" >/dev/null 2>&1 || true
+          fi

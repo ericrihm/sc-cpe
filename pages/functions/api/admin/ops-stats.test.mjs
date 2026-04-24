@@ -47,6 +47,7 @@ function cleanRules(overrides = {}) {
         // users / attendance / appeals
         { match: /FROM users WHERE deleted_at IS NULL AND \(email LIKE/, handler: () => ({ n: 0 }) },
         { match: /COUNT\(\*\).*FROM users WHERE deleted_at IS NULL$/, handler: () => ({ n: 42 }) },
+        { match: /FROM users WHERE state = 'active' AND yt_channel_id IS NULL/, handler: () => overrides.activeNoChannel ?? ({ n: 0 }) },
         { match: /FROM users WHERE state = 'active'/, handler: () => ({ n: 30 }) },
         { match: /FROM users WHERE state = 'pending_verification'/, handler: () => ({ n: 2 }) },
         { match: /FROM attendance WHERE first_msg_sha256/, handler: () => ({ n: 0 }) },
@@ -77,6 +78,7 @@ test("ops-stats: clean state — new fields present with zero/null defaults", as
     assert.equal(j.email_outbox.oldest_failed_age_seconds, null);
     assert.equal(j.certs.pending, 0);
     assert.equal(j.certs.oldest_pending_age_seconds, null);
+    assert.equal(j.users.active_no_channel, 0);
 });
 
 test("ops-stats: backlog aging — oldest_queued_age_seconds reflects time since MIN(created_at)", async () => {
@@ -121,7 +123,7 @@ test("ops-stats: pending certs — oldest_pending_age_seconds surfaces cron-stuc
 
 function baseStats(overrides = {}) {
     return {
-        users: { total: 42, active: 30, pending: 2, ...overrides.users },
+        users: { total: 42, active: 30, pending: 2, active_no_channel: 0, ...overrides.users },
         last_24h: { attendance: 17, certs_issued: 4, ...overrides.last_24h },
         certs_total: 20,
         appeals_open: 0,
@@ -181,6 +183,15 @@ test("computeWarnings: signup abuse — >100 pending and pending > 5× active", 
     // Below threshold — low volume should NOT fire
     const none = computeWarnings(baseStats({ users: { total: 50, active: 5, pending: 40 } }));
     assert.equal(none.find(x => x.code === "signup_abuse_pattern"), undefined);
+});
+
+test("computeWarnings: active users without YouTube channel → warn", () => {
+    const w = computeWarnings(baseStats({ users: { active_no_channel: 3 } }));
+    assert.equal(w.find(x => x.code === "active_no_channel")?.level, "warn");
+    assert.ok(w.find(x => x.code === "active_no_channel")?.detail.includes("3"));
+    // Zero = no warning
+    const none = computeWarnings(baseStats({ users: { active_no_channel: 0 } }));
+    assert.equal(none.find(x => x.code === "active_no_channel"), undefined);
 });
 
 test("computeWarnings: fixture pollution in prod triggers warn", () => {

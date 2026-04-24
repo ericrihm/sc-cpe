@@ -8,6 +8,8 @@
 <link rel="stylesheet" href="/links.css">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <meta name="theme-color" content="#0b3d5c">
+<meta name="color-scheme" content="light dark">
+<link rel="alternate" type="application/rss+xml" href="/api/links/rss" title="Simply Cyber DTB Links">
 <meta property="og:title" content="SC-CPE Show Links Archive">
 <meta property="og:description" content="Links shared during Simply Cyber's Daily Threat Briefing, archived by date.">
 <meta property="og:type" content="website">
@@ -25,17 +27,21 @@
     </div>
 
     <div id="stream-info" class="stream-info" hidden></div>
+    <div id="copy-wrap" hidden><button id="copy-all" class="copy-btn" type="button">Copy all links</button></div>
     <div id="err" class="err" hidden></div>
     <div id="links-list"></div>
     <p id="empty" class="links-empty" hidden>No links were shared during this show.</p>
     <p id="no-data" class="links-empty" hidden>No show links have been archived yet. Check back after the next briefing!</p>
 
-    <p class="muted" style="margin-top:1.5rem;font-size:0.85rem;">
-        <a href="/">Home</a> · <a href="/faq.html">FAQ</a>
-        · <a href="/leaderboard.html">Leaderboard</a>
-        · <a href="/status.html">Status</a> · <a href="/verify.html">Verify a cert</a><br>
-        <a href="/terms.html">Terms</a> &amp; <a href="/privacy.html">Privacy</a>
-    </p>
+    <footer class="site-footer">
+        <a href="/faq.html">FAQ</a>
+        <a href="/leaderboard.html">Leaderboard</a>
+        <a href="/links.html">Show Links</a>
+        <a href="/status.html">Status</a>
+        <a href="/verify.html">Verify a cert</a>
+        <a href="/terms.html">Terms</a>
+        <a href="/privacy.html">Privacy</a>
+    </footer>
 </main>
 <script src="/links.js"></script>
 </body>

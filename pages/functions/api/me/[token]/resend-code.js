@@ -1,6 +1,7 @@
 import {
     ulid, randomCode, formatCode, json, now, audit, clientIp, ipHash,
-    queueEmail, escapeHtml, emailShell, isSameOrigin, rateLimit,
+    queueEmail, escapeHtml, emailShell, emailButton, emailCode, emailDivider,
+    isSameOrigin, rateLimit, isValidToken,
 } from "../../../_lib.js";
 
 // POST /api/me/{dashboard_token}/resend-code
@@ -15,47 +16,41 @@ import {
 // re-send. Refuses on deleted users.
 
 const MAX_PER_HOUR = 3;
-const SITE_BASE = "https://sc-cpe-web.pages.dev";
 
-function bodies({ legalName, code, expiresAt, dashboardUrl }) {
+function bodies({ legalName, code, expiresAt, dashboardUrl, siteBase }) {
     const display = formatCode(code);
-    const subject = `Simply Cyber CPE — your new verification code`;
+    const subject = `Your new CPE code: ${display}`;
     const text =
         `Hi ${legalName},\n\n` +
-        `You requested a fresh verification code. Paste this into a live chat\n` +
-        `message during the Daily Threat Briefing on YouTube within 7 days:\n\n` +
+        `Here's your fresh verification code:\n\n` +
         `    ${display}\n\n` +
-        `The code expires ${expiresAt}.\n\n` +
-        `Your dashboard:\n  ${dashboardUrl}\n\n` +
-        `If you did not request a new code, you can ignore this email.\n\n` +
+        `Post it in the YouTube chat during any Daily Threat Briefing.\n` +
+        `Code expires ${expiresAt}.\n\n` +
+        `Dashboard: ${dashboardUrl}\n\n` +
         `— Simply Cyber\n`;
     const bodyHtml = `
 <p>Hi ${escapeHtml(legalName)},</p>
-<p>You requested a fresh verification code. Paste this into a live chat
-message during the Daily Threat Briefing on YouTube within 7 days:</p>
-<p style="font-family:Menlo,monospace;font-size:20pt;text-align:center;
-   background:#f4f6f8;padding:14px;border-radius:6px;letter-spacing:0.04em;">
-   ${escapeHtml(display)}
-</p>
-<p>The code expires <strong>${escapeHtml(expiresAt)}</strong>.</p>
-<p>Your dashboard:<br/>
-<a href="${dashboardUrl}">${dashboardUrl}</a></p>
-<p style="color:#666;font-size:12px;">If you did not request a new code,
-you can ignore this email — your account is unchanged.</p>`;
+<p>Here's your fresh verification code:</p>
+${emailCode(display)}
+<p style="text-align:center;">Post it in the YouTube chat during any Daily Threat Briefing.</p>
+${emailButton("Open Your Dashboard", dashboardUrl)}
+${emailDivider()}
+<p style="font-size:13px;color:#555;">Code expires <strong>${escapeHtml(expiresAt)}</strong>.</p>`;
     return {
         subject,
         text,
         html: emailShell({
             title: "New verification code",
-            preheader: `Your new code: ${display}`,
+            preheader: "Fresh code ready — post it in the YouTube chat",
             bodyHtml,
+            siteBase,
         }),
     };
 }
 
 export async function onRequestPost({ params, request, env }) {
     const token = params.token;
-    if (!token || token.length < 32) return json({ error: "invalid_token" }, 400);
+    if (!isValidToken(token)) return json({ error: "invalid_token" }, 400);
 
     // CSRF gate — see delete.js for rationale.
     if (!isSameOrigin(request, env)) {
@@ -70,7 +65,7 @@ export async function onRequestPost({ params, request, env }) {
           FROM users WHERE dashboard_token = ?1 AND deleted_at IS NULL
     `).bind(token).first();
     if (!user) return json({ error: "not_found" }, 404);
-    if (user.state === "active") {
+    if (user.state === "active" && user.yt_channel_id) {
         return json({ error: "already_verified" }, 409);
     }
 
@@ -79,7 +74,7 @@ export async function onRequestPost({ params, request, env }) {
     // 503 instead of silently disabling the cap.
     const hourBucket = new Date().toISOString().slice(0, 13);
     const rl = await rateLimit(env, `resend_code:${user.id}:${hourBucket}`, MAX_PER_HOUR);
-    if (!rl.ok) return json(rl.body, rl.status);
+    if (!rl.ok) return json(rl.body, rl.status, rl.headers);
 
     const code = await uniqueCode(env);
     // 72h — see register.js for rationale (race-attack window vs. weekend).
@@ -89,10 +84,11 @@ export async function onRequestPost({ params, request, env }) {
         UPDATE users SET verification_code = ?1, code_expires_at = ?2 WHERE id = ?3
     `).bind(code, expiresAt, user.id).run();
 
-    const dashboardUrl = `${SITE_BASE}/dashboard.html?t=${user.dashboard_token}`;
+    const siteBase = new URL(request.url).origin;
+    const dashboardUrl = `${siteBase}/dashboard.html?t=${user.dashboard_token}`;
     const b = bodies({
         legalName: user.legal_name || "there",
-        code, expiresAt, dashboardUrl,
+        code, expiresAt, dashboardUrl, siteBase,
     });
 
     await queueEmail(env, {

@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="/style.css">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <meta name="theme-color" content="#0b3d5c">
+<meta name="color-scheme" content="light dark">
 <script src="/theme.js"></script>
 <link rel="stylesheet" href="/dashboard.css">
 </head>
@@ -16,23 +17,24 @@
     <div id="err" class="err" hidden></div>
 
     <section id="login-card" class="card" hidden>
-        <h2 style="margin-top:0;">Sign in to your dashboard</h2>
-        <p>Enter the email you registered with and we'll send you a login link.</p>
+        <h2 class="card-heading">Welcome back</h2>
+        <p>Enter your email and we'll send you a link — no password needed.</p>
         <form id="login-form">
             <label>
                 Email
                 <input name="email" type="email" required maxlength="254" autocomplete="email"
-                       style="width:100%;padding:8px;margin:6px 0 12px;border:1px solid var(--border,#ccc);border-radius:4px;font-size:1rem;">
+                       class="login-input">
             </label>
             <div class="cf-turnstile" data-sitekey="0x4AAAAAAC9lHHxbfTKNzdFN" data-theme="auto"></div>
-            <button type="submit" style="margin-top:8px;">Email me a login link</button>
+            <button type="submit">Send me my dashboard link</button>
         </form>
         <div id="login-err" class="err" hidden></div>
         <div id="login-ok" hidden>
-            <p style="color:var(--ok-fg,#16a34a);font-weight:600;">Check your inbox!</p>
-            <p class="muted">If that email is registered, we've sent a login link. Check spam too. It usually arrives within a minute or two.</p>
+            <p class="login-ok-text">Check your inbox!</p>
+            <p>We sent a link to <strong id="login-ok-email"></strong>. It should arrive within a minute or two.</p>
+            <p class="muted">Check spam too if you don't see it.</p>
         </div>
-        <p class="muted" style="margin-top:1rem;font-size:0.85rem;">
+        <p class="muted login-register">
             Don't have an account? <a href="/">Register here</a>
         </p>
     </section>
@@ -48,7 +50,7 @@
         </div>
         <div class="card">
             <div class="skeleton skeleton-line medium"></div>
-            <div class="skeleton skeleton-grid" style="margin-top:10px;">
+            <div class="skeleton skeleton-grid">
                 <div class="skeleton skeleton-cell"></div><div class="skeleton skeleton-cell"></div>
                 <div class="skeleton skeleton-cell"></div><div class="skeleton skeleton-cell"></div>
                 <div class="skeleton skeleton-cell"></div><div class="skeleton skeleton-cell"></div>
@@ -65,10 +67,15 @@
         </div>
     </section>
     <section id="body" hidden>
+        <div id="suspended-banner" class="card" style="background:var(--bad-soft,#3a1818);border:1px solid var(--bad-soft-border,#6b2a2a);color:var(--bad-soft-text,#ffb4b4);" hidden>
+            <h2 class="card-heading" style="color:inherit;">Account suspended</h2>
+            <p>Your account has been suspended. You will not earn attendance credit until the suspension is lifted. If you believe this is an error, please contact the Simply Cyber team.</p>
+        </div>
+
         <div id="window-warn-card" class="card window-warn" hidden>
-            <h2 style="margin-top:0;">Code posted outside the live window</h2>
-            <p id="window-warn-body" style="margin:0;"></p>
-            <p class="muted" style="font-size:11px;margin:8px 0 0;">
+            <h2 class="card-heading">Code posted outside the live window</h2>
+            <p id="window-warn-body"></p>
+            <p class="muted cert-footer">
                 Post your code during the live briefing to earn CPE. Codes
                 posted in pre-stream chat or the previous day's replay don't
                 count — the cert claims "attended live."
@@ -119,9 +126,9 @@
             <p id="active" hidden>
                 <span id="link-line"></span>
                 <span id="channel-wrap" hidden>(<span id="channel" class="muted"></span>)</span>
-                <span id="link-hint" class="muted" style="display:block;font-size:12px;margin-top:4px;" hidden></span>
+                <span id="link-hint" class="muted link-hint" hidden></span>
             </p>
-            <p id="verified-at-line" class="muted" style="font-size:12px;margin:4px 0 0;" hidden></p>
+            <p id="verified-at-line" class="muted verified-at" hidden></p>
         </div>
 
         <div class="card" id="stats-card">
@@ -139,11 +146,12 @@
                     <div class="stat-label">longest streak</div>
                 </div>
             </div>
-            <button type="button" id="share-btn" hidden style="margin-top:10px;font-size:13px;padding:6px 14px;">Share achievement</button>
+            <button type="button" id="share-btn" class="share-btn" hidden>Share achievement</button>
+            <a id="profile-link" class="share-btn" style="display:none;margin-left:8px;font-size:.8rem;" target="_blank" rel="noopener">View public profile</a>
         </div>
 
         <div class="card" id="today-card" hidden>
-            <h2 style="margin-top:0;">Today's Daily Threat Briefing</h2>
+            <h2 class="card-heading">Today's Daily Threat Briefing</h2>
             <p id="today-title" class="muted"></p>
             <p id="today-status"></p>
             <p id="today-hint" class="muted" hidden>
@@ -152,9 +160,9 @@
             </p>
         </div>
 
-        <div class="card" id="link-card" hidden style="border-left:4px solid var(--accent);">
-            <h2 style="margin-top:0;">Link your YouTube channel</h2>
-            <p class="muted" style="font-size:13px;margin:0 0 8px;">
+        <div class="card link-card" id="link-card" hidden>
+            <h2 class="card-heading">Link your YouTube channel</h2>
+            <p class="muted remember-desc">
                 Your account is active but your YouTube channel isn't linked yet.
                 Post your SC-CPE code in the live chat during the Daily Threat Briefing
                 to link it automatically. Your existing credits are unaffected.
@@ -227,7 +235,7 @@
             </div>
             <div id="certs" class="cert-list" hidden></div>
             <p id="cert-empty" hidden class="muted">No certificates yet. Certs are issued monthly.</p>
-            <p class="muted" style="font-size:11px;margin-top:10px;">
+            <p class="muted cert-footer">
                 If a name or session count looks wrong, tap <strong>Report an issue</strong>
                 on the cert — feedback goes straight to the admin digest so we can reissue.
             </p>
@@ -236,16 +244,16 @@
         <h2 class="section-heading">Settings</h2>
 
         <div class="card" id="renewal-card" hidden>
-            <h2 style="margin-top:0;">Certification renewal tracker</h2>
+            <h2 class="card-heading">Certification renewal tracker</h2>
             <div id="renewal-display" hidden>
                 <div class="renewal-summary" id="renewal-summary"></div>
                 <div class="renewal-bar-track"><div class="renewal-bar-fill" id="renewal-bar"></div></div>
                 <div class="renewal-deadline" id="renewal-deadline"></div>
                 <button type="button" class="renewal-edit-btn" id="renewal-edit-btn">Edit</button>
-                <button type="button" class="renewal-edit-btn" id="renewal-remove-btn" style="margin-left:8px;color:var(--bad-soft-text);">Remove</button>
+                <button type="button" class="renewal-edit-btn renewal-remove-btn" id="renewal-remove-btn">Remove</button>
             </div>
             <div id="renewal-setup">
-                <p class="muted" style="font-size:12px;margin:0 0 8px;">Track progress toward your certification renewal CPE requirement.</p>
+                <p class="muted rotate-desc">Track progress toward your certification renewal CPE requirement.</p>
                 <form class="renewal-form" id="renewal-form">
                     <label>Certification name <input type="text" id="renewal-cert-name" placeholder="CISSP, CISM, etc." maxlength="100" required></label>
                     <label>Renewal deadline <input type="date" id="renewal-deadline-input" required></label>
@@ -254,14 +262,14 @@
                         <button type="submit">Save</button>
                         <button type="button" class="appeal-cancel" id="renewal-cancel-btn" hidden>Cancel</button>
                     </div>
-                    <span id="renewal-msg" class="muted" style="font-size:11px;" hidden></span>
+                    <span id="renewal-msg" class="muted prefs-hint" hidden></span>
                 </form>
             </div>
         </div>
 
         <div class="card" id="prefs-card" hidden>
-            <h2 style="margin-top:0;">Certificate delivery</h2>
-            <p class="muted" style="font-size:12px;">
+            <h2 class="card-heading">Certificate delivery</h2>
+            <p class="muted rotate-desc">
                 Most certification bodies (including (ISC)²) accept the
                 bundled monthly certificate. Pick individual per-session
                 certs only if your certification body specifically asks
@@ -269,95 +277,112 @@
                 You can also request a one-off per-session cert on any
                 attendance row above.
             </p>
-            <div id="prefs-radios" style="display:flex;flex-direction:column;gap:6px;margin-top:8px;">
-                <label><input type="radio" name="cert_style" value="bundled"> One monthly bundle <span class="muted" style="font-size:11px;">(recommended)</span></label>
+            <div id="prefs-radios" class="prefs-radios">
+                <label><input type="radio" name="cert_style" value="bundled"> One monthly bundle <span class="muted prefs-hint">(recommended)</span></label>
                 <label><input type="radio" name="cert_style" value="per_session"> Individual cert for every attended session</label>
                 <label><input type="radio" name="cert_style" value="both"> Both (bundle + per-session)</label>
             </div>
-            <p id="prefs-msg" class="muted" style="font-size:11px;margin-top:6px;" hidden></p>
+            <p id="prefs-msg" class="muted prefs-hint" hidden></p>
+        </div>
+
+        <div class="card" id="email-prefs-card" hidden>
+            <h2 class="card-heading">Email preferences</h2>
+            <p class="muted rotate-desc">
+                Choose which engagement emails you receive. Transactional emails
+                (registration, cert delivery, security) are always sent.
+            </p>
+            <div class="prefs-radios" id="email-prefs-checks">
+                <label><input type="checkbox" data-cat="monthly_digest" checked> Monthly digest</label>
+                <label><input type="checkbox" data-cat="cert_nudge" checked> Certificate reminders</label>
+                <label><input type="checkbox" data-cat="renewal_nudge" checked> Renewal reminders</label>
+                <label><input type="checkbox" data-cat="streak_milestone" checked> Streak milestones</label>
+            </div>
+            <p id="email-prefs-msg" class="muted prefs-hint" hidden></p>
         </div>
 
         <div class="card" id="leaderboard-card" hidden>
-            <h2 style="margin-top:0;">Community leaderboard</h2>
+            <h2 class="card-heading">Community leaderboard</h2>
             <label class="check">
                 <input type="checkbox" id="leaderboard-toggle">
                 <span>Show me on the <a href="/leaderboard.html">community leaderboard</a>
-                <span class="muted" style="font-size:11px;display:block;">Your first name and last initial will be visible. Email and full name are never shown.</span></span>
+                <span class="muted leaderboard-hint">Your first name and last initial will be visible. Email and full name are never shown.</span></span>
             </label>
-            <span id="leaderboard-msg" class="muted" style="font-size:11px;" hidden></span>
+            <span id="leaderboard-msg" class="muted prefs-hint" hidden></span>
         </div>
 
         <h2 class="section-heading">Account</h2>
 
-        <div class="card" id="remember-card" hidden style="border-left:4px solid var(--accent);">
-            <h2 style="margin-top:0;">Remember this device?</h2>
-            <p class="muted" style="font-size:13px;margin:0 0 8px;">
+        <div class="card link-card" id="remember-card" hidden>
+            <h2 class="card-heading">Remember this device?</h2>
+            <p class="muted remember-desc">
                 Save your session so you can return to this dashboard without
                 the email link. Only use this on a personal device you trust.
             </p>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <div class="remember-actions">
                 <button type="button" id="remember-yes-btn">Yes, remember me</button>
-                <button type="button" id="remember-no-btn" style="background:transparent;color:var(--fg);border:1px solid var(--border);">No thanks</button>
+                <button type="button" id="remember-no-btn" class="btn-ghost">No thanks</button>
             </div>
         </div>
 
         <div class="card" id="signout-card" hidden>
-            <p class="muted" style="margin:0;font-size:13px;">
+            <p class="muted signout-text">
                 This device remembers your dashboard.
-                <button type="button" id="signout-btn" style="background:transparent;border:none;color:var(--accent);cursor:pointer;font-size:13px;padding:0;text-decoration:underline;">Forget this device</button>
+                <button type="button" id="signout-btn" class="signout-link">Forget this device</button>
             </p>
         </div>
 
         <div class="card" id="rotate-card" hidden>
-            <h2 style="margin-top:0;">Dashboard link security</h2>
-            <p class="muted" style="font-size:12px;">
+            <h2 class="card-heading">Dashboard link security</h2>
+            <p class="muted rotate-desc">
                 This dashboard URL is your account credential. If it leaked
                 (accidentally shared, screenshot posted, lost device), rotate
                 it here. We'll email a fresh URL to the address on file — this
                 page will stop working a few seconds later.
             </p>
-            <button type="button" id="rotate-btn" style="margin-top:8px;">Rotate dashboard link</button>
-            <span id="rotate-msg" class="muted" hidden style="margin-left:8px;"></span>
+            <button type="button" id="rotate-btn">Rotate dashboard link</button>
+            <span id="rotate-msg" class="muted" hidden></span>
         </div>
 
         <div id="share-modal" class="share-modal-overlay" hidden>
             <div class="share-modal">
-                <div style="display:flex;justify-content:space-between;align-items:center;">
-                    <h2 style="margin:0;">Share your achievement</h2>
-                    <button type="button" id="share-close" style="background:none;border:none;color:var(--fg);font-size:24px;cursor:pointer;min-height:0;padding:4px;" aria-label="close">&times;</button>
+                <div class="modal-header">
+                    <h2 class="card-heading">Share your achievement</h2>
+                    <button type="button" id="share-close" class="modal-close" aria-label="close">&times;</button>
                 </div>
                 <div class="badge-preview">
-                    <img id="share-badge-img" alt="SC-CPE Badge" style="max-width:100%;border-radius:12px;">
+                    <img id="share-badge-img" alt="SC-CPE Badge">
                 </div>
-                <div style="margin-top:12px;">
-                    <label class="small" style="font-weight:600;">Badge page link</label>
-                    <div style="display:flex;gap:6px;margin-top:4px;">
-                        <input type="text" id="share-url" readonly style="flex:1;font-size:13px;padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--bg-alt);color:var(--fg);">
-                        <button type="button" id="copy-url-btn" style="font-size:13px;padding:8px 14px;">Copy</button>
+                <div class="share-section">
+                    <label class="small share-field-label">Badge page link</label>
+                    <div class="share-url-row">
+                        <input type="text" id="share-url" readonly class="share-url-input">
+                        <button type="button" id="copy-url-btn" class="share-copy-btn">Copy</button>
                     </div>
-                    <span id="copy-msg" class="muted" style="font-size:11px;" hidden></span>
+                    <span id="copy-msg" class="muted prefs-hint" hidden></span>
                 </div>
-                <div style="margin-top:12px;">
-                    <label class="small" style="font-weight:600;">Share text</label>
-                    <textarea id="share-text" readonly rows="3" style="width:100%;margin-top:4px;font:inherit;font-size:13px;padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--bg-alt);color:var(--fg);resize:none;"></textarea>
-                    <button type="button" id="copy-text-btn" style="font-size:13px;padding:6px 12px;margin-top:4px;">Copy text</button>
+                <div class="share-section">
+                    <label class="small share-field-label">Share text</label>
+                    <textarea id="share-text" readonly rows="3" class="share-textarea"></textarea>
+                    <button type="button" id="copy-text-btn" class="share-copy-btn">Copy text</button>
                 </div>
-                <div style="display:flex;gap:10px;margin-top:12px;">
-                    <a id="modal-linkedin" class="share-link-btn" style="background:#0077b5;color:#fff;text-decoration:none;" target="_blank" rel="noopener">LinkedIn</a>
-                    <a id="modal-x" class="share-link-btn" style="background:#000;color:#fff;text-decoration:none;" target="_blank" rel="noopener">X / Twitter</a>
+                <div class="share-social-row">
+                    <a id="modal-linkedin" class="share-link-btn btn-linkedin" target="_blank" rel="noopener">LinkedIn</a>
+                    <a id="modal-x" class="share-link-btn btn-x" target="_blank" rel="noopener">X / Twitter</a>
                 </div>
             </div>
         </div>
     </section>
-    <p class="muted" style="margin-top:1.5rem;font-size:0.85rem;">
-        <a href="/">Home</a> · <a href="/faq.html">FAQ</a>
-        · <a href="/leaderboard.html">Leaderboard</a>
-        · <a href="/links.html">Show Links</a>
-        · <a href="/status.html">Status</a> · <a href="/verify.html">Verify a cert</a><br>
-        <a href="/terms.html">Terms</a> &amp; <a href="/privacy.html">Privacy</a>
-    </p>
+    <footer class="site-footer">
+        <a href="/faq.html">FAQ</a>
+        <a href="/leaderboard.html">Leaderboard</a>
+        <a href="/links.html">Show Links</a>
+        <a href="/status.html">Status</a>
+        <a href="/verify.html">Verify a cert</a>
+        <a href="/terms.html">Terms</a>
+        <a href="/privacy.html">Privacy</a>
+    </footer>
 </main>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG" crossorigin="anonymous" defer></script>
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 <script src="/dashboard.js"></script>
 </body>

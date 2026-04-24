@@ -9,19 +9,30 @@
 <link rel="stylesheet" href="/admin.css">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <meta name="theme-color" content="#0b3d5c">
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 <body>
 <div class="wrap">
   <h1>SC-CPE Admin</h1>
-  <div class="sub" id="sub">Paste ADMIN_TOKEN to continue. Not stored — lives in memory for this page load.</div>
+  <div class="sub" id="sub"><a href="/analytics.html">Analytics &rarr;</a></div>
 
   <div id="login" class="login">
-    <input type="password" id="token" placeholder="ADMIN_TOKEN" autocomplete="off">
-    <button id="go">Load</button>
+    <p style="margin:0 0 12px;color:var(--adm-muted);">Enter your admin email and we'll send you a login link — no token needed.</p>
+    <form id="login-form" style="display:flex;flex-direction:column;gap:8px;max-width:340px;">
+      <input type="email" id="admin-email" placeholder="admin@example.com" required autocomplete="email" style="padding:8px;border:1px solid var(--adm-border);border-radius:4px;font-size:1rem;background:var(--adm-card);color:var(--adm-fg);">
+      <div class="cf-turnstile" data-sitekey="0x4AAAAAAC9lHHxbfTKNzdFN" data-theme="auto"></div>
+      <button type="submit">Send login link</button>
+    </form>
+    <div id="login-err" class="err" hidden></div>
+    <div id="login-ok" hidden>
+      <p style="color:var(--adm-ok);font-weight:600;">Check your inbox!</p>
+      <p class="muted">If that email is an admin account, we sent a login link. It expires in 15 minutes.</p>
+    </div>
   </div>
 
   <div id="app" style="display:none;">
     <button class="refresh" id="refresh">Refresh</button>
+    <button class="refresh" id="signout" style="margin-left:8px;background:transparent;border:1px solid var(--adm-border);color:var(--adm-muted);">Sign out</button>
     <label class="auto-refresh-wrap"><input type="checkbox" id="auto-refresh"> Auto-refresh (30s)</label>
     <span class="muted" id="ts" style="margin-left:10px;font-size:12px;"></span>
     <div id="err"></div>
@@ -30,8 +41,33 @@
     <div class="section-h">Overview (last 24h)</div>
     <div class="grid" id="stats"></div>
 
+    <div class="section-h">Analytics <span class="muted" style="font-size:11px;text-transform:none;letter-spacing:0;">— registration, engagement, certs, system health</span></div>
+    <div style="margin-bottom:12px;display:flex;gap:6px;align-items:center;">
+      <select id="analytics-range" style="background:var(--adm-card);color:var(--adm-fg);border:1px solid var(--adm-border);padding:4px 8px;border-radius:4px;font-size:12px;">
+        <option value="7d">Last 7 days</option>
+        <option value="30d" selected>Last 30 days</option>
+        <option value="90d">Last 90 days</option>
+        <option value="all">All time</option>
+      </select>
+      <button class="refresh" id="analytics-load" style="font-size:11px;padding:3px 10px;">Load</button>
+    </div>
+    <div id="analytics-growth"></div>
+    <div id="analytics-engagement"></div>
+    <div id="analytics-certs"></div>
+    <div id="analytics-system"></div>
+
+    <div class="section-h" style="color:var(--bad);">War Room <span class="muted" style="font-size:11px;text-transform:none;letter-spacing:0;">— live attack monitoring (rate limit trips, auth failures)</span></div>
+    <div id="sec-events"></div>
+
     <div class="section-h">Kill switches <span class="muted" style="font-size:11px;text-transform:none;letter-spacing:0;">— emergency containment for public endpoints</span></div>
     <div id="toggles" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;"></div>
+
+    <div class="section-h">Manual triggers <span class="muted" style="font-size:11px;text-transform:none;letter-spacing:0;">— on-demand cron block execution via purge worker</span></div>
+    <div id="cron-triggers" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;"></div>
+
+    <div class="section-h">Email Suppression <span class="muted" style="font-size:11px;text-transform:none;letter-spacing:0;">— bounced/complained addresses blocked from sending</span></div>
+    <div id="suppression-rows"></div>
+    <p id="suppression-empty" class="muted" style="font-size:12px;" hidden>No suppressed addresses.</p>
 
     <div class="section-h">Heartbeats</div>
     <table id="hb" class="heartbeat-table"><thead>
@@ -40,6 +76,65 @@
 
     <div class="section-h">Audit chain</div>
     <div class="grid" id="chain"></div>
+
+    <div class="section-h">Streams <span class="muted" style="font-size:11px;text-transform:none;letter-spacing:0;">— recent livestream sessions</span></div>
+    <div style="margin-bottom:8px;display:flex;gap:6px;align-items:center;">
+      <select id="streams-days" style="background:var(--adm-card);color:var(--adm-fg);border:1px solid var(--adm-border);padding:4px 8px;border-radius:4px;font-size:12px;">
+        <option value="7">Last 7 days</option>
+        <option value="14">Last 14 days</option>
+        <option value="30" selected>Last 30 days</option>
+        <option value="90">Last 90 days</option>
+      </select>
+      <button class="refresh" id="streams-load" style="font-size:11px;padding:3px 10px;">Load</button>
+    </div>
+    <div class="stats-scroll">
+    <table id="streams-table"><thead>
+      <tr><th>Date</th><th>Title</th><th>State</th><th>Attendance</th><th>Start</th><th>End</th></tr>
+    </thead><tbody></tbody></table>
+    </div>
+    <p id="streams-empty" class="muted" style="font-size:12px;" hidden>No streams found.</p>
+
+    <div class="section-h">Users</div>
+    <div class="admin-search" id="user-search-wrap">
+      <form id="user-search-form" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <input type="search" id="user-q" placeholder="Search by name, email, channel, or ID..." style="flex:1;min-width:200px;">
+        <button type="submit" class="refresh">Search</button>
+      </form>
+      <div id="user-search-err" class="err" hidden></div>
+    </div>
+    <div id="user-results"></div>
+
+    <div class="section-h">Revoke certificate</div>
+    <form id="revoke-form" style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;margin-bottom:20px;">
+      <input type="text" id="revoke-token" placeholder="public_token (64 hex chars)" style="flex:1;min-width:260px;" required>
+      <input type="text" id="revoke-reason" placeholder="Reason (required)" style="flex:2;min-width:200px;" required maxlength="500">
+      <button type="submit" class="refresh" style="background:#5c1515;">Revoke</button>
+    </form>
+    <div id="revoke-result" hidden></div>
+
+    <div class="section-h">Appeals <span class="muted" id="appeals-count-badge"></span></div>
+    <div style="margin-bottom:8px;">
+      <select id="appeals-state-filter" style="background:var(--adm-card);color:var(--adm-fg);border:1px solid var(--adm-border);padding:4px 8px;border-radius:4px;font-size:12px;">
+        <option value="open">Open</option>
+        <option value="granted">Granted</option>
+        <option value="denied">Denied</option>
+        <option value="any">All</option>
+      </select>
+      <button class="refresh" id="appeals-refresh" style="margin-left:6px;">Load</button>
+    </div>
+    <div id="appeals-rows"></div>
+    <p id="appeals-empty" class="muted" style="font-size:12px;" hidden>No appeals found.</p>
+
+    <div class="section-h">Manual attendance grant</div>
+    <form id="attendance-form" style="display:flex;flex-direction:column;gap:8px;max-width:480px;margin-bottom:20px;">
+      <input type="text" id="att-user-id" placeholder="User ID (ULID)" required>
+      <input type="text" id="att-stream-id" placeholder="Stream ID (ULID)" required>
+      <textarea id="att-reason" placeholder="Reason (required)" rows="2" required maxlength="2000"></textarea>
+      <input type="text" id="att-resolver" placeholder="Your admin handle" required maxlength="80">
+      <input type="number" id="att-rule-version" value="1" min="1" style="width:80px;" required>
+      <button type="submit" class="refresh" style="align-self:flex-start;">Grant attendance</button>
+    </form>
+    <div id="attendance-result" hidden></div>
 
     <div class="section-h">Audit trail</div>
     <div class="audit-search">

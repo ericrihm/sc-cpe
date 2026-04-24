@@ -33,7 +33,7 @@ export async function onRequestPost({ request, env }) {
     catch { return json({ error: "invalid_json" }, 400); }
 
     const source = (body.source || "").trim();
-    if (!source || !/^[a-z0-9_-]{1,32}$/.test(source)) {
+    if (!source || !/^[a-z0-9_:.-]{1,64}$/.test(source)) {
         return json({ error: "invalid_source" }, 400);
     }
 

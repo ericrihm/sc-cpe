@@ -3,28 +3,34 @@ name: Weekly D1 backup
 on:
   schedule:
     - cron: "0 6 * * 0"   # Sunday 06:00 UTC
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      test_restore:
+        description: "Run a restore round-trip test after backup"
+        required: false
+        default: "false"
+        type: boolean
 
 jobs:
   backup:
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: "20"
 
       - name: Install wrangler
         run: npm install -g wrangler
 
-      - name: Export D1
+      - name: Export D1 and upload to R2
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           BACKUP_DIR: /tmp/sc-cpe-backups
-        run: bash scripts/backup_d1.sh
+        run: bash scripts/backup_d1.sh --upload-r2
 
       - name: Upload backup artifact
         uses: actions/upload-artifact@v4
@@ -32,3 +38,56 @@ jobs:
           name: d1-backup-${{ github.run_id }}
           path: /tmp/sc-cpe-backups/sc-cpe-*.sql
           retention-days: 30
+
+  restore-test:
+    if: inputs.test_restore == true
+    needs: backup
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+
+      - name: Install wrangler
+        run: npm install -g wrangler
+
+      - name: Download backup artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: d1-backup-${{ github.run_id }}
+          path: /tmp/restore-test
+
+      - name: Create throwaway D1 and test restore
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          BACKUP_FILE=$(ls -t /tmp/restore-test/sc-cpe-*.sql | head -1)
+          echo "Testing restore with: $BACKUP_FILE"
+
+          echo "Creating throwaway database..."
+          npx wrangler d1 create sc-cpe-restore-test 2>&1 | tee /tmp/create-output.txt
+          DB_ID=$(grep -oP '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' /tmp/create-output.txt | head -1)
+          echo "Throwaway DB ID: $DB_ID"
+
+          echo "Applying migrations..."
+          for f in $(ls db/migrations/*.sql 2>/dev/null | sort); do
+            echo "  Applying $(basename $f)..."
+            npx wrangler d1 execute sc-cpe-restore-test --remote --file "$f" || true
+          done
+
+          echo "Importing backup..."
+          npx wrangler d1 execute sc-cpe-restore-test --remote --file "$BACKUP_FILE"
+
+          echo "Running sanity queries..."
+          npx wrangler d1 execute sc-cpe-restore-test --remote --json \
+            --command "SELECT 'users' AS tbl, COUNT(*) AS cnt FROM users UNION ALL SELECT 'audit_log', COUNT(*) FROM audit_log UNION ALL SELECT 'attendance', COUNT(*) FROM attendance UNION ALL SELECT 'certs', COUNT(*) FROM certs" \
+            | jq '.[0].results[]'
+
+          echo "Cleaning up throwaway database..."
+          npx wrangler d1 delete sc-cpe-restore-test --force || echo "Cleanup failed (non-fatal)"
+
+          echo "Restore test PASSED"

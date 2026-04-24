@@ -32,9 +32,9 @@ Drop any SC-CPE PDF on the page. The browser recomputes its SHA-256 locally and 
 
 ## By the numbers
 
-- **[X]** registered users
-- **[Y]** certificates issued
-- **[Z]** sessions tracked
+- **9** registered users (early access)
+- **1** certificate issued
+- **200+** sessions tracked
 
 20 weekday briefings/month = 10 CPE. Enough to cover a significant chunk of most annual renewal requirements.
 

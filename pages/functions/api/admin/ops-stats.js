@@ -20,6 +20,7 @@ export async function onRequestGet({ request, env }) {
         outboxOldestQueued, outboxOldestFailed,
         certsPending, certsOldestPending,
         auditTip,
+        activeNoChannel,
     ] = await Promise.all([
         env.DB.prepare("SELECT COUNT(*) AS n FROM users WHERE deleted_at IS NULL").first(),
         env.DB.prepare("SELECT COUNT(*) AS n FROM users WHERE state = 'active'").first(),
@@ -36,6 +37,9 @@ export async function onRequestGet({ request, env }) {
         env.DB.prepare("SELECT COUNT(*) AS n FROM certs WHERE state = 'pending'").first(),
         env.DB.prepare("SELECT MIN(created_at) AS ts FROM certs WHERE state = 'pending'").first(),
         env.DB.prepare("SELECT id, ts, prev_hash FROM audit_log ORDER BY ts DESC, id DESC LIMIT 1").first(),
+        env.DB.prepare(
+            "SELECT COUNT(*) AS n FROM users WHERE state = 'active' AND yt_channel_id IS NULL AND deleted_at IS NULL"
+        ).first(),
     ]);
 
     const nowMs = Date.now();
@@ -63,6 +67,7 @@ export async function onRequestGet({ request, env }) {
             total: usersTotal?.n ?? 0,
             active: usersActive?.n ?? 0,
             pending: usersPending?.n ?? 0,
+            active_no_channel: activeNoChannel?.n ?? 0,
         },
         last_24h: {
             attendance: attendance24h?.n ?? 0,
@@ -162,6 +167,14 @@ export function computeWarnings(s) {
     if (s.users.pending > 100 && s.users.active > 0 && s.users.pending > 5 * s.users.active) {
         push("warn", "signup_abuse_pattern",
             `${s.users.pending} pending vs ${s.users.active} active — unusually high unverified signup rate`);
+    }
+
+    // Active users without a YouTube channel can't complete verification
+    // via the normal chat-code flow. Usually means admin-granted attendance
+    // or a resend-code regression — either way, worth investigating.
+    if (s.users.active_no_channel > 0) {
+        push("warn", "active_no_channel",
+            `${s.users.active_no_channel} active user(s) without YouTube channel linked — may need resend-code`);
     }
 
     // Open appeals: anything open > 0 is worth an admin eyeball.

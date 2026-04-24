@@ -30,7 +30,7 @@ export async function onRequestGet({ request, env }) {
     const sql = `
         SELECT u.id, u.email, u.legal_name, u.yt_channel_id,
                u.yt_display_name_seen, u.state, u.created_at, u.verified_at,
-               u.deleted_at,
+               u.deleted_at, u.suspended_at,
                (SELECT COUNT(*) FROM attendance a WHERE a.user_id = u.id) AS attendance_count,
                (SELECT COUNT(*) FROM certs    c WHERE c.user_id = u.id) AS cert_count,
                (SELECT COUNT(*) FROM appeals  ap WHERE ap.user_id = u.id AND ap.state = 'open') AS open_appeal_count

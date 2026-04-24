@@ -116,6 +116,22 @@ async function drain(env) {
         if (!claim.meta?.changes) continue;
 
         try {
+            // Skip suppressed addresses: hard bounces and spam complaints are
+            // stored in email_suppression; sending to them wastes quota and
+            // harms deliverability scores.
+            const suppressed = await env.DB.prepare(
+                "SELECT 1 FROM email_suppression WHERE email = ?1"
+            ).bind(row.to_email.toLowerCase()).first();
+            if (suppressed) {
+                await env.DB.prepare(`
+                    UPDATE email_outbox
+                       SET state = 'bounced', last_error = 'suppressed:hard_bounce'
+                     WHERE id = ?1
+                `).bind(row.id).run();
+                failed++;
+                continue;
+            }
+
             const resendId = await sendViaResend(env, row);
             await env.DB.prepare(`
                 UPDATE email_outbox
@@ -185,6 +201,14 @@ async function sendViaResend(env, row) {
     const timer = setTimeout(() => controller.abort(), 10_000);
     let resp;
     try {
+        const resendBody = {
+            from: env.FROM_EMAIL,
+            to: [row.to_email],
+            subject: row.subject,
+            html,
+            text,
+        };
+        if (payload.headers) resendBody.headers = payload.headers;
         resp = await fetch(RESEND_URL, {
             method: "POST",
             headers: {
@@ -192,13 +216,7 @@ async function sendViaResend(env, row) {
                 "Content-Type": "application/json",
                 "Idempotency-Key": row.idempotency_key,
             },
-            body: JSON.stringify({
-                from: env.FROM_EMAIL,
-                to: [row.to_email],
-                subject: row.subject,
-                html,
-                text,
-            }),
+            body: JSON.stringify(resendBody),
             signal: controller.signal,
         });
     } finally {

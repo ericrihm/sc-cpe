@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>SC-CPE Analytics</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="stylesheet" href="/admin.css">
+<link rel="stylesheet" href="/analytics.css">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<meta name="theme-color" content="#0b3d5c">
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+</head>
+<body>
+<div class="wrap">
+  <h1>SC-CPE Analytics</h1>
+  <div class="sub">
+    <a href="/admin.html">&larr; Back to Admin</a>
+    <span style="margin:0 8px">|</span>
+    Usage trends and program health over time.
+  </div>
+
+  <div id="login" class="login">
+    <p style="margin:0 0 12px;color:var(--adm-muted);">Enter your admin email and we'll send you a login link — no token needed.</p>
+    <form id="login-form" style="display:flex;flex-direction:column;gap:8px;max-width:340px;">
+      <input type="email" id="admin-email" placeholder="admin@example.com" required autocomplete="email" style="padding:8px;border:1px solid var(--adm-border);border-radius:4px;font-size:1rem;background:var(--adm-card);color:var(--adm-fg);">
+      <div class="cf-turnstile" data-sitekey="0x4AAAAAAC9lHHxbfTKNzdFN" data-theme="auto"></div>
+      <button type="submit">Send login link</button>
+    </form>
+    <div id="login-err" class="err" hidden></div>
+    <div id="login-ok" hidden>
+      <p style="color:var(--adm-ok);font-weight:600;">Check your inbox!</p>
+      <p class="muted">If that email is an admin account, we sent a login link. It expires in 15 minutes.</p>
+    </div>
+  </div>
+
+  <div id="app" style="display:none;">
+    <div class="range-bar">
+      <button class="range-btn" data-range="7d">7d</button>
+      <button class="range-btn active" data-range="30d">30d</button>
+      <button class="range-btn" data-range="90d">90d</button>
+      <button class="range-btn" data-range="all">All</button>
+      <span class="muted" id="ts" style="margin-left:auto;font-size:12px;"></span>
+      <button class="refresh" id="signout" style="background:transparent;border:1px solid var(--adm-border);color:var(--adm-muted);">Sign out</button>
+    </div>
+    <div id="err"></div>
+
+    <div class="panel" id="panel-growth">
+      <div class="section-h">Growth</div>
+      <div class="grid" id="growth-cards"></div>
+      <div class="chart-wrap"><canvas id="growth-chart"></canvas></div>
+    </div>
+
+    <div class="panel" id="panel-engagement">
+      <div class="section-h">Engagement</div>
+      <div class="grid" id="engagement-cards"></div>
+      <div class="chart-wrap"><canvas id="engagement-chart"></canvas></div>
+    </div>
+
+    <div class="panel" id="panel-certs">
+      <div class="section-h">Certificates</div>
+      <div class="grid" id="certs-cards"></div>
+      <div class="chart-wrap"><canvas id="certs-chart"></canvas></div>
+    </div>
+
+    <div class="panel" id="panel-system">
+      <div class="section-h">System Health</div>
+      <div class="grid" id="system-cards"></div>
+      <div class="chart-wrap"><canvas id="system-chart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<script src="/lib/chart.umd.min.js"></script>
+<script src="/analytics.js"></script>
+</body>
+</html>

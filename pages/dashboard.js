@@ -34,6 +34,7 @@ if (!token) {
 }
 var err = document.getElementById("err");
 var loadInProgress = false;
+var badgeToken = null;
 
 function showLogin() {
     document.getElementById("skel").hidden = true;
@@ -57,9 +58,17 @@ async function load() {
     var d = await r.json();
     document.getElementById("skel").hidden = true;
     document.getElementById("body").hidden = false;
+    var suspendedBanner = document.getElementById("suspended-banner");
+    if (suspendedBanner) suspendedBanner.hidden = !d.user.suspended;
     document.getElementById("name").textContent = d.user.legal_name;
     document.getElementById("state").textContent = d.user.state;
     userState = d.user.state;
+    badgeToken = d.user.badge_token || null;
+    if (badgeToken) {
+        var profileLink = document.getElementById("profile-link");
+        profileLink.href = "/profile.html?t=" + encodeURIComponent(badgeToken);
+        profileLink.style.display = "inline-block";
+    }
 
     var hasSaved = !!getSavedSession();
     var rememberCard = document.getElementById("remember-card");
@@ -86,6 +95,13 @@ async function load() {
 
         document.getElementById("leaderboard-card").hidden = false;
         document.getElementById("leaderboard-toggle").checked = !!d.user.show_on_leaderboard;
+
+        document.getElementById("email-prefs-card").hidden = false;
+        var unsubs = (d.user.email_prefs && d.user.email_prefs.unsubscribed) || [];
+        var checks = document.querySelectorAll("#email-prefs-checks input[data-cat]");
+        for (var ci = 0; ci < checks.length; ci++) {
+            checks[ci].checked = unsubs.indexOf(checks[ci].dataset.cat) === -1;
+        }
     }
 
     if (d.user.state === "pending_verification") {
@@ -137,7 +153,7 @@ async function load() {
     renderAttendance(d.attendance || []);
 
     renderCerts(d.certs || []);
-    renderStreaks(d.attendance || []);
+    renderStreaks(d.streaks || {}, d.attendance || []);
     if (d.user.state === "active") {
         renderRenewalTracker(d.user.email_prefs, Number(d.total_cpe_earned != null ? d.total_cpe_earned : 0));
     }
@@ -297,6 +313,27 @@ function certKindLabel(k) {
     return k === "per_session" ? "per-session" : "monthly bundle";
 }
 
+function emailStatusPill(c) {
+    if (!c.email_status) return "";
+    var cls, label;
+    switch (c.email_status) {
+        case "sent": cls = "pill-green"; label = "Email sent"; break;
+        case "queued": cls = "pill-amber"; label = "Email queued"; break;
+        case "bounced": cls = "pill-red"; label = "Bounced"; break;
+        case "failed": cls = "pill-red"; label = "Delivery failed"; break;
+        default: cls = "pill-grey"; label = c.email_status; break;
+    }
+    var title = c.email_error ? escapeHtml(c.email_error) : "";
+    return ' <span class="pill ' + cls + '"' + (title ? ' title="' + title + '"' : '') + '>' + escapeHtml(label) + '</span>';
+}
+
+function certResendButton(c) {
+    if (c.email_status !== "bounced" && c.email_status !== "failed") return "";
+    return ' <button type="button" class="cert-resend-user-btn" data-certid="' + c.id + '" ' +
+        'style="font-size:12px;padding:4px 10px;border:1px solid var(--bad-soft-text,#c44);background:transparent;color:var(--bad-soft-text,#c44);border-radius:4px;cursor:pointer;">' +
+        'Retry email delivery</button>';
+}
+
 function renderCerts(items) {
     var host = document.getElementById("certs");
     host.innerHTML = "";
@@ -345,6 +382,56 @@ function renderCerts(items) {
     }
 }
 
+function linkedInButton(c) {
+    if (c.state === "pending") return "";
+    var period = formatPeriod(c.period_yyyymm);
+    var d = new Date(c.generated_at || Date.now());
+    var params = new URLSearchParams({
+        startTask: "CERTIFICATION_NAME",
+        name: "Simply Cyber CPE Certificate — " + period,
+        issueYear: String(d.getFullYear()),
+        issueMonth: String(d.getMonth() + 1),
+        certId: c.public_token,
+        certUrl: location.origin + "/verify.html?t=" + encodeURIComponent(c.public_token),
+    });
+    return '<a class="cert-action-icon" href="https://www.linkedin.com/profile/add?' +
+        escapeHtml(params.toString()) + '" target="_blank" rel="noopener" ' +
+        'title="Add to LinkedIn">' +
+        '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">' +
+        '<path d="M19 3a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h14m-.5 15.5v-5.3a3.26 3.26 0 00-3.26-3.26c-.85 0-1.84.52-2.32 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 011.4 1.4v4.93h2.79M6.88 8.56a1.68 1.68 0 001.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 00-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z"/>' +
+        '</svg></a>';
+}
+
+function obBadgeButton(c) {
+    if (c.state === "pending") return "";
+    return '<a class="cert-action-icon" href="/api/ob/credential/' +
+        encodeURIComponent(c.public_token) + '.json" target="_blank" rel="noopener" ' +
+        'title="Open Badge (JSON-LD)">' +
+        '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
+        '<circle cx="12" cy="8" r="5"/><path d="M8 13l-1 8 5-3 5 3-1-8"/>' +
+        '</svg></a>';
+}
+
+function cpeGuideButton(c) {
+    if (c.state === "pending") return "";
+    var period = formatPeriod(c.period_yyyymm);
+    var params = new URLSearchParams({
+        name: period,
+        hours: String(Number(c.cpe_total).toFixed(1)),
+        sessions: String(c.sessions_count),
+        certUrl: location.origin + "/verify.html?t=" + encodeURIComponent(c.public_token),
+        downloadUrl: location.origin + "/api/download/" + encodeURIComponent(c.public_token),
+    });
+    return '<a class="cert-action-icon" href="/cpe-guide.html?' +
+        escapeHtml(params.toString()) + '" target="_blank" rel="noopener" ' +
+        'title="CPE submission guide">' +
+        '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
+        '<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>' +
+        '<polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/>' +
+        '<line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>' +
+        '</svg></a>';
+}
+
 function certCard(c, isSuperseded) {
     var row = document.createElement("div");
     row.className = "cert-row" + (isSuperseded ? " is-superseded" : "");
@@ -367,8 +454,13 @@ function certCard(c, isSuperseded) {
         timelineHtml +
         "</div>" +
         '<span class="pill ' + pill.cls + '"' + (pill.title ? ' title="' + escapeHtml(pill.title) + '"' : "") + ">" + escapeHtml(pill.label) + "</span>" +
+        emailStatusPill(c) +
         "</div>" +
         '<div class="cert-actions">' +
+        certResendButton(c) +
+        linkedInButton(c) +
+        obBadgeButton(c) +
+        cpeGuideButton(c) +
         '<a class="cert-verify" href="/verify.html?t=' + encodeURIComponent(c.public_token) + '" target="_blank" rel="noopener">Open certificate \u2197</a>' +
         '<details class="fb-details" data-cert="' + c.id + '">' +
         "<summary>Report an issue</summary>" +
@@ -404,6 +496,29 @@ function certCard(c, isSuperseded) {
     });
     return row;
 }
+
+document.getElementById("certs").addEventListener("click", async function (e) {
+    var btn = e.target.closest(".cert-resend-user-btn");
+    if (!btn || btn.disabled) return;
+    btn.disabled = true;
+    btn.textContent = "sending…";
+    try {
+        var r = await fetch("/api/me/" + encodeURIComponent(token) + "/cert-resend/" + encodeURIComponent(btn.dataset.certid), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+        });
+        var j = await r.json().catch(function () { return {}; });
+        if (!r.ok) throw new Error(j.error || "HTTP " + r.status);
+        var ok = document.createElement("span");
+        ok.className = "pill pill-green";
+        ok.textContent = "Re-queued";
+        btn.replaceWith(ok);
+    } catch (err) {
+        btn.disabled = false;
+        btn.textContent = "Retry email delivery";
+        btn.title = err.message;
+    }
+});
 
 function renderCodeStatus(codeState, codeExpiresAt) {
     var status = document.getElementById("code-status");
@@ -466,6 +581,9 @@ document.getElementById("link-resend-btn").addEventListener("click", async funct
         } else if (r.status === 429) {
             msg.textContent = "Too many requests \u2014 try again in an hour.";
             msg.style.color = "var(--bad-soft-text)";
+        } else if (r.status === 409) {
+            msg.textContent = "YouTube channel already linked — no code needed. Refresh the page.";
+            msg.style.color = "var(--ok-soft-text)";
         } else {
             msg.textContent = "Couldn\u2019t send code (" + r.status + ").";
             msg.style.color = "var(--bad-soft-text)";
@@ -648,18 +766,25 @@ document.getElementById("cal").addEventListener("click", function (e) {
 function renderCalendar() {
     var grid = document.getElementById("cal");
     grid.innerHTML = "";
+    grid.setAttribute("role", "grid");
     var y = calCursor.getFullYear();
     var m = calCursor.getMonth();
-    document.getElementById("cal-label").textContent =
-        calCursor.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+    var monthLabel = calCursor.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+    document.getElementById("cal-label").textContent = monthLabel;
+    grid.setAttribute("aria-label", monthLabel + " attendance calendar");
 
     var headers = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+    var headerRow = document.createElement("div");
+    headerRow.setAttribute("role", "row");
+    headerRow.style.display = "contents";
     for (var hi = 0; hi < headers.length; hi++) {
         var d = document.createElement("div");
         d.className = "cal-head";
+        d.setAttribute("role", "columnheader");
         d.textContent = headers[hi];
-        grid.appendChild(d);
+        headerRow.appendChild(d);
     }
+    grid.appendChild(headerRow);
 
     var credited = new Set();
     for (var ai = 0; ai < calData.attendance.length; ai++) {
@@ -679,12 +804,14 @@ function renderCalendar() {
     for (var i = 0; i < firstDow; i++) {
         var cell = document.createElement("div");
         cell.className = "cal-cell cal-empty";
+        cell.setAttribute("role", "gridcell");
         grid.appendChild(cell);
     }
     for (var day = 1; day <= daysInMonth; day++) {
         var iso = y + "-" + String(m + 1).padStart(2, "0") + "-" + String(day).padStart(2, "0");
         var cell = document.createElement("div");
         cell.className = "cal-cell";
+        cell.setAttribute("role", "gridcell");
         if (iso === todayIso) cell.classList.add("cal-today");
 
         var dots = [];
@@ -729,48 +856,10 @@ function renderCalendar() {
 }
 
 // --- Streak tracking ---
-function renderStreaks(attendance) {
-    if (!attendance.length) return;
-    var dateArr = [];
-    var seen = {};
-    for (var i = 0; i < attendance.length; i++) {
-        var sd = attendance[i].scheduled_date;
-        if (sd && !seen[sd]) { seen[sd] = true; dateArr.push(sd); }
-    }
-    dateArr.sort();
-    if (!dateArr.length) return;
-
-    var dateSet = {};
-    for (var i = 0; i < dateArr.length; i++) dateSet[dateArr[i]] = true;
-    var today = new Date().toISOString().slice(0, 10);
-    var yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-
-    function prevWeekday(iso) {
-        var d = new Date(iso + "T12:00:00Z");
-        d.setDate(d.getDate() - 1);
-        while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() - 1);
-        return d.toISOString().slice(0, 10);
-    }
-
-    var current = 0;
-    var cursor = dateSet[today] ? today : dateSet[yesterday] ? yesterday : null;
-    if (cursor) {
-        while (dateSet[cursor]) {
-            current++;
-            cursor = prevWeekday(cursor);
-        }
-    }
-
-    var best = 0, run = 0;
-    for (var i = 0; i < dateArr.length; i++) {
-        if (i === 0) { run = 1; }
-        else {
-            var expected = prevWeekday(dateArr[i]);
-            run = (dateArr[i - 1] >= expected) ? run + 1 : 1;
-        }
-        if (run > best) best = run;
-    }
-
+function renderStreaks(streaks, attendance) {
+    var current = streaks.current || 0;
+    var best = streaks.longest || 0;
+    if (current === 0 && best === 0 && !attendance.length) return;
     document.getElementById("streak-current-wrap").hidden = false;
     document.getElementById("streak-best-wrap").hidden = false;
     document.getElementById("streak-current").textContent = current;
@@ -950,8 +1039,9 @@ function showAppealPopover(iso, anchorRect) {
 // --- Share achievement ---
 document.getElementById("share-btn").addEventListener("click", function () {
     var modal = document.getElementById("share-modal");
-    var badgeUrl = location.origin + "/api/badge/" + encodeURIComponent(token);
-    var pageUrl = location.origin + "/badge.html?t=" + encodeURIComponent(token);
+    var shareToken = badgeToken || token;
+    var badgeUrl = location.origin + "/api/badge/" + encodeURIComponent(shareToken);
+    var pageUrl = location.origin + "/badge.html?t=" + encodeURIComponent(shareToken);
     var cpe = document.getElementById("total").textContent;
     var shareText = "I've earned " + cpe + " CPE attending Simply Cyber's Daily Threat Briefing! Verified via cryptographic audit chain. #SimplyCyber #CPE";
 
@@ -1028,6 +1118,32 @@ document.getElementById("leaderboard-toggle").addEventListener("change", async f
     }
 });
 
+// --- Email preferences ---
+document.getElementById("email-prefs-checks").addEventListener("change", async function (e) {
+    var cb = e.target.closest("input[data-cat]");
+    if (!cb) return;
+    var msg = document.getElementById("email-prefs-msg");
+    msg.hidden = false;
+    msg.textContent = "saving…";
+    var checks = document.querySelectorAll("#email-prefs-checks input[data-cat]");
+    var unsubs = [];
+    for (var i = 0; i < checks.length; i++) {
+        if (!checks[i].checked) unsubs.push(checks[i].dataset.cat);
+    }
+    try {
+        var r = await fetch("/api/me/" + encodeURIComponent(token) + "/prefs", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ unsubscribed: unsubs }),
+        });
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        msg.textContent = "saved";
+    } catch (err) {
+        msg.textContent = "failed: " + err.message;
+        cb.checked = !cb.checked;
+    }
+});
+
 // --- Inline login (no-token state) ---
 var loginForm = document.getElementById("login-form");
 if (loginForm) {
@@ -1070,6 +1186,8 @@ if (loginForm) {
             }
             loginForm.hidden = true;
             loginOk.hidden = false;
+            var emailDisplay = document.getElementById("login-ok-email");
+            if (emailDisplay) emailDisplay.textContent = fd.get("email");
         } catch (x) {
             loginErr.textContent = "Network error — check your connection and try again.";
             loginErr.hidden = false;

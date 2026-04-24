@@ -1,0 +1,111 @@
+name: turnstile-drift
+
+# Weekly check: fetch Cloudflare Turnstile bootstrap, hash it, compare
+# against pinned value. Turnstile doesn't publish stable SRI hashes
+# (A/B variants change the bundle), so hard-pinning via integrity= is
+# infeasible. This monitor catches silent changes and requires a human
+# to re-approve.
+#
+# On drift: opens a GitHub issue and pings Discord so the operator
+# can inspect the new bundle and update the pin.
+
+on:
+  schedule:
+    - cron: "0 10 * * 1"   # Monday 10:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    name: Turnstile hash drift check
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Fetch and hash Turnstile bootstrap
+        id: hash
+        run: |
+          URL="https://challenges.cloudflare.com/turnstile/v0/api.js"
+          HTTP_CODE=$(curl -s -o /tmp/turnstile.js -w '%{http_code}' "$URL")
+          if [[ "$HTTP_CODE" != "200" ]]; then
+            echo "::error::Failed to fetch Turnstile bootstrap (HTTP $HTTP_CODE)"
+            exit 1
+          fi
+          HASH=$(sha384sum /tmp/turnstile.js | awk '{print $1}')
+          SIZE=$(wc -c < /tmp/turnstile.js | tr -d ' ')
+          echo "hash=$HASH" >> "$GITHUB_OUTPUT"
+          echo "size=$SIZE" >> "$GITHUB_OUTPUT"
+          echo "Turnstile api.js SHA-384: $HASH ($SIZE bytes)"
+
+      - name: Compare against pinned hash
+        id: compare
+        run: |
+          PINNED_FILE=".github/turnstile-pin.sha384"
+          CURRENT="${{ steps.hash.outputs.hash }}"
+          if [[ ! -f "$PINNED_FILE" ]]; then
+            echo "::warning::No pinned hash file ($PINNED_FILE). Creating initial pin."
+            echo "drifted=init" >> "$GITHUB_OUTPUT"
+          else
+            PINNED=$(cat "$PINNED_FILE" | tr -d '[:space:]')
+            if [[ "$CURRENT" == "$PINNED" ]]; then
+              echo "Hash matches pinned value. No drift."
+              echo "drifted=no" >> "$GITHUB_OUTPUT"
+            else
+              echo "::warning::Turnstile hash CHANGED. Pinned: $PINNED, Current: $CURRENT"
+              echo "drifted=yes" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      - name: Open issue on drift
+        if: steps.compare.outputs.drifted == 'yes'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          CURRENT="${{ steps.hash.outputs.hash }}"
+          SIZE="${{ steps.hash.outputs.size }}"
+          PINNED=$(cat .github/turnstile-pin.sha384 | tr -d '[:space:]')
+          gh issue create \
+            --title "Turnstile bootstrap hash changed — review required" \
+            --label "security" \
+            --body "$(cat <<BODY
+          ## Turnstile Hash Drift Detected
+
+          The Cloudflare Turnstile bootstrap script (\`api.js\`) has changed since the last pin.
+
+          | | Value |
+          |---|---|
+          | **Pinned** | \`$PINNED\` |
+          | **Current** | \`$CURRENT\` |
+          | **Size** | $SIZE bytes |
+
+          ### Action required
+
+          1. Review the new bundle for unexpected changes
+          2. If approved, update \`.github/turnstile-pin.sha384\` with the new hash
+          3. Close this issue
+
+          This is expected when Cloudflare ships Turnstile updates. The alert exists
+          because we can't use SRI (Turnstile uses A/B variant bundles).
+
+          _Detected by \`turnstile-drift.yml\` workflow._
+          BODY
+          )"
+
+      - name: Discord alert on drift
+        if: steps.compare.outputs.drifted == 'yes'
+        env:
+          DISCORD_ALERT_WEBHOOK: ${{ secrets.DISCORD_ALERT_WEBHOOK }}
+        run: |
+          if [[ -z "${DISCORD_ALERT_WEBHOOK:-}" ]]; then
+            echo "DISCORD_ALERT_WEBHOOK unset — skipping"; exit 0
+          fi
+          payload=$(jq -cn \
+            --arg c ":warning: **Turnstile bootstrap hash changed.** Review the GH issue and update the pin if the new bundle is safe." \
+            '{content: $c, username: "SC-CPE Security"}')
+          curl -fsS --max-time 20 \
+            -H "Content-Type: application/json" \
+            -X POST -d "$payload" "$DISCORD_ALERT_WEBHOOK" >/dev/null

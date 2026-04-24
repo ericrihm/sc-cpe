@@ -1,13 +1,4 @@
-let token = new URLSearchParams(location.search).get("t");
-if (!token) {
-    try {
-        const raw = localStorage.getItem("sc_cpe_session");
-        if (raw) {
-            const s = JSON.parse(raw);
-            if (s.token && s.saved_at && Date.now() - s.saved_at < 30 * 24 * 60 * 60 * 1000) token = s.token;
-        }
-    } catch (e) {}
-}
+const token = new URLSearchParams(location.search).get("t");
 const errEl = document.getElementById("err");
 
 async function load() {
@@ -26,7 +17,9 @@ async function load() {
     const svgText = await r.text();
     const blob = new Blob([svgText], { type: "image/svg+xml" });
     const blobUrl = URL.createObjectURL(blob);
-    document.getElementById("badge-img").src = blobUrl;
+    const badgeImg = document.getElementById("badge-img");
+    badgeImg.onload = function () { URL.revokeObjectURL(blobUrl); };
+    badgeImg.src = blobUrl;
 
     const ogImg = document.querySelector('meta[property="og:image"]');
     if (!ogImg) {

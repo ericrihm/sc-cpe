@@ -31,6 +31,7 @@ from __future__ import annotations
 import base64
 import datetime as dt
 import hashlib
+import html as html_mod
 import io
 import json
 import os
@@ -704,43 +705,60 @@ def build_email_bodies(
 
     text = (
         f"Hi {recipient_name},\n\n"
-        f"Your {period_display} Simply Cyber CPE certificate is ready.\n"
+        f"Great news — your {period_display} CPE certificate is ready!\n"
         f"{attended_sentence}\n\n"
         f"  CPE credit hours: {cpe_str}\n"
         f"  Sessions attended: {sessions_count}\n"
         f"{dates_text_block}\n"
         f"Download your signed PDF:\n  {download_url}\n\n"
-        f"Anyone (including auditors) can verify this certificate at:\n  {verify_url}\n\n"
-        f"The signed PDF is PAdES-signed; most PDF readers will show the "
-        f"embedded digital signature and the certifying authority "
-        f"({issuer_name}).\n\n"
+        f"Verify: {verify_url}\n\n"
+        f"The PDF is PAdES-signed; most PDF readers show the digital signature "
+        f"and certifying authority ({issuer_name}).\n\n"
         f"— {issuer_name}\n"
     )
+
+    safe_name = html_mod.escape(recipient_name)
+    safe_title = html_mod.escape(f"{period_display} certificate")
+    preheader = html_mod.escape(f"{cpe_str} CPE credits earned — download your signed PDF")
+
+    body_html = f"""
+<p>Hi {safe_name},</p>
+<p>Great news — your <strong>{period_display}</strong> CPE certificate is ready!</p>
+<div style="background:#f4f6f8;border-radius:8px;padding:16px 20px;margin:16px 0;">
+  <table style="width:100%;border-collapse:collapse;">
+    <tr><td style="padding:4px 0;color:#5b6473;">CPE Credits</td><td style="padding:4px 0;font-weight:700;text-align:right;">{cpe_str}</td></tr>
+    <tr><td style="padding:4px 0;color:#5b6473;">Sessions</td><td style="padding:4px 0;font-weight:700;text-align:right;">{sessions_count}</td></tr>
+    <tr><td style="padding:4px 0;color:#5b6473;">Period</td><td style="padding:4px 0;font-weight:700;text-align:right;">{period_display}</td></tr>
+  </table>
+</div>
+<p style="text-align:center;margin:24px 0;">
+  <a href="{download_url}" style="display:inline-block;background:#d4a73a;color:#0b3d5c;
+     font-weight:bold;padding:12px 28px;border-radius:6px;text-decoration:none;
+     font-size:14px;letter-spacing:0.02em;">Download Signed PDF</a>
+</p>
+<hr style="border:none;border-top:1px solid #e6eaee;margin:20px 0;">
+<p style="font-size:13px;color:#555;">Auditors and employers can verify at:<br/>
+<a href="{verify_url}" style="color:#0b3d5c;">{verify_url}</a></p>
+<p style="font-size:12px;color:#777;">The PDF is PAdES-signed; most PDF readers show the
+digital signature and certifying authority ({html_mod.escape(issuer_name)}).</p>"""
+
     html = f"""<!doctype html>
-<html><body style="font-family:Helvetica,Arial,sans-serif;color:#111;line-height:1.45;">
-<p>Hi {recipient_name},</p>
-<p>Your <strong>{period_display}</strong> Simply Cyber CPE certificate is ready.
-{attended_sentence}</p>
-<ul>
-  <li>CPE credit hours: <strong>{cpe_str}</strong></li>
-  <li>Sessions attended: <strong>{sessions_count}</strong></li>
-  {dates_html_line}
-</ul>
-<p>
-  <a href="{download_url}"
-     style="display:inline-block;background:#0b3d5c;color:#fff;
-            padding:10px 16px;border-radius:4px;text-decoration:none;">
-     Download signed PDF
-  </a><br/>
-  <small style="color:#666;">Link does not expire — you can re-download anytime.</small>
-</p>
-<p>
-  Anyone (including auditors) can verify this certificate:<br/>
-  <a href="{verify_url}">{verify_url}</a>
-</p>
-<p>The signed PDF is PAdES-signed; most PDF readers will show the
-embedded digital signature and the certifying authority ({issuer_name}).</p>
-<p>— {issuer_name}</p>
+<html><body style="margin:0;padding:0;background:#f4f6f8;font-family:Helvetica,Arial,sans-serif;color:#111;line-height:1.5;">
+<span style="display:none!important;opacity:0;color:transparent;height:0;width:0;overflow:hidden;">{preheader}</span>
+<div style="max-width:580px;margin:0 auto;background:#fff;">
+  <div style="background:#0b3d5c;padding:18px 24px;">
+    <div style="color:#fff;font-size:11pt;letter-spacing:0.18em;text-transform:uppercase;">Simply Cyber CPE</div>
+    <div style="color:#d4a73a;font-size:9pt;margin-top:2px;">{safe_title}</div>
+  </div>
+  <div style="padding:24px;">
+    {body_html}
+  </div>
+  <div style="padding:16px 24px;border-top:1px solid #e6eaee;font-size:11px;color:#777;">
+    You're receiving this because you registered at
+    <a href="https://sc-cpe-web.pages.dev" style="color:#777;">Simply Cyber CPE</a>.<br/>
+    Questions? Reply to this email.
+  </div>
+</div>
 </body></html>"""
     return html, text
 
@@ -1009,9 +1027,10 @@ def issue_for_user(
 
     # 12. Send via Resend; tolerate send failure (outbox still queued).
     try:
+        claimed_at = now_iso_utc()
         d1.execute(
-            "UPDATE email_outbox SET state = 'sending', attempts = attempts + 1 WHERE id = ?",
-            [email_id],
+            "UPDATE email_outbox SET state = 'sending', attempts = attempts + 1, sent_at = ? WHERE id = ?",
+            [claimed_at, email_id],
         )
         msg_id = send_resend_email(
             api_key=cfg.resend_api_key,
@@ -1119,6 +1138,7 @@ JOIN attendance a ON a.user_id = u.id
 JOIN streams s ON s.id = a.stream_id
 WHERE u.state = 'active'
   AND u.deleted_at IS NULL
+  AND u.suspended_at IS NULL
   AND strftime('%Y%m', s.scheduled_date) = ?
 GROUP BY u.id, u.email, u.legal_name, u.dashboard_token, u.email_prefs
 HAVING SUM(a.earned_cpe) > 0
@@ -1136,6 +1156,7 @@ SELECT u.id AS user_id, u.email, u.legal_name, u.dashboard_token,
   JOIN streams s ON s.id = a.stream_id
  WHERE u.state = 'active'
    AND u.deleted_at IS NULL
+   AND u.suspended_at IS NULL
    AND strftime('%Y%m', s.scheduled_date) = ?
    AND a.earned_cpe > 0
 """

@@ -1,20 +1,20 @@
-import { clientIp, ipHash, rateLimit } from "../../_lib.js";
+import { clientIp, ipHash, rateLimit, isValidToken } from "../../_lib.js";
 
 export async function onRequestGet({ params, env, request }) {
     const token = params.token;
-    if (!token || token.length < 32) {
+    if (!isValidToken(token)) {
         return new Response("invalid token", { status: 400 });
     }
 
     const ipH = await ipHash(clientIp(request));
     const rl = await rateLimit(env, `badge:${ipH}`, 300);
     if (!rl.ok) {
-        return new Response("rate limited", { status: rl.status });
+        return new Response("rate limited", { status: rl.status, headers: rl.headers || {} });
     }
 
     const user = await env.DB.prepare(`
         SELECT id, legal_name, state
-        FROM users WHERE dashboard_token = ?1 AND deleted_at IS NULL
+        FROM users WHERE badge_token = ?1 AND deleted_at IS NULL
     `).bind(token).first();
 
     if (!user) {

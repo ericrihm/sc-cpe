@@ -1,4 +1,4 @@
-import { json, audit, clientIp, ipHash, now, isSameOrigin } from "../../../_lib.js";
+import { json, audit, clientIp, ipHash, now, isSameOrigin, rateLimit, isValidToken, queueEmail, escapeHtml, emailShell, emailDivider } from "../../../_lib.js";
 
 // POST /api/me/{token}/delete
 // Body: { "confirm": "DELETE" }  (explicit confirmation, prevents XSRF-ish
@@ -40,9 +40,7 @@ import { json, audit, clientIp, ipHash, now, isSameOrigin } from "../../../_lib.
 // The privacy policy documents this carve-out; it must stay in sync.
 export async function onRequestPost({ params, request, env }) {
     const token = params.token;
-    if (!token || token.length < 32) {
-        return json({ error: "invalid_token" }, 400);
-    }
+    if (!isValidToken(token)) return json({ error: "invalid_token" }, 400);
 
     // CSRF gate: dashboard_token sits in URLs and can leak via Referer or
     // shared bookmarks. Without an Origin check, a third-party page that
@@ -60,8 +58,12 @@ export async function onRequestPost({ params, request, env }) {
         return json({ error: "confirmation_required", detail: 'Body must be {"confirm":"DELETE"}' }, 400);
     }
 
+    const ipH = await ipHash(clientIp(request));
+    const rl = await rateLimit(env, `delete:${ipH}`, 5);
+    if (!rl.ok) return json(rl.body, rl.status, rl.headers);
+
     const user = await env.DB.prepare(`
-        SELECT id, email, state, deleted_at
+        SELECT id, email, legal_name, state, deleted_at
           FROM users WHERE dashboard_token = ?1
     `).bind(token).first();
 
@@ -76,6 +78,29 @@ export async function onRequestPost({ params, request, env }) {
     // unique index is on dashboard_token, so just generate a random 64-hex.
     const rotated = [...crypto.getRandomValues(new Uint8Array(32))]
         .map(b => b.toString(16).padStart(2, "0")).join("");
+
+    const siteBase = new URL(request.url).origin;
+    const delSubject = "Your SC-CPE account has been deleted";
+    const delText = `Hi ${user.legal_name},\n\nYour SC-CPE account has been deleted as requested. Any issued certificates remain verifiable per our retention policy (GDPR Art. 17(3)(e)).\n\nIf you did not request this, please contact us immediately.\n\n— SC-CPE`;
+    const delHtml = emailShell({
+        title: "Account Deleted",
+        preheader: "Your SC-CPE account has been deleted",
+        bodyHtml: `<p>Hi ${escapeHtml(user.legal_name)},</p>
+<p>Your SC-CPE account has been deleted as requested.</p>
+<p>Any issued certificates remain independently verifiable per our retention policy (GDPR Art.&nbsp;17(3)(e)). The recipient name on each certificate is frozen at the time of issuance and will not change.</p>
+${emailDivider()}
+<p style="color:#888;font-size:13px;">If you did not request this deletion, please contact us immediately.</p>`,
+        siteBase,
+    });
+    await queueEmail(env, {
+        userId: user.id,
+        template: "account_deleted",
+        to: user.email,
+        subject: delSubject,
+        html: delHtml,
+        text: delText,
+        idempotencyKey: `account_deleted:${user.id}:${ts}`,
+    });
 
     await env.DB.prepare(`
         UPDATE users

@@ -1,6 +1,7 @@
 import {
     randomToken, json, now, audit, clientIp, ipHash,
     queueEmail, escapeHtml, emailShell, isSameOrigin, rateLimit, sha256Hex,
+    isValidToken,
 } from "../../../_lib.js";
 
 // POST /api/me/{dashboard_token}/rotate
@@ -16,8 +17,6 @@ import {
 // build an account-recovery flow that needs another credential.
 
 const MAX_PER_HOUR = 3;
-const SITE_BASE = "https://sc-cpe-web.pages.dev";
-
 function bodies({ legalName, dashboardUrl }) {
     const subject = "Simply Cyber CPE — your dashboard link has been rotated";
     const text =
@@ -57,7 +56,7 @@ your account is now safe: the old link can no longer access the dashboard.</p>`;
 
 export async function onRequestPost({ params, request, env }) {
     const token = params.token;
-    if (!token || token.length < 32) return json({ error: "invalid_token" }, 400);
+    if (!isValidToken(token)) return json({ error: "invalid_token" }, 400);
 
     // CSRF gate — the dashboard token sits in the URL, so a browser will
     // happily POST here from any page that knows it. Same-origin only.
@@ -78,14 +77,16 @@ export async function onRequestPost({ params, request, env }) {
     // Fail-closed via rateLimit() so a missing RATE_KV returns 503.
     const hourBucket = new Date().toISOString().slice(0, 13);
     const rl = await rateLimit(env, `rotate:${user.id}:${hourBucket}`, MAX_PER_HOUR);
-    if (!rl.ok) return json(rl.body, rl.status);
+    if (!rl.ok) return json(rl.body, rl.status, rl.headers);
 
     const newToken = randomToken();
+    const newBadgeToken = randomToken();
     await env.DB.prepare(
-        "UPDATE users SET dashboard_token = ?1 WHERE id = ?2"
-    ).bind(newToken, user.id).run();
+        "UPDATE users SET dashboard_token = ?1, badge_token = ?2 WHERE id = ?3"
+    ).bind(newToken, newBadgeToken, user.id).run();
 
-    const dashboardUrl = `${SITE_BASE}/dashboard.html?t=${newToken}`;
+    const siteBase = new URL(request.url).origin;
+    const dashboardUrl = `${siteBase}/dashboard.html?t=${newToken}`;
     const b = bodies({
         legalName: user.legal_name || "there",
         dashboardUrl,
