@@ -24,4 +24,5 @@ node --test \
     scripts/test_chain_parity.mjs \
     scripts/test_source_parity.mjs \
     pages/functions/api/ob/credential.test.mjs \
-    scripts/test_audit_pii_scrub.mjs
+    scripts/test_audit_pii_scrub.mjs \
+    pages/functions/api/email-webhook.test.mjs
