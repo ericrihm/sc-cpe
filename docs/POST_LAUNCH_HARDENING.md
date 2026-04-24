@@ -91,20 +91,13 @@ priority ranking (attacker ROI × likelihood / fix cost).
   document the restore drill in RUNBOOK. Rehearse once.
 - Estimate: 1 day. Needs a second R2 bucket.
 
-### 4. Turnstile bootstrap SRI / drift monitoring
+### 4. ~~Turnstile bootstrap drift monitoring~~ ✓ SHIPPED
 
-- Location: [`pages/index.html:12`](../pages/index.html),
-  [`pages/recover.html:12`](../pages/recover.html).
-- Problem: the Turnstile `api.js` is loaded without integrity
-  attribute. If Cloudflare's CDN is compromised or they silently
-  change the bootstrap, our pages execute it.
-- Fix path: Cloudflare doesn't publish stable SRI hashes for
-  Turnstile (the bootstrap changes to ship A/B variants), so hard-
-  pinning isn't feasible. Instead: schedule a weekly hash-drift
-  check that pins the current hash, alerts on change, and requires
-  a human to re-approve. Low operational cost, eyes on a rarely-
-  changing critical boundary.
-- Estimate: 2 hours for the drift monitor.
+- Weekly workflow `.github/workflows/turnstile-drift.yml` fetches
+  `api.js`, hashes with SHA-384, compares against pinned value in
+  `.github/turnstile-pin.sha384`. On drift: opens a GH issue +
+  pings Discord. Human must review the new bundle and update the
+  pin. Shipped 2026-04-24.
 
 ### 5. Real-traffic rate-limit re-tune plan
 
@@ -122,17 +115,12 @@ priority ranking (attacker ROI × likelihood / fix cost).
   operator knows the reasoning.
 - Estimate: 2 hours of query + write-up at T+14 days.
 
-### 6. Deploy-path reviewer gate
+### 6. ~~Deploy-path reviewer gate~~ ✓ SHIPPED
 
-- Location: [`.github/workflows/deploy-prod.yml:55`](../.github/workflows/deploy-prod.yml).
-- Problem: auto-deploy from `main` means one compromised maintainer
-  session ships anything. The `production` GH environment has no
-  required reviewers configured.
-- Fix path: add one required reviewer (the operator themselves, or
-  a bot account) to the `production` environment gate. Non-tag
-  deploys require click-to-approve. Trade-off: adds ~30s of
-  operator friction per deploy. For a cert issuer, reasonable.
-- Estimate: 5 minutes of GH Settings clicks.
+- `production` GH environment now requires approval from
+  `ericrihm` before deploy-prod proceeds. `can_admins_bypass: true`
+  preserved for break-glass scenarios. Shipped 2026-04-24 via
+  `gh api` environment update.
 
 ### 7. HSTS preload submission
 
