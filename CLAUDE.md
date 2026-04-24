@@ -397,6 +397,15 @@ ADMIN_TOKEN="$(tr -d '\n' < ~/.cloudflare/sc-cpe-admin-token)" \
 - **RUNBOOK incident response SLA** — added 2026-04-24. Severity levels
   P1 (4h), P2 (24h), P3 (1 week) with escalation path and post-incident
   template.
+- **Ops-polish feature bundle** — added 2026-04-24 (PR #67). Admin
+  analytics dashboard with 4 sub-endpoints (growth, engagement, certs,
+  system) rendered as stat-card grids + time-series tables.
+  `GET /api/admin/streams` returns recent streams with attendance counts.
+  Admin dashboard has manual cron trigger buttons for each purge worker
+  block. User detail expansion in admin user search. Dashboard email
+  prefs UI with 4-category unsubscribe checkboxes. Test coverage: 22 new
+  unit tests across 3 test files. Docs: `docs/DEV_SETUP.md` (developer
+  setup) and `docs/ADMIN_ONBOARDING.md` (admin guide).
 
 ## Where to look for more context
 
@@ -404,5 +413,7 @@ ADMIN_TOKEN="$(tr -d '\n' < ~/.cloudflare/sc-cpe-admin-token)" \
 - `docs/LTV.md` — legal/compliance reasoning (GDPR Art. 17(3)(e) carve-out)
 - `docs/DESIGN.md` — architecture decisions
 - `docs/PITCH.md` — Simply Cyber team pitch
+- `docs/DEV_SETUP.md` — developer environment setup
+- `docs/ADMIN_ONBOARDING.md` — admin dashboard guide + common tasks
 - `outputs/handoffs/` — session-end briefs; the most recent one is always
   the fastest way to understand "where we are right now"

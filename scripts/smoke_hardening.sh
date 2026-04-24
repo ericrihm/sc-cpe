@@ -132,6 +132,24 @@ else
     echo "  ok   no test fixtures in prod: $pollution"; pass=$((pass+1))
 fi
 
+echo "== admin/streams endpoint =="
+STREAMS_URL="$ORIGIN/api/admin/streams"
+check "streams no auth → 401" 401 "$(code "$STREAMS_URL")"
+check "streams valid bearer → 200" 200 "$(code -H "Authorization: Bearer $ADMIN_TOKEN" "$STREAMS_URL")"
+
+echo "== admin/analytics endpoints =="
+for metric in growth engagement certs system; do
+    A_URL="$ORIGIN/api/admin/analytics/$metric"
+    check "analytics/$metric no auth → 401" 401 "$(code "$A_URL")"
+    check "analytics/$metric valid bearer → 200" 200 "$(code -H "Authorization: Bearer $ADMIN_TOKEN" "$A_URL")"
+done
+
+echo "== admin/suspend endpoint =="
+check "suspend no auth → 401" 401 "$(code -X POST -H 'Content-Type: application/json' -d '{}' "$ORIGIN/api/admin/suspend")"
+
+echo "== admin/email-suppression endpoint =="
+check "email-suppression no auth → 401" 401 "$(code "$ORIGIN/api/admin/email-suppression")"
+
 echo
 echo "== summary: $pass passed, $fail failed =="
 [[ $fail -eq 0 ]]
