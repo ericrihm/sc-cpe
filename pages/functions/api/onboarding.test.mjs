@@ -505,7 +505,11 @@ test("delete: valid request → 200 scrubs user", async () => {
         {
             match: /FROM users WHERE dashboard_token/,
             handler: () => ({ first: { id: FAKE_ULID, email: "alice@example.com",
-                state: "active", deleted_at: null } }),
+                legal_name: "Alice Example", state: "active", deleted_at: null } }),
+        },
+        {
+            match: /INSERT INTO email_outbox/,
+            handler: () => ({ run: { meta: {} } }),
         },
         {
             match: /UPDATE users\s+SET email/s,
