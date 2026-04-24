@@ -45,6 +45,16 @@ priority ranking (attacker ROI × likelihood / fix cost).
       side-channel attacks.
 - [x] **Security policy.** `SECURITY.md` + `/security.html` public
       page with scope, rules of engagement, SLA, hall of fame.
+- [x] **Strict token format validation.** `isValidToken()` checks
+      exact 64-char lowercase hex before DB lookup. Eliminates timing
+      side-channels from malformed tokens on all `me/[token]` endpoints.
+- [x] **Honeypot trap endpoints.** Middleware intercepts common recon
+      paths (`/wp-admin`, `/.env`, `/.git`, `/admin.php`, etc.), logs
+      IP prefix + UA + path to KV counters, and returns 404. Visible
+      in the security events dashboard with per-hit detail table.
+- [x] **Admin login redirect validation.** Defense-in-depth: redirect
+      parameter validated at both login.js and callback.js (was only
+      callback before). Prevents open redirect in magic link emails.
 
 ## Open (ordered by priority)
 

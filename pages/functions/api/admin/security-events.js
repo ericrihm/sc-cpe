@@ -21,6 +21,7 @@ const EVENT_PREFIXES = [
     "rl_trip:admin_login",
     "auth_fail:bearer",
     "csp_violation",
+    "honeypot",
 ];
 
 export async function onRequestGet({ request, env }) {
@@ -58,12 +59,20 @@ export async function onRequestGet({ request, env }) {
         killStates[sw] = !!(await env.RATE_KV.get(`kill:${sw}`));
     }
 
-    const cspLogs = [];
     const currentBucket = now.toISOString().slice(0, 13);
+
+    const cspLogs = [];
     for (let i = 0; i < 10; i++) {
         const val = await env.RATE_KV.get(`csp_log:${currentBucket}:${i}`);
         if (!val) break;
         try { cspLogs.push(JSON.parse(val)); } catch {}
+    }
+
+    const honeypotLogs = [];
+    for (let i = 0; i < 20; i++) {
+        const val = await env.RATE_KV.get(`honeypot_log:${currentBucket}:${i}`);
+        if (!val) break;
+        try { honeypotLogs.push(JSON.parse(val)); } catch {}
     }
 
     return json({
@@ -71,6 +80,7 @@ export async function onRequestGet({ request, env }) {
         events,
         kill_switches: killStates,
         csp_violations_recent: cspLogs,
+        honeypot_hits_recent: honeypotLogs,
         checked_at: now.toISOString(),
     });
 }
