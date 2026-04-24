@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+Allow: /security.html
+Allow: /leaderboard.html
+Allow: /badge.html
+Allow: /links.html
+Disallow: /api/
+Disallow: /admin.html
+Disallow: /dashboard.html
+Disallow: /.well-known/
+
+Sitemap: https://cpe.simplycyber.io/sitemap.xml
