@@ -16,7 +16,8 @@ export async function onRequestGet({ params, env, request }) {
     const user = await env.DB.prepare(`
         SELECT id, email, legal_name, yt_channel_id, yt_display_name_seen,
                verification_code, code_expires_at, state, email_prefs,
-               show_on_leaderboard, badge_token, created_at, verified_at
+               show_on_leaderboard, badge_token, created_at, verified_at,
+               current_streak, longest_streak, last_attendance_date
         FROM users WHERE dashboard_token = ?1 AND deleted_at IS NULL
     `).bind(token).first();
 
@@ -149,6 +150,11 @@ export async function onRequestGet({ params, env, request }) {
         certs: certs.results || [],
         appeals: appeals.results || [],
         total_cpe_earned: totalCpe,
+        streaks: {
+            current: user.current_streak || 0,
+            longest: user.longest_streak || 0,
+            last_date: user.last_attendance_date || null,
+        },
         code_window_warnings: codeWindowWarnings,
         today: liveToday ? {
             stream_id: liveToday.stream_id,

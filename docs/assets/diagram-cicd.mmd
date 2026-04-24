@@ -1,0 +1,18 @@
+flowchart TD
+    A[Push branch] --> B[CI: tests + gitleaks]
+    B --> C{PR merge to main}
+    C --> T[Run test suite]
+    T --> M[Auto-apply D1 migrations]
+    M --> P[Deploy Pages]
+    P --> W[Deploy Workers]
+    W --> S[Post-deploy smoke]
+    S --> L([Live in ~2 min])
+
+    SM["Hourly canary"] -.-> L
+    WD["15-min watchdog"] -.-> L
+
+    style T fill:#3b82f6,stroke:#1e40af,color:#fff
+    style P fill:#10b981,stroke:#047857,color:#fff
+    style W fill:#f59e0b,stroke:#d97706,color:#fff
+    style S fill:#8b5cf6,stroke:#6d28d9,color:#fff
+    style L fill:#10b981,stroke:#047857,color:#fff

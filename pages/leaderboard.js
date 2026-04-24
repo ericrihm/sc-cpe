@@ -27,12 +27,14 @@ async function load() {
         for (const e of entries) {
             const tr = document.createElement("tr");
             const rankCls = e.rank <= 3 ? ` lb-rank-${e.rank}` : "";
-            tr.innerHTML = `
-                <td class="lb-rank${rankCls}">${e.rank}</td>
-                <td class="lb-name">${esc(e.display_name)}</td>
-                <td class="lb-cpe">${Number(e.cpe_earned).toFixed(1)}</td>
-                <td class="lb-sessions">${e.sessions}</td>
-            `;
+            const streakText = e.streak > 0 ? e.streak + "d" : "—";
+            // All values are pre-escaped via esc() or numeric — safe for innerHTML
+            tr.innerHTML =
+                '<td class="lb-rank' + rankCls + '">' + e.rank + '</td>' +
+                '<td class="lb-name">' + esc(e.display_name) + '</td>' +
+                '<td class="lb-cpe">' + Number(e.cpe_earned).toFixed(1) + '</td>' +
+                '<td class="lb-sessions">' + e.sessions + '</td>' +
+                '<td class="lb-streak">' + esc(streakText) + '</td>';
             tbody.appendChild(tr);
         }
         document.getElementById("lb-table").hidden = false;

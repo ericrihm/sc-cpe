@@ -39,6 +39,11 @@ export default {
                 await heartbeat(env, "monthly_digest", "ok",
                     { at: now, ...out.monthly_digest });
             }
+            if (only === "all" || only === "renewal_nudge") {
+                out.renewal_nudge = await runRenewalNudges(env, now);
+                await heartbeat(env, "renewal_nudge", "ok",
+                    { at: now, ...out.renewal_nudge });
+            }
             if (only === "all" || only === "link_enrichment") {
                 out.link_enrichment = await enrichShowLinks(env, now);
                 await heartbeat(env, "link_enrichment", "ok",
@@ -107,6 +112,18 @@ export default {
                     at: now, msg: String(err && err.message || err),
                 });
             }
+        }
+
+        // Renewal tracker milestone nudges — runs daily. Checks active users
+        // with renewal_tracker set and sends one-time emails at 50%, 75%, 90%,
+        // and when deadline is within 30 days.
+        try {
+            const milestoned = await runRenewalNudges(env, now);
+            await heartbeat(env, "renewal_nudge", "ok", { at: now, ...milestoned });
+        } catch (err) {
+            await heartbeat(env, "renewal_nudge", "error", {
+                at: now, msg: String(err && err.message || err),
+            });
         }
 
         // Show-link metadata enrichment — runs every day. Fetches page
@@ -244,6 +261,12 @@ async function runMonthlyDigest(env, nowIso) {
             }
         }
     }
+    if (queued > 0) {
+        await discordPost(env, env.DISCORD_WEBHOOK,
+            `**${queued} CPE certificate${queued === 1 ? "" : "s"}** issued for ${periodLabel}! ` +
+            `Check your email for your signed PDF. Verify any cert at ${siteBase}/verify.html`);
+    }
+
     return { period: periodYyyymm, queued, skipped, candidates: rows.length };
 }
 
@@ -371,6 +394,109 @@ async function runCertNudges(env, nowIso) {
     return { period, queued, skipped, candidates: rows.length };
 }
 
+const RENEWAL_MILESTONES = [50, 75, 90];
+const RENEWAL_DEADLINE_WARN_DAYS = 30;
+
+async function runRenewalNudges(env, nowIso) {
+    if (!env.SITE_BASE) return { skipped: "missing_site_base" };
+    const siteBase = env.SITE_BASE.replace(/\/$/, "");
+
+    const rows = (await env.DB.prepare(`
+        SELECT id, email, legal_name, dashboard_token, email_prefs
+          FROM users
+         WHERE state = 'active' AND deleted_at IS NULL
+           AND email_prefs LIKE '%renewal_tracker%'
+    `).all()).results || [];
+
+    let queued = 0, skipped = 0, checked = 0;
+
+    for (const r of rows) {
+        let prefs;
+        try { prefs = JSON.parse(r.email_prefs || "{}") || {}; } catch { continue; }
+        const rt = prefs.renewal_tracker;
+        if (!rt || !rt.cert_name || !rt.deadline || !rt.cpe_required) continue;
+        checked++;
+
+        const totalRow = await env.DB.prepare(
+            "SELECT SUM(earned_cpe) AS total FROM attendance WHERE user_id = ?1"
+        ).bind(r.id).first();
+        const earned = totalRow?.total || 0;
+        const pct = Math.floor((earned / rt.cpe_required) * 100);
+
+        const deadlineMs = new Date(rt.deadline + "T00:00:00Z").getTime();
+        const daysLeft = Math.ceil((deadlineMs - Date.parse(nowIso)) / 86400_000);
+
+        for (const milestone of RENEWAL_MILESTONES) {
+            if (pct < milestone) continue;
+            const idemKey = `renewal_milestone:${r.id}:${milestone}:${rt.cert_name}`;
+            const result = await queueRenewalEmail(env, r, rt, earned, milestone, "milestone", daysLeft, siteBase, idemKey, nowIso);
+            if (result === "queued") queued++;
+            else if (result === "skip") skipped++;
+        }
+
+        if (daysLeft > 0 && daysLeft <= RENEWAL_DEADLINE_WARN_DAYS && pct < 100) {
+            const idemKey = `renewal_deadline:${r.id}:${rt.deadline}:${rt.cert_name}`;
+            const result = await queueRenewalEmail(env, r, rt, earned, pct, "deadline", daysLeft, siteBase, idemKey, nowIso);
+            if (result === "queued") queued++;
+            else if (result === "skip") skipped++;
+        }
+    }
+    return { checked, queued, skipped };
+}
+
+async function queueRenewalEmail(env, user, rt, earned, value, type, daysLeft, siteBase, idemKey, nowIso) {
+    const dashUrl = `${siteBase}/dashboard.html?t=${user.dashboard_token}`;
+    const name = user.legal_name || "there";
+
+    let subject, text;
+    if (type === "milestone") {
+        subject = `${rt.cert_name}: ${value}% of CPE earned!`;
+        text = `Hi ${name},\n\n` +
+            `You've hit ${value}% of the CPE needed for ${rt.cert_name}! ` +
+            `${earned} / ${rt.cpe_required} CPE earned` +
+            (daysLeft > 0 ? ` with ${daysLeft} days until your deadline.` : ".") +
+            `\n\nDashboard: ${dashUrl}\n\n` +
+            `Keep it up!\n— Simply Cyber CPE\n`;
+    } else {
+        subject = `${rt.cert_name}: ${daysLeft} days until deadline`;
+        text = `Hi ${name},\n\n` +
+            `Your ${rt.cert_name} renewal deadline is ${daysLeft} day${daysLeft === 1 ? "" : "s"} away. ` +
+            `You've earned ${earned} / ${rt.cpe_required} CPE (${value}%).\n\n` +
+            `Dashboard: ${dashUrl}\n\n` +
+            `— Simply Cyber CPE\n`;
+    }
+
+    const html = emailShell({
+        title: subject,
+        preheader: subject,
+        bodyHtml:
+            `<p>Hi ${escapeHtml(name)},</p>` +
+            (type === "milestone"
+                ? `<p>You've hit <strong>${value}%</strong> of the CPE needed for <strong>${escapeHtml(rt.cert_name)}</strong>!</p>` +
+                  `<p>${earned} / ${rt.cpe_required} CPE earned` + (daysLeft > 0 ? ` — ${daysLeft} days until deadline.` : ".") + `</p>`
+                : `<p>Your <strong>${escapeHtml(rt.cert_name)}</strong> renewal deadline is <strong>${daysLeft} day${daysLeft === 1 ? "" : "s"}</strong> away.</p>` +
+                  `<p>${earned} / ${rt.cpe_required} CPE earned (${value}%).</p>`) +
+            `<p><a href="${dashUrl}" style="display:inline-block;padding:12px 24px;background:#0b3d5c;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">View dashboard</a></p>`,
+    });
+
+    try {
+        await env.DB.prepare(`
+            INSERT INTO email_outbox
+              (id, user_id, template, to_email, subject, payload_json,
+               idempotency_key, state, attempts, created_at)
+            VALUES (?1, ?2, 'renewal_nudge', ?3, ?4, ?5, ?6, 'queued', 0, ?7)
+        `).bind(
+            ulid(), user.id, user.email, subject,
+            JSON.stringify({ html_body: html, text_body: text }),
+            idemKey, nowIso,
+        ).run();
+        return "queued";
+    } catch (err) {
+        if (/UNIQUE/i.test(String(err?.message || err))) return "skip";
+        throw err;
+    }
+}
+
 function escapeHtml(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({
         "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
@@ -434,6 +560,32 @@ async function runWeeklyDigest(env, nowIso) {
         const body = (await resp.text()).slice(0, 500);
         throw new Error(`resend_${resp.status}: ${body}`);
     }
+    const lbRows = (await env.DB.prepare(`
+        SELECT u.legal_name, u.current_streak,
+               SUM(a.earned_cpe) AS cpe_earned
+          FROM attendance a
+          JOIN streams s ON s.id = a.stream_id
+          JOIN users u ON u.id = a.user_id
+         WHERE u.show_on_leaderboard = 1 AND u.state = 'active' AND u.deleted_at IS NULL
+           AND s.scheduled_date >= ?1
+      GROUP BY u.id
+      ORDER BY cpe_earned DESC LIMIT 5
+    `).bind(since.slice(0, 10)).all()).results || [];
+
+    if (lbRows.length > 0) {
+        const lines = lbRows.map((r, i) => {
+            const parts = (r.legal_name || "").trim().split(/\s+/);
+            const first = parts[0] || "User";
+            const lastI = parts.length > 1 ? " " + parts[parts.length - 1][0] + "." : "";
+            const streak = r.current_streak > 0 ? ` (${r.current_streak}d streak)` : "";
+            return `${i + 1}. **${first}${lastI}** — ${r.cpe_earned} CPE${streak}`;
+        });
+        await discordPost(env, env.DISCORD_WEBHOOK,
+            `**Weekly Leaderboard** (${since.slice(0, 10)} → ${nowIso.slice(0, 10)}):\n` +
+            lines.join("\n") +
+            `\n\nFull leaderboard: ${env.SITE_BASE || "https://sc-cpe-web.pages.dev"}/leaderboard.html`);
+    }
+
     return { window_start: since, sent: true };
 }
 
@@ -458,6 +610,7 @@ const EXPECTED_CADENCE_S = {
     monthly_digest: 2678400,
     link_enrichment: 86400,
     cert_nudge: 2678400,
+    renewal_nudge: 86400,
 };
 
 function staleHeartbeats(rows, nowMs) {
@@ -814,6 +967,21 @@ async function verifyBearer(request, env) {
     let diff = 0;
     for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
     return diff === 0;
+}
+
+async function discordPost(env, webhookUrl, content) {
+    if (!webhookUrl) return;
+    try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 10_000);
+        await fetch(webhookUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content, username: "SC-CPE" }),
+            signal: controller.signal,
+        });
+        clearTimeout(timer);
+    } catch { /* fire-and-forget */ }
 }
 
 function ulid() {

@@ -16,7 +16,9 @@ node --test \
     pages/functions/api/admin/analytics/_helpers.test.mjs \
     pages/functions/api/preflight/channel.test.mjs \
     pages/functions/api/coverage.test.mjs \
+    pages/functions/api/new-features.test.mjs \
     workers/poller/src/race-detection.test.mjs \
+    workers/poller/src/streak.test.mjs \
     workers/purge/src/heartbeat-staleness.test.mjs \
     workers/purge/src/purge-expired.test.mjs \
     scripts/test_chain_parity.mjs \

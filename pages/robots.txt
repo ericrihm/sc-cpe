@@ -4,6 +4,7 @@ Allow: /security.html
 Allow: /leaderboard.html
 Allow: /badge.html
 Allow: /links.html
+Allow: /profile.html
 Disallow: /api/
 Disallow: /admin.html
 Disallow: /dashboard.html
