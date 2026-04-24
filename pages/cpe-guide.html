@@ -22,13 +22,13 @@
         <div class="guide-field"><span class="guide-label">Sessions</span><span class="guide-val" id="f-sessions">—</span></div>
     </div>
 
-    <div class="tabs" role="tablist">
-        <button class="tab active" role="tab" aria-selected="true" data-tab="comptia">CompTIA</button>
-        <button class="tab" role="tab" aria-selected="false" data-tab="isc2">ISC2</button>
-        <button class="tab" role="tab" aria-selected="false" data-tab="isaca">ISACA</button>
+    <div class="tabs" role="tablist" aria-label="Certification body">
+        <button class="tab active" role="tab" id="tab-comptia" aria-selected="true" aria-controls="panel-comptia" data-tab="comptia">CompTIA</button>
+        <button class="tab" role="tab" id="tab-isc2" aria-selected="false" aria-controls="panel-isc2" data-tab="isc2">ISC2</button>
+        <button class="tab" role="tab" id="tab-isaca" aria-selected="false" aria-controls="panel-isaca" data-tab="isaca">ISACA</button>
     </div>
 
-    <section class="tab-panel active" id="panel-comptia">
+    <section class="tab-panel active" role="tabpanel" id="panel-comptia" aria-labelledby="tab-comptia">
         <h2>Submit to CompTIA CE Portal</h2>
         <ol class="guide-steps">
             <li>Go to <a href="https://ce.comptia.org" target="_blank" rel="noopener">ce.comptia.org</a> and sign in</li>
@@ -48,7 +48,7 @@
         </ol>
     </section>
 
-    <section class="tab-panel" id="panel-isc2">
+    <section class="tab-panel" role="tabpanel" id="panel-isc2" aria-labelledby="tab-isc2" hidden>
         <h2>Submit to ISC2 CPE Portal</h2>
         <ol class="guide-steps">
             <li>Go to <a href="https://cpe.isc2.org" target="_blank" rel="noopener">cpe.isc2.org</a> and sign in</li>
@@ -67,7 +67,7 @@
         </ol>
     </section>
 
-    <section class="tab-panel" id="panel-isaca">
+    <section class="tab-panel" role="tabpanel" id="panel-isaca" aria-labelledby="tab-isaca" hidden>
         <h2>Submit to ISACA CPE Portal</h2>
         <ol class="guide-steps">
             <li>Go to <a href="https://www.isaca.org/credentialing/cpe" target="_blank" rel="noopener">isaca.org/credentialing/cpe</a> and sign in</li>
@@ -80,7 +80,7 @@
             <tr><td>Provider</td><td><button class="copy-btn" data-value="Simply Cyber LLC">Simply Cyber LLC</button></td></tr>
             <tr><td>CPE Hours</td><td><button class="copy-btn" id="ia-hours">—</button></td></tr>
             <tr><td>Completion Date</td><td><button class="copy-btn" id="ia-dates">—</button></td></tr>
-            <tr><td>Description</td><td><button class="copy-btn" data-value="Live daily cybersecurity briefing covering current threats, vulnerabilities, risk management, security operations, incident response, and governance.">Live daily cybersecurity briefing covering current threats, vulnerabilities, and defensive strategies.</button></td></tr>
+            <tr><td>Description</td><td><button class="copy-btn" data-value="Live daily cybersecurity briefing covering current threats, vulnerabilities, risk management, security operations, incident response, and governance.">Live daily cybersecurity briefing covering current threats, vulnerabilities, risk management, security operations, incident response, and governance.</button></td></tr>
             <tr><td>Verification URL</td><td><button class="copy-btn" id="ia-verify">—</button></td></tr>
         </table>
         <ol class="guide-steps" start="4">
