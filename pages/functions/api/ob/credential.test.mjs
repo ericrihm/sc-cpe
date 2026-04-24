@@ -49,3 +49,41 @@ test("multibaseEncode: prepends 'z' prefix", () => {
     assert.ok(result.startsWith("z"));
     assert.equal(result, "z" + base58btcEncode(input));
 });
+
+import { buildObCredential } from "./credential/[token].js";
+
+test("buildObCredential: produces valid OBv3 structure", () => {
+    const cert = {
+        id: "cert-123",
+        public_token: "abc".repeat(22),
+        period_yyyymm: "202604",
+        period_start: "2026-04-01",
+        period_end: "2026-04-30",
+        cpe_total: 10.0,
+        sessions_count: 20,
+        generated_at: "2026-04-30T12:00:00Z",
+        recipient_name_snapshot: "Jane Doe",
+    };
+    const origin = "https://sc-cpe-web.pages.dev";
+    const result = buildObCredential(cert, origin);
+    assert.deepEqual(result["@context"], [
+        "https://www.w3.org/ns/credentials/v2",
+        "https://purl.imsglobal.org/spec/ob/v3p0/context-3.0.3.json",
+    ]);
+    assert.deepEqual(result.type, ["VerifiableCredential", "OpenBadgeCredential"]);
+    assert.equal(result.issuer.name, "Simply Cyber");
+    assert.equal(result.validFrom, "2026-04-30T12:00:00Z");
+    assert.ok(result.name.includes("April 2026"));
+    assert.ok(result.credentialSubject.achievement.criteria.narrative.includes("20"));
+});
+
+test("buildObCredential: formats period_yyyymm as readable month", () => {
+    const cert = {
+        id: "c1", public_token: "t".repeat(64), period_yyyymm: "202601",
+        period_start: "2026-01-01", period_end: "2026-01-31",
+        cpe_total: 5, sessions_count: 10, generated_at: "2026-01-31T00:00:00Z",
+        recipient_name_snapshot: "X",
+    };
+    const result = buildObCredential(cert, "https://example.com");
+    assert.ok(result.name.includes("January 2026"));
+});
