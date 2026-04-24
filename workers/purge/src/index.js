@@ -283,7 +283,40 @@ function computeStreak(rows) {
     return streak;
 }
 
-function emailShell({ title, preheader, bodyHtml }) {
+function emailButton(text, url) {
+    return `<p style="text-align:center;margin:24px 0;">
+  <a href="${url}" style="display:inline-block;background:#d4a73a;color:#0b3d5c;
+     font-weight:bold;padding:12px 28px;border-radius:6px;text-decoration:none;
+     font-size:14px;letter-spacing:0.02em;">${escapeHtml(text)}</a>
+</p>`;
+}
+
+function emailCode(code) {
+    return `<div style="text-align:center;margin:20px 0;">
+  <div style="display:inline-block;background:#0b3d5c;color:#d4a73a;
+       font-family:Menlo,Consolas,monospace;font-size:22px;font-weight:bold;
+       padding:14px 28px;border-radius:8px;letter-spacing:0.06em;">
+       ${escapeHtml(code)}</div>
+</div>`;
+}
+
+function emailProgress(pct) {
+    const clamped = Math.max(0, Math.min(100, Math.round(pct)));
+    return `<div style="margin:16px 0;">
+  <div style="background:#e6eaee;border-radius:8px;height:20px;overflow:hidden;">
+    <div style="background:linear-gradient(90deg,#0b3d5c,#d4a73a);
+         width:${clamped}%;height:100%;border-radius:8px;"></div>
+  </div>
+  <div style="text-align:center;font-size:13px;color:#555;margin-top:4px;">
+    ${clamped}% complete</div>
+</div>`;
+}
+
+function emailDivider() {
+    return `<hr style="border:none;border-top:1px solid #e6eaee;margin:20px 0;">`;
+}
+
+function emailShell({ title, preheader, bodyHtml, siteBase = "https://sc-cpe-web.pages.dev" }) {
     const safeTitle = escapeHtml(title);
     return `<!doctype html>
 <html><body style="margin:0;padding:0;background:#f4f6f8;font-family:Helvetica,Arial,sans-serif;color:#111;line-height:1.5;">
@@ -297,7 +330,8 @@ function emailShell({ title, preheader, bodyHtml }) {
     ${bodyHtml}
   </div>
   <div style="padding:16px 24px;border-top:1px solid #e6eaee;font-size:11px;color:#777;">
-    You're receiving this because you registered for Simply Cyber CPE.<br/>
+    You're receiving this because you registered at
+    <a href="${siteBase}" style="color:#777;">Simply Cyber CPE</a>.<br/>
     Questions? Reply to this email.
   </div>
 </div>
@@ -347,29 +381,25 @@ async function runCertNudges(env, nowIso) {
 
             const verifyUrl = `${siteBase}/verify.html?t=${r.public_token}`;
             const dashUrl = `${siteBase}/dashboard.html?t=${r.dashboard_token}`;
-            const subject = `Your ${period} CPE cert — a quick check?`;
+            const subject = `Quick check on your ${period} CPE cert`;
             const text =
                 `Hi ${r.legal_name || "there"},\n\n` +
-                `Your ${period} Simply Cyber DTB CPE certificate was issued ` +
-                `last week. Please take a moment to open it and confirm the ` +
-                `details are correct:\n\n` +
-                `  ${verifyUrl}\n\n` +
+                `Your ${period} certificate was delivered — we want to make sure everything looks right.\n\n` +
+                `Review: ${verifyUrl}\n` +
                 `Dashboard: ${dashUrl}\n\n` +
-                `If anything looks wrong (typo in your name, wrong CPE count, ` +
-                `etc.) just reply here or use the feedback button on the ` +
-                `verify page and we'll re-issue.\n\n` +
+                `If anything needs correcting, reply to this email or request a re-issue from your dashboard.\n\n` +
                 `— Simply Cyber CPE\n`;
-            const html =
+            const bodyHtml =
                 `<p>Hi ${escapeHtml(r.legal_name || "there")},</p>` +
-                `<p>Your ${escapeHtml(period)} Simply Cyber DTB CPE ` +
-                `certificate was issued last week. Please take a moment to ` +
-                `open it and confirm the details are correct:</p>` +
-                `<p><a href="${verifyUrl}">${verifyUrl}</a></p>` +
-                `<p>Dashboard: <a href="${dashUrl}">${dashUrl}</a></p>` +
-                `<p>If anything looks wrong (typo in your name, wrong CPE ` +
-                `count, etc.) just reply here or use the feedback button on ` +
-                `the verify page and we'll re-issue.</p>` +
-                `<p>— Simply Cyber CPE</p>`;
+                `<p>Your <strong>${escapeHtml(period)}</strong> certificate was delivered — we want to make sure everything looks right.</p>` +
+                emailButton("Review My Certificate", verifyUrl) +
+                `<p style="font-size:13px;color:#555;">If anything needs correcting, reply to this email or request a re-issue from your dashboard.</p>`;
+            const html = emailShell({
+                title: "Certificate check",
+                preheader: "Everything look right? Let us know in 30 seconds",
+                bodyHtml,
+                siteBase,
+            });
 
             await env.DB.prepare(`
                 INSERT INTO email_outbox
@@ -448,35 +478,41 @@ async function queueRenewalEmail(env, user, rt, earned, value, type, daysLeft, s
     const dashUrl = `${siteBase}/dashboard.html?t=${user.dashboard_token}`;
     const name = user.legal_name || "there";
 
-    let subject, text;
+    let subject, text, preheader;
     if (type === "milestone") {
         subject = `${rt.cert_name}: ${value}% of CPE earned!`;
+        preheader = `You're ${value}% of the way to ${rt.cert_name} renewal`;
         text = `Hi ${name},\n\n` +
-            `You've hit ${value}% of the CPE needed for ${rt.cert_name}! ` +
-            `${earned} / ${rt.cpe_required} CPE earned` +
-            (daysLeft > 0 ? ` with ${daysLeft} days until your deadline.` : ".") +
+            `You're making great progress on ${rt.cert_name}!\n\n` +
+            `${earned} / ${rt.cpe_required} CPE earned (${value}%)` +
+            (daysLeft > 0 ? ` — ${daysLeft} days remaining.` : ".") +
             `\n\nDashboard: ${dashUrl}\n\n` +
-            `Keep it up!\n— Simply Cyber CPE\n`;
+            `— Simply Cyber CPE\n`;
     } else {
         subject = `${rt.cert_name}: ${daysLeft} days until deadline`;
+        preheader = `${daysLeft} days until your ${rt.cert_name} deadline`;
         text = `Hi ${name},\n\n` +
-            `Your ${rt.cert_name} renewal deadline is ${daysLeft} day${daysLeft === 1 ? "" : "s"} away. ` +
-            `You've earned ${earned} / ${rt.cpe_required} CPE (${value}%).\n\n` +
+            `Your ${rt.cert_name} renewal deadline is ${daysLeft} day${daysLeft === 1 ? "" : "s"} away — here's where you stand.\n\n` +
+            `${earned} / ${rt.cpe_required} CPE earned (${value}%).\n\n` +
             `Dashboard: ${dashUrl}\n\n` +
             `— Simply Cyber CPE\n`;
     }
 
+    const bodyHtml =
+        `<p>Hi ${escapeHtml(name)},</p>` +
+        (type === "milestone"
+            ? `<p>You're making great progress on <strong>${escapeHtml(rt.cert_name)}</strong>!</p>`
+            : `<p>Your <strong>${escapeHtml(rt.cert_name)}</strong> renewal deadline is <strong>${daysLeft} day${daysLeft === 1 ? "" : "s"}</strong> away — here's where you stand.</p>`) +
+        emailProgress(value) +
+        `<p style="text-align:center;color:#555;font-size:14px;">${earned}/${rt.cpe_required} CPE earned` +
+        (daysLeft > 0 ? ` &bull; ${daysLeft} days remaining` : "") + `</p>` +
+        emailButton("View My Dashboard", dashUrl);
+
     const html = emailShell({
         title: subject,
-        preheader: subject,
-        bodyHtml:
-            `<p>Hi ${escapeHtml(name)},</p>` +
-            (type === "milestone"
-                ? `<p>You've hit <strong>${value}%</strong> of the CPE needed for <strong>${escapeHtml(rt.cert_name)}</strong>!</p>` +
-                  `<p>${earned} / ${rt.cpe_required} CPE earned` + (daysLeft > 0 ? ` — ${daysLeft} days until deadline.` : ".") + `</p>`
-                : `<p>Your <strong>${escapeHtml(rt.cert_name)}</strong> renewal deadline is <strong>${daysLeft} day${daysLeft === 1 ? "" : "s"}</strong> away.</p>` +
-                  `<p>${earned} / ${rt.cpe_required} CPE earned (${value}%).</p>`) +
-            `<p><a href="${dashUrl}" style="display:inline-block;padding:12px 24px;background:#0b3d5c;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">View dashboard</a></p>`,
+        preheader,
+        bodyHtml,
+        siteBase,
     });
 
     try {
