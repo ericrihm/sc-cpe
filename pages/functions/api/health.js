@@ -16,10 +16,13 @@ import { classifyAll, inPollerWindow } from "../_heartbeat.js";
 export async function onRequest({ request, env }) {
     const now = new Date();
     const { results = [] } = await env.DB.prepare(
-        "SELECT source, last_beat_at, last_status FROM heartbeats"
+        "SELECT source, last_beat_at, last_status, detail_json FROM heartbeats"
     ).all();
 
     const classified = classifyAll(results, now, env);
+    const detailBySource = Object.fromEntries(
+        results.map(r => [r.source, r.detail_json ? JSON.parse(r.detail_json) : null])
+    );
 
     const sources = classified.map(s => ({
         source: s.source,
@@ -28,10 +31,8 @@ export async function onRequest({ request, env }) {
         age_seconds: s.age_seconds,
         expected: s.on_duty,
         stale: s.stale,
-        // Exposing threshold lets the watchdog + operators see exactly what
-        // triggered a stale flag. classifyAll considers a source stale when
-        // age > 2×expected, so the effective threshold is 2×expected_s.
         threshold_seconds: s.expected_s != null ? s.expected_s * 2 : null,
+        detail: detailBySource[s.source] ?? null,
     }));
 
     return json({
