@@ -14,3 +14,5 @@ node_modules/
 .DS_Store
 outputs/handoffs/
 scripts/.backfill_progress.json
+.codex/
+AGENTS.md
