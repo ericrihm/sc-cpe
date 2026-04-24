@@ -69,6 +69,15 @@
     touch-action: manipulation;
 }
 .cert-verify:hover { background: var(--accent-soft-bg); }
+.cert-action-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 40px; height: 40px; min-height: 44px;
+    border: 1px solid var(--border); border-radius: 4px;
+    background: var(--card); color: var(--muted);
+    text-decoration: none; cursor: pointer;
+    touch-action: manipulation; font-size: 18px;
+}
+.cert-action-icon:hover { background: var(--accent-soft-bg); color: var(--accent); border-color: var(--accent); }
 .pill {
     display: inline-block; padding: 2px 8px; border-radius: 999px;
     font-size: 11px; font-weight: 600; line-height: 16px;

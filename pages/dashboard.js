@@ -352,6 +352,56 @@ function renderCerts(items) {
     }
 }
 
+function linkedInButton(c) {
+    if (c.state === "pending") return "";
+    var period = formatPeriod(c.period_yyyymm);
+    var d = new Date(c.generated_at || Date.now());
+    var params = new URLSearchParams({
+        startTask: "CERTIFICATION_NAME",
+        name: "Simply Cyber CPE Certificate — " + period,
+        issueYear: String(d.getFullYear()),
+        issueMonth: String(d.getMonth() + 1),
+        certId: c.public_token,
+        certUrl: location.origin + "/verify.html?t=" + encodeURIComponent(c.public_token),
+    });
+    return '<a class="cert-action-icon" href="https://www.linkedin.com/profile/add?' +
+        escapeHtml(params.toString()) + '" target="_blank" rel="noopener" ' +
+        'title="Add to LinkedIn">' +
+        '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">' +
+        '<path d="M19 3a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h14m-.5 15.5v-5.3a3.26 3.26 0 00-3.26-3.26c-.85 0-1.84.52-2.32 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 011.4 1.4v4.93h2.79M6.88 8.56a1.68 1.68 0 001.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 00-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z"/>' +
+        '</svg></a>';
+}
+
+function obBadgeButton(c) {
+    if (c.state === "pending") return "";
+    return '<a class="cert-action-icon" href="/api/ob/credential/' +
+        encodeURIComponent(c.public_token) + '.json" target="_blank" rel="noopener" ' +
+        'title="Open Badge (JSON-LD)">' +
+        '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
+        '<circle cx="12" cy="8" r="5"/><path d="M8 13l-1 8 5-3 5 3-1-8"/>' +
+        '</svg></a>';
+}
+
+function cpeGuideButton(c) {
+    if (c.state === "pending") return "";
+    var period = formatPeriod(c.period_yyyymm);
+    var params = new URLSearchParams({
+        name: period,
+        hours: String(Number(c.cpe_total).toFixed(1)),
+        sessions: String(c.sessions_count),
+        certUrl: location.origin + "/verify.html?t=" + encodeURIComponent(c.public_token),
+        downloadUrl: location.origin + "/api/download/" + encodeURIComponent(c.public_token),
+    });
+    return '<a class="cert-action-icon" href="/cpe-guide.html?' +
+        escapeHtml(params.toString()) + '" target="_blank" rel="noopener" ' +
+        'title="CPE submission guide">' +
+        '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
+        '<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>' +
+        '<polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/>' +
+        '<line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>' +
+        '</svg></a>';
+}
+
 function certCard(c, isSuperseded) {
     var row = document.createElement("div");
     row.className = "cert-row" + (isSuperseded ? " is-superseded" : "");
@@ -376,6 +426,9 @@ function certCard(c, isSuperseded) {
         '<span class="pill ' + pill.cls + '"' + (pill.title ? ' title="' + escapeHtml(pill.title) + '"' : "") + ">" + escapeHtml(pill.label) + "</span>" +
         "</div>" +
         '<div class="cert-actions">' +
+        linkedInButton(c) +
+        obBadgeButton(c) +
+        cpeGuideButton(c) +
         '<a class="cert-verify" href="/verify.html?t=' + encodeURIComponent(c.public_token) + '" target="_blank" rel="noopener">Open certificate \u2197</a>' +
         '<details class="fb-details" data-cert="' + c.id + '">' +
         "<summary>Report an issue</summary>" +
