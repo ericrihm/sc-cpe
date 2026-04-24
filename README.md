@@ -17,11 +17,17 @@
 
 **[Verify a certificate](https://sc-cpe-web.pages.dev/verify.html)** · **[Leaderboard](https://sc-cpe-web.pages.dev/leaderboard.html)** · **[Show links](https://sc-cpe-web.pages.dev/links.html)** · **[Public profiles](https://sc-cpe-web.pages.dev/profile.html)** · **[Contribute](CONTRIBUTING.md)**
 
+# SC-CPE
+
+Automated CPE/CEU certificate issuance for security professionals who attend the Simply Cyber Daily Threat Briefing livestream, with cryptographic proof of attendance and offline-verifiable signed credentials.
+
 ---
 
-## What is this?
+## What & Why
 
 SC-CPE watches the [Simply Cyber Daily Threat Briefing](https://www.youtube.com/@simplycyber) YouTube live chat, matches per-user verification codes, and issues **signed PDF certificates** worth **0.5 CPE / CEU per session**. Every certificate is PAdES-T signed with an RFC-3161 timestamp and anchored to an append-only, hash-chained audit log — verifiable offline, years later, without contacting the issuer.
+
+CPE tracking is a pain point for security professionals — manual logs, inconsistent records, and no way to independently verify attendance. Unlike traditional self-reported CPE systems, SC-CPE solves this by automating the entire pipeline from livestream attendance through signed certificate delivery, giving holders a credential that any auditor can check without trusting the issuer.
 
 > [!TIP]
 > 20 weekday briefings/month = **10 CPE**. Enough to cover a significant chunk of most annual renewal requirements.
@@ -116,6 +122,22 @@ Your dashboard link arrives by email from `certs@signalplane.co`. Lost it? Just 
 | **D1** | Cloudflare SQLite | Single source of truth — schema in `db/schema.sql` |
 | **R2** | Cloudflare Object Storage | Raw chat JSONL (purges daily) + signed PDF certs + weekly backups |
 | **KV** | Cloudflare KV | Rate-limit counters + circuit breaker state |
+
+---
+
+## Tech Stack
+
+| Layer | Tech |
+|:------|:-----|
+| Frontend | Cloudflare Pages (static HTML + JS, CSP `script-src 'self'`) |
+| API | Cloudflare Pages Functions (V8 isolates) |
+| Workers | Cloudflare Workers (poller, purge, email-sender) |
+| Database | Cloudflare D1 (SQLite) |
+| Storage | Cloudflare R2 (certs, chat, backups) |
+| Caching | Cloudflare KV (rate limits, circuit breakers) |
+| Email | Resend (DKIM + SPF + DMARC) |
+| Certs | Python + WeasyPrint + endesive (PAdES-T) |
+| CI/CD | GitHub Actions (13 workflows) |
 
 ---
 
@@ -290,6 +312,18 @@ D1 migrations in `db/migrations/` are applied automatically during deploy — th
 
 ---
 
+## Design Decisions
+
+- **Hash-chained audit log over simple event table** — append-only with SHA-256 `prev_hash` ensures tampering is detectable years later without a trusted third party. A `UNIQUE INDEX` on `prev_hash` serialises concurrent writers at the database level.
+
+- **Dashboard token over password auth** — a single bearer URL means no password resets, no session management, no cookie consent banners. Trade-off: URL sharing leaks access, mitigated by a separate `badge_token` for public-facing URLs.
+
+- **PAdES-T over simple PDF signing** — RFC-3161 timestamps make certificates verifiable even after the signing key expires. More complexity, but the cert is the product — it must stand on its own.
+
+- **Email-queue pattern over direct send** — decouples email delivery from the request path, enabling retry with idempotency, backpressure visibility via the outbox table, and a clean cursor-advance-on-success contract.
+
+---
+
 ## Who Runs This
 
 **Simply Cyber LLC** (United States). Fully open-source at [`github.com/ericrihm/sc-cpe`](https://github.com/ericrihm/sc-cpe) — every line that decides who gets credit, every policy doc, every deploy workflow. Branch protection + required CI + auto-deploy means the deployed code is the exact SHA on `main`.
@@ -304,7 +338,7 @@ Security disclosure: [`security.txt`](https://sc-cpe-web.pages.dev/.well-known/s
 
 ---
 
-## Development
+## Testing & Development
 
 ```bash
 scripts/install_hooks.sh                 # pre-push hook → runs test suite
@@ -360,7 +394,7 @@ docs/
   PITCH.md             Simply Cyber team pitch
 ```
 
-## Community
+## Contributing
 
 Built for the [Simply Cyber](https://www.youtube.com/@SimplyCyber) community. Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
