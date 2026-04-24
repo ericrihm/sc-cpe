@@ -272,6 +272,16 @@ CREATE TABLE IF NOT EXISTS admin_users (
     created_by TEXT NOT NULL DEFAULT 'migration'
 );
 
+-- Email suppression list. Populated by the Resend bounce/complaint webhook.
+-- The email-sender skips outbox rows whose to_email is found here.
+CREATE TABLE email_suppression (
+    email       TEXT NOT NULL,
+    reason      TEXT NOT NULL,
+    event_id    TEXT,
+    created_at  TEXT NOT NULL,
+    PRIMARY KEY (email)
+);
+
 -- Deploy-pipeline migration tracking (not app data).
 CREATE TABLE _applied_migrations (
     filename    TEXT PRIMARY KEY,
