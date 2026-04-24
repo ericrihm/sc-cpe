@@ -1,4 +1,4 @@
-import { json, audit, clientIp, ipHash, now, isSameOrigin } from "../../../_lib.js";
+import { json, audit, clientIp, ipHash, now, isSameOrigin, rateLimit } from "../../../_lib.js";
 
 // POST /api/me/{token}/delete
 // Body: { "confirm": "DELETE" }  (explicit confirmation, prevents XSRF-ish
@@ -59,6 +59,10 @@ export async function onRequestPost({ params, request, env }) {
     if (body?.confirm !== "DELETE") {
         return json({ error: "confirmation_required", detail: 'Body must be {"confirm":"DELETE"}' }, 400);
     }
+
+    const ipH = await ipHash(clientIp(request));
+    const rl = await rateLimit(env, `delete:${ipH}`, 5);
+    if (!rl.ok) return json(rl.body, rl.status);
 
     const user = await env.DB.prepare(`
         SELECT id, email, state, deleted_at

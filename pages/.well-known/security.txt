@@ -10,7 +10,7 @@ Contact: mailto:certs@signalplane.co?subject=%5BSECURITY%5D%20SC-CPE%20disclosur
 Expires: 2027-04-16T00:00:00.000Z
 Preferred-Languages: en
 Canonical: https://sc-cpe-web.pages.dev/.well-known/security.txt
-Policy: https://sc-cpe-web.pages.dev/privacy.html#security
+Policy: https://sc-cpe-web.pages.dev/security.html
 
 # Single operator inbox: certs@signalplane.co. Please put [SECURITY] at the
 # start of your subject line so the filter routes disclosure mail ahead of

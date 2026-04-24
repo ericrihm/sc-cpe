@@ -92,3 +92,8 @@ button.refresh { background: var(--adm-accent); color: #fff; border: 0; padding:
     #revoke-form { flex-direction: column; }
     #revoke-form input { min-width: 0 !important; }
 }
+.sec-event-row { display:grid; grid-template-columns:1fr 60px 200px; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--adm-border); font-size:13px; }
+.sec-event-label { font-family:Menlo,monospace; font-size:12px; }
+.sec-event-count { font-weight:700; text-align:right; color:var(--adm-bad); }
+.sec-spark { display:flex; align-items:flex-end; gap:2px; height:28px; }
+.sec-bar { flex:1; min-width:4px; background:var(--adm-border); border-radius:1px; transition:height .2s; }

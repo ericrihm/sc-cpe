@@ -1,4 +1,4 @@
-import { json, audit, clientIp, ipHash, now, ulid, isSameOrigin } from "../../../_lib.js";
+import { json, audit, clientIp, ipHash, now, ulid, isSameOrigin, rateLimit } from "../../../_lib.js";
 
 // POST /api/me/{token}/cert-feedback
 // Body: { "cert_id": "<ULID>", "rating": "ok"|"typo"|"wrong", "note"?: string }
@@ -43,8 +43,6 @@ export async function onRequestPost({ params, request, env }) {
         note = trimmed.length ? trimmed : null;
     }
 
-    // Verify (token, cert) ownership in a single query so an attacker can't
-    // leave feedback on someone else's cert by guessing cert_ids.
     const owner = await env.DB.prepare(`
         SELECT u.id AS user_id, c.id AS cert_id
           FROM users u
@@ -52,6 +50,9 @@ export async function onRequestPost({ params, request, env }) {
          WHERE u.dashboard_token = ?1 AND u.deleted_at IS NULL AND c.id = ?2
     `).bind(token, certId).first();
     if (!owner) return json({ error: "not_found" }, 404);
+
+    const rl = await rateLimit(env, `cert_feedback:${owner.user_id}`, 20);
+    if (!rl.ok) return json(rl.body, rl.status);
 
     const ts = now();
     const id = ulid();

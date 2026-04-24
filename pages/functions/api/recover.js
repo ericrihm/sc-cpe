@@ -134,8 +134,12 @@ export async function onRequestPost({ request, env }) {
         ).run();
     } catch (err) {
         // UNIQUE on idempotency_key means we've already queued in this hour —
-        // swallow and return the same response. Non-UNIQUE errors are real.
-        if (!/UNIQUE/i.test(String(err && err.message || err))) throw err;
+        // swallow and return the same response. Non-UNIQUE errors log + return
+        // the constant response (never leak DB error details to the client).
+        if (!/UNIQUE/i.test(String(err && err.message || err))) {
+            console.error("recover:email_queue_error", String(err));
+            return json(CONSTANT_RESPONSE, 200);
+        }
     }
 
     await audit(
