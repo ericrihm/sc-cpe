@@ -61,7 +61,7 @@ export async function signCredential(credential, privateKeyB64) {
 export async function derivePublicJwk(privateKeyB64) {
     const keyBytes = Uint8Array.from(atob(privateKeyB64), c => c.charCodeAt(0));
     const keyPair = await crypto.subtle.importKey(
-        "raw", keyBytes, { name: "Ed25519" }, true, ["sign"],
+        "raw", keyBytes, { name: "Ed25519" }, true, [],
     );
     const jwk = await crypto.subtle.exportKey("jwk", keyPair);
     return { kty: jwk.kty, crv: jwk.crv, x: jwk.x };

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { jcsCanonicalise, base58btcEncode, base58btcDecode, multibaseEncode } from "./sign.js";
+import { jcsCanonicalise, base58btcEncode, base58btcDecode, multibaseEncode, derivePublicJwk } from "./sign.js";
 
 test("jcsCanonicalise: sorts keys deterministically", () => {
     const obj = { z: 1, a: 2, m: { b: 3, a: 4 } };
@@ -86,4 +86,16 @@ test("buildObCredential: formats period_yyyymm as readable month", () => {
     };
     const result = buildObCredential(cert, "https://example.com");
     assert.ok(result.name.includes("January 2026"));
+});
+
+test("derivePublicJwk: returns OKP/Ed25519 JWK", async () => {
+    // Test vector: a base64-encoded 32-byte Ed25519 private key seed
+    // This is a consistent seed that will always generate the same keypair
+    const testSeed = "qFQJoNZXVL3jEJMCKzvXhIx7PdpSxvAVT5cB4YdBjN8=";
+    const jwk = await derivePublicJwk(testSeed);
+    assert.equal(jwk.kty, "OKP");
+    assert.equal(jwk.crv, "Ed25519");
+    assert.ok(jwk.x, "x component present");
+    assert.equal(typeof jwk.x, "string", "x is a string");
+    assert.equal(jwk.d, undefined, "private key not leaked");
 });
