@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { isAdmin, audit, rateLimit, constantTimeEqual, canonicalAuditRow, sha256Hex } from "./_lib.js";
+import { isAdmin, audit, rateLimit, constantTimeEqual, canonicalAuditRow, sha256Hex, classifyRevocation, escapeHtml, killSwitched } from "./_lib.js";
 
 function mkKV() {
     const store = new Map();
@@ -220,4 +220,55 @@ test("audit: retries on UNIQUE constraint violation", async () => {
     const id = await audit({ DB: db }, "system", null, "test", "system", "init", null, null);
     assert.ok(id, "should return an id after retry");
     assert.equal(attempts, 3, "should have retried twice then succeeded on 3rd");
+});
+
+// ── classifyRevocation ────────────────────────────────────────────────
+
+test("classifyRevocation: 'fraud' keyword → issued_in_error", () => {
+    assert.equal(classifyRevocation("Suspected fraud"), "issued_in_error");
+    assert.equal(classifyRevocation("Impersonation detected"), "issued_in_error");
+});
+
+test("classifyRevocation: unknown text → other", () => {
+    assert.equal(classifyRevocation("Admin requested removal"), "other");
+});
+
+test("classifyRevocation: empty/null → other", () => {
+    assert.equal(classifyRevocation(""), "other");
+    assert.equal(classifyRevocation(null), "other");
+    assert.equal(classifyRevocation(undefined), "other");
+});
+
+// ── escapeHtml ────────────────────────────────────────────────────────
+
+test("escapeHtml: escapes dangerous characters", () => {
+    assert.equal(escapeHtml('<script>alert("xss")</script>'),
+        '&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;');
+    assert.equal(escapeHtml("it's & fun"), "it&#39;s &amp; fun");
+});
+
+test("escapeHtml: preserves safe text", () => {
+    assert.equal(escapeHtml("Hello World 123"), "Hello World 123");
+});
+
+test("escapeHtml: handles non-string input", () => {
+    assert.equal(escapeHtml(42), "42");
+    assert.equal(escapeHtml(null), "null");
+    assert.equal(escapeHtml(undefined), "undefined");
+});
+
+// ── killSwitched ──────────────────────────────────────────────────────
+
+test("killSwitched: KV has kill:<name> set → true", async () => {
+    const kv = mkKV();
+    await kv.put("kill:register", "1");
+    assert.equal(await killSwitched({ RATE_KV: kv }, "register"), true);
+});
+
+test("killSwitched: KV empty → false", async () => {
+    assert.equal(await killSwitched({ RATE_KV: mkKV() }, "register"), false);
+});
+
+test("killSwitched: missing RATE_KV → false (not fail-closed)", async () => {
+    assert.equal(await killSwitched({}, "register"), false);
 });
