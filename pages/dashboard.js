@@ -95,6 +95,13 @@ async function load() {
 
         document.getElementById("leaderboard-card").hidden = false;
         document.getElementById("leaderboard-toggle").checked = !!d.user.show_on_leaderboard;
+
+        document.getElementById("email-prefs-card").hidden = false;
+        var unsubs = (d.user.email_prefs && d.user.email_prefs.unsubscribed) || [];
+        var checks = document.querySelectorAll("#email-prefs-checks input[data-cat]");
+        for (var ci = 0; ci < checks.length; ci++) {
+            checks[ci].checked = unsubs.indexOf(checks[ci].dataset.cat) === -1;
+        }
     }
 
     if (d.user.state === "pending_verification") {
@@ -1108,6 +1115,32 @@ document.getElementById("leaderboard-toggle").addEventListener("change", async f
     } catch (err) {
         msg.textContent = "Failed: " + err.message;
         e.target.checked = !e.target.checked;
+    }
+});
+
+// --- Email preferences ---
+document.getElementById("email-prefs-checks").addEventListener("change", async function (e) {
+    var cb = e.target.closest("input[data-cat]");
+    if (!cb) return;
+    var msg = document.getElementById("email-prefs-msg");
+    msg.hidden = false;
+    msg.textContent = "saving…";
+    var checks = document.querySelectorAll("#email-prefs-checks input[data-cat]");
+    var unsubs = [];
+    for (var i = 0; i < checks.length; i++) {
+        if (!checks[i].checked) unsubs.push(checks[i].dataset.cat);
+    }
+    try {
+        var r = await fetch("/api/me/" + encodeURIComponent(token) + "/prefs", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ unsubscribed: unsubs }),
+        });
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        msg.textContent = "saved";
+    } catch (err) {
+        msg.textContent = "failed: " + err.message;
+        cb.checked = !cb.checked;
     }
 });
 
