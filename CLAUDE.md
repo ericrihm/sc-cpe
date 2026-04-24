@@ -15,6 +15,7 @@ pages/                Cloudflare Pages Functions — the public web surface
   functions/api/      JSON API
     admin/            bearer-token (ADMIN_TOKEN) gated endpoints
     me/[token]/       dashboard-token gated endpoints (CSRF-sensitive)
+    ob/               Open Badges v3 (credential export, JWKS, signing)
     badge/[token].js  SVG badge endpoint
     leaderboard.js    public leaderboard API
   _lib.js             shared helpers (audit, isAdmin, rateLimit, etc.)
@@ -37,8 +38,12 @@ scripts/              smoke, schema check, audit verifier, tests
   backup_d1.sh        weekly D1 export
   get_oauth_token.mjs YouTube OAuth token setup helper
   rescan_chat.py      chat replay rescan for missed attendance (needs chat_downloader)
+  self-heal.sh        automated remediation playbook (called by watchdog)
+  claude-heal-prompt.md  per-source diagnostic playbooks for Claude Code triage
 .github/workflows/    CI: ci.yml (tests+gitleaks), smoke.yml (hourly),
-                      watchdog.yml, monthly-certs.yml (bundled sweep),
+                      watchdog.yml (15min + self-heal + escalation),
+                      heal.yml (manual self-heal dispatch),
+                      monthly-certs.yml (bundled sweep),
                       cert-sign-pending.yml (2h pending-cert pickup),
                       schema-drift.yml (weekly D1 vs schema.sql),
                       backup.yml (weekly D1 backup),
@@ -323,6 +328,24 @@ ADMIN_TOKEN="$(tr -d '\n' < ~/.cloudflare/sc-cpe-admin-token)" \
     - resend-code "within 7 days" corrected to "before it expires".
     - CRL endpoint sets `Cross-Origin-Resource-Policy: cross-origin`.
     - admin.js reissue click listener moved to one-time registration.
+- **Credential portability** — added 2026-04-24. OBv3 credential export
+  (`/api/ob/credential/[token].json`), Ed25519 signed with DataIntegrityProof
+  (`eddsa-rdfc-2022`), JWKS at `/api/ob/jwks`. LinkedIn "Add to Profile"
+  deep-link + CPE submission guide page (`cpe-guide.html`) with CompTIA/
+  ISC2/ISACA tabs and copy-to-clipboard. Requires `OB_SIGNING_KEY` Pages
+  secret (see RUNBOOK "Open Badge Signing Key"). HSTS preload directive added.
+- **Self-healing watchdog** — added 2026-04-24. `watchdog.yml` now runs
+  `scripts/self-heal.sh` after detecting stale sources. Playbook: purge-family
+  sources re-triggered via on-demand HTTP endpoint; email-sender/poller wait
+  for transient recovery. Safety: 2h cooldown per source, 3 heals/day max
+  (tracked in watchdog KV). On heal failure: creates GitHub issue with
+  diagnostic bundle + Claude Code triage prompt (`auto-heal-escalation` label).
+  Manual dispatch: `gh workflow run heal.yml -f sources="purge email_sender"`.
+  Per-source playbooks in `scripts/claude-heal-prompt.md`.
+- **Watchdog-state regex fix** — 2026-04-24. Source name regex changed from
+  `/^[a-z0-9_-]{1,32}$/` to `/^[a-z0-9_:.-]{1,64}$/` to support `warn:`
+  prefix and `heal:` tracking keys. The old regex silently rejected ops-stats
+  warning dedup writes.
 
 ## Where to look for more context
 
