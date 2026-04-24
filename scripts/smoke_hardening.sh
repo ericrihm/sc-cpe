@@ -38,7 +38,7 @@ echo "== CSRF gate on dashboard-token (me) endpoints =="
 # The dashboard-token paths under /api/me/[token]/* DO need the gate — the
 # token sits in the URL and a browser will happily POST to it from any page.
 # Pick a random token so we're exercising the CSRF branch, not auth.
-FAKE_TOKEN="smoketest$(date +%s)smoketest$(date +%s)"
+FAKE_TOKEN="deadbeef$(printf '%.0s0' $(seq 1 56))"
 check "me/delete w/o origin → 403" 403 "$(code -X POST \
     -H 'Content-Type: application/json' -d '{}' \
     "$ORIGIN/api/me/$FAKE_TOKEN/delete")"
