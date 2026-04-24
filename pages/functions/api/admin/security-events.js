@@ -15,6 +15,9 @@ const EVENT_PREFIXES = [
     "rl_trip:cert_feedback",
     "rl_trip:cert_per_session",
     "rl_trip:delete",
+    "rl_trip:rotate",
+    "rl_trip:cert_resend",
+    "rl_trip:rss",
     "rl_trip:admin_login",
     "auth_fail:bearer",
     "csp_violation",
@@ -55,10 +58,19 @@ export async function onRequestGet({ request, env }) {
         killStates[sw] = !!(await env.RATE_KV.get(`kill:${sw}`));
     }
 
+    const cspLogs = [];
+    const currentBucket = now.toISOString().slice(0, 13);
+    for (let i = 0; i < 10; i++) {
+        const val = await env.RATE_KV.get(`csp_log:${currentBucket}:${i}`);
+        if (!val) break;
+        try { cspLogs.push(JSON.parse(val)); } catch {}
+    }
+
     return json({
         total_events_24h: totalTrips,
         events,
         kill_switches: killStates,
+        csp_violations_recent: cspLogs,
         checked_at: now.toISOString(),
     });
 }
