@@ -31,6 +31,13 @@ export async function onRequestPost({ params, request, env }) {
         }
         patch.monthly_cert = body.monthly_cert;
     }
+    const VALID_UNSUB = ["monthly_digest", "cert_nudge", "renewal_nudge", "streak_milestone"];
+    if (body?.unsubscribed !== undefined) {
+        if (!Array.isArray(body.unsubscribed) || !body.unsubscribed.every(c => VALID_UNSUB.includes(c))) {
+            return json({ error: "invalid_unsubscribed", valid: VALID_UNSUB }, 400);
+        }
+        patch.unsubscribed = body.unsubscribed;
+    }
     if (body?.renewal_tracker !== undefined) {
         if (body.renewal_tracker === null) {
             patch.renewal_tracker = null;
