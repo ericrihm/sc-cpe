@@ -58,6 +58,7 @@ async function load() {
     renderWarnings(stats);
     renderStats(stats);
     renderToggles(toggles);
+    renderCronTriggers();
     if (supp) renderSuppression(supp);
     renderHeartbeats(hb);
     renderChain(chain, stats);
@@ -128,6 +129,50 @@ function renderToggles(d) {
     })(t, btn);
     wrap.append(label, btn);
     box.appendChild(wrap);
+  }
+}
+function renderCronTriggers() {
+  var box = $("#cron-triggers");
+  if (!box || box.childNodes.length > 0) return;
+  var blocks = ["purge", "security_alerts", "weekly_digest", "cert_nudge", "link_enrichment", "all"];
+  var PURGE_URL = "https://sc-cpe-purge.ericrihm.workers.dev/";
+  for (var i = 0; i < blocks.length; i++) {
+    (function (block) {
+      var wrap = document.createElement("div");
+      wrap.className = "card";
+      wrap.style.cssText = "padding:10px 14px;display:flex;align-items:center;gap:10px;min-width:180px;";
+      var label = document.createElement("div");
+      var labelK = document.createElement("div");
+      labelK.className = "k";
+      labelK.textContent = block;
+      label.appendChild(labelK);
+      var btn = document.createElement("button");
+      btn.className = "refresh";
+      btn.style.cssText = "margin-left:auto;font-size:11px;padding:3px 10px;";
+      btn.textContent = "Run";
+      btn.addEventListener("click", async function () {
+        if (!confirm("Run " + block + " now?")) return;
+        btn.disabled = true;
+        btn.textContent = "running…";
+        try {
+          var r = await fetch(PURGE_URL + "?only=" + encodeURIComponent(block), {
+            method: "POST",
+            headers: { "Authorization": "Bearer " + TOKEN },
+          });
+          if (!r.ok) throw new Error("HTTP " + r.status);
+          btn.textContent = "done";
+          btn.style.color = "var(--adm-ok)";
+          setTimeout(function () { btn.textContent = "Run"; btn.style.color = ""; btn.disabled = false; }, 3000);
+        } catch (e) {
+          btn.textContent = "failed";
+          btn.title = e.message;
+          btn.style.color = "var(--adm-bad)";
+          setTimeout(function () { btn.textContent = "Run"; btn.style.color = ""; btn.disabled = false; }, 3000);
+        }
+      });
+      wrap.append(label, btn);
+      box.appendChild(wrap);
+    })(blocks[i]);
   }
 }
 function renderSuppression(d) {
