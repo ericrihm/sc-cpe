@@ -1,8 +1,8 @@
 import {
     ulid, randomCode, formatCode, randomToken, json, now, audit, clientIp, ipHash,
     isValidEmail, isValidName, verifyTurnstile, queueEmail,
-    escapeHtml, emailShell, sha256Hex, rateLimit,
-    killSwitched, killedResponse,
+    escapeHtml, emailShell, emailButton, emailCode, emailDivider,
+    sha256Hex, rateLimit, killSwitched, killedResponse,
 } from "../_lib.js";
 
 // Defence-in-depth against a Turnstile-solver farm. Turnstile is the first
@@ -14,39 +14,35 @@ const MAX_REGISTRATIONS_PER_HOUR = 10;
 function welcomeEmailBodies({ legalName, code, dashboardToken, expiresAt, siteBase }) {
     const dashUrl = `${siteBase}/dashboard.html?t=${dashboardToken}`;
     const display = formatCode(code);
-    const subject = `Simply Cyber CPE — your verification code`;
+    const subject = `Your CPE verification code: ${display}`;
     const text = (
         `Hi ${legalName},\n\n` +
-        `Welcome to Simply Cyber CPE. To finish activating your account,\n` +
-        `paste this code into a live chat message during the Daily Threat\n` +
-        `Briefing on YouTube:\n\n` +
+        `Welcome to Simply Cyber CPE! Here's your verification code:\n\n` +
         `    ${display}\n\n` +
-        `Our poller sees the code and links your YouTube channel to this\n` +
-        `registration. The code expires ${expiresAt}.\n\n` +
-        `Your dashboard (bookmark this — it is your access URL):\n` +
+        `Post this code in the YouTube chat during any Daily Threat Briefing.\n` +
+        `Our poller sees it and links your YouTube channel to this account.\n\n` +
+        `Your dashboard (bookmark this — it's your access URL):\n` +
         `  ${dashUrl}\n\n` +
-        `If you did not register for SC-CPE, you can ignore this email —\n` +
+        `Code expires ${expiresAt}.\n\n` +
+        `If you did not register for SC-CPE, ignore this email —\n` +
         `the account stays inactive unless the code is used.\n\n` +
         `— Simply Cyber\n`
     );
     const bodyHtml = `
 <p>Hi ${escapeHtml(legalName)},</p>
-<p>Welcome to <strong>Simply Cyber CPE</strong>. To finish activating your account,
-paste this code into a live chat message during the Daily Threat Briefing on YouTube:</p>
-<p style="font-family:Menlo,monospace;font-size:20pt;text-align:center;
-   background:#f4f6f8;padding:14px;border-radius:6px;letter-spacing:0.04em;">
-   ${escapeHtml(display)}
-</p>
-<p>Our poller sees the code in chat and links your YouTube channel to this
-registration. The code expires <strong>${escapeHtml(expiresAt)}</strong>.</p>
-<p>Your dashboard (bookmark this — it is your access URL):<br/>
-<a href="${dashUrl}">${dashUrl}</a></p>
-<p style="color:#666;font-size:12px;">If you did not register for SC-CPE you can ignore
-this email — the account stays inactive unless the code is used in chat.</p>`;
+<p>Welcome to <strong>Simply Cyber CPE</strong>! Here's your verification code:</p>
+${emailCode(display)}
+<p style="text-align:center;">Post this code in the YouTube chat during any Daily Threat Briefing.</p>
+${emailButton("Open Your Dashboard", dashUrl)}
+${emailDivider()}
+<p style="font-size:13px;color:#555;">Code expires <strong>${escapeHtml(expiresAt)}</strong>.
+Our poller watches the chat and links your YouTube channel to this registration.
+If you didn't register, ignore this email — the account stays inactive.</p>`;
     const html = emailShell({
         title: "Verification code",
-        preheader: `Your code: ${display}`,
+        preheader: "Post this code in the YouTube chat to start earning CPE credits",
         bodyHtml,
+        siteBase,
     });
     return { subject, html, text };
 }

@@ -191,3 +191,17 @@ deletes the throwaway DB. It does not touch production.
 3. Check heartbeats — cron workers will re-beat on their next tick.
 4. Any registrations, attendance, or certs created since the backup was
    taken are lost. Communicate to affected users if applicable.
+
+## DNS: DMARC Record
+
+Add a TXT record for `_dmarc.signalplane.co`:
+
+```
+v=DMARC1; p=none; rua=mailto:dmarc-reports@signalplane.co
+```
+
+DKIM is configured via Resend. SPF is set. This adds DMARC reporting
+without enforcement (`p=none`). Once reports confirm alignment, consider
+escalating to `p=quarantine`.
+
+Verify: `dig TXT _dmarc.signalplane.co +short`

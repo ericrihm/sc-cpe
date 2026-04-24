@@ -1,6 +1,7 @@
 import {
     ulid, randomCode, formatCode, json, now, audit, clientIp, ipHash,
-    queueEmail, escapeHtml, emailShell, isSameOrigin, rateLimit, isValidToken,
+    queueEmail, escapeHtml, emailShell, emailButton, emailCode, emailDivider,
+    isSameOrigin, rateLimit, isValidToken,
 } from "../../../_lib.js";
 
 // POST /api/me/{dashboard_token}/resend-code
@@ -16,38 +17,33 @@ import {
 
 const MAX_PER_HOUR = 3;
 
-function bodies({ legalName, code, expiresAt, dashboardUrl }) {
+function bodies({ legalName, code, expiresAt, dashboardUrl, siteBase }) {
     const display = formatCode(code);
-    const subject = `Simply Cyber CPE — your new verification code`;
+    const subject = `Your new CPE code: ${display}`;
     const text =
         `Hi ${legalName},\n\n` +
-        `You requested a fresh verification code. Paste this into a live chat\n` +
-        `message during the Daily Threat Briefing on YouTube before it expires:\n\n` +
+        `Here's your fresh verification code:\n\n` +
         `    ${display}\n\n` +
-        `The code expires ${expiresAt}.\n\n` +
-        `Your dashboard:\n  ${dashboardUrl}\n\n` +
-        `If you did not request a new code, you can ignore this email.\n\n` +
+        `Post it in the YouTube chat during any Daily Threat Briefing.\n` +
+        `Code expires ${expiresAt}.\n\n` +
+        `Dashboard: ${dashboardUrl}\n\n` +
         `— Simply Cyber\n`;
     const bodyHtml = `
 <p>Hi ${escapeHtml(legalName)},</p>
-<p>You requested a fresh verification code. Paste this into a live chat
-message during the Daily Threat Briefing on YouTube before it expires:</p>
-<p style="font-family:Menlo,monospace;font-size:20pt;text-align:center;
-   background:#f4f6f8;padding:14px;border-radius:6px;letter-spacing:0.04em;">
-   ${escapeHtml(display)}
-</p>
-<p>The code expires <strong>${escapeHtml(expiresAt)}</strong>.</p>
-<p>Your dashboard:<br/>
-<a href="${dashboardUrl}">${dashboardUrl}</a></p>
-<p style="color:#666;font-size:12px;">If you did not request a new code,
-you can ignore this email — your account is unchanged.</p>`;
+<p>Here's your fresh verification code:</p>
+${emailCode(display)}
+<p style="text-align:center;">Post it in the YouTube chat during any Daily Threat Briefing.</p>
+${emailButton("Open Your Dashboard", dashboardUrl)}
+${emailDivider()}
+<p style="font-size:13px;color:#555;">Code expires <strong>${escapeHtml(expiresAt)}</strong>.</p>`;
     return {
         subject,
         text,
         html: emailShell({
             title: "New verification code",
-            preheader: `Your new code: ${display}`,
+            preheader: "Fresh code ready — post it in the YouTube chat",
             bodyHtml,
+            siteBase,
         }),
     };
 }
@@ -92,7 +88,7 @@ export async function onRequestPost({ params, request, env }) {
     const dashboardUrl = `${siteBase}/dashboard.html?t=${user.dashboard_token}`;
     const b = bodies({
         legalName: user.legal_name || "there",
-        code, expiresAt, dashboardUrl,
+        code, expiresAt, dashboardUrl, siteBase,
     });
 
     await queueEmail(env, {
