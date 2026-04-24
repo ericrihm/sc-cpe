@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import { onRequestPost as suspendPost } from "./suspend.js";
 import { onRequestGet as suppressionGet, onRequestDelete as suppressionDelete } from "./email-suppression.js";
+import { onRequestGet as streamsGet } from "./streams.js";
 
 const BASE = "https://sc-cpe-web.pages.dev";
 
@@ -211,4 +212,34 @@ test("email-suppression DELETE: valid → 200", async () => {
     assert.equal(r.status, 200);
     const j = await r.json();
     assert.equal(j.ok, true);
+});
+
+// ── streams ─────────────────────────────────────────────────────────────
+
+test("streams: unauthorized → 401", async () => {
+    const r = await streamsGet({
+        env: { DB: stubDB(), ADMIN_TOKEN: "adm" },
+        request: new Request(`${BASE}/api/admin/streams`),
+    });
+    assert.equal(r.status, 401);
+});
+
+test("streams: valid → 200 with streams array", async () => {
+    const db = stubDB({
+        "FROM streams": () => [
+            { id: "01S", yt_video_id: "abc123", title: "Daily Threat Briefing",
+              scheduled_date: "2026-04-22", state: "ended",
+              actual_start_at: "2026-04-22T14:00:00Z", actual_end_at: "2026-04-22T15:00:00Z",
+              attendance_count: 42 },
+        ],
+    });
+    const r = await streamsGet({
+        env: { DB: db, ADMIN_TOKEN: "adm", RATE_KV: mkKV() },
+        request: auth(`${BASE}/api/admin/streams?days=7`),
+    });
+    assert.equal(r.status, 200);
+    const j = await r.json();
+    assert.equal(j.ok, true);
+    assert.ok(Array.isArray(j.streams));
+    assert.equal(j.streams[0].attendance_count, 42);
 });

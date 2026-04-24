@@ -1040,6 +1040,45 @@ if (attendanceForm) {
         }
     });
 }
+async function loadStreams() {
+  var days = ($("#streams-days") || {}).value || "30";
+  var tb = $("#streams-table tbody");
+  var empty = $("#streams-empty");
+  if (tb) tb.textContent = "";
+  if (empty) empty.hidden = true;
+  try {
+    var data = await fetchJson("/api/admin/streams?days=" + days);
+    var streams = data.streams || [];
+    if (streams.length === 0) { if (empty) empty.hidden = false; return; }
+    for (var i = 0; i < streams.length; i++) {
+      var s = streams[i];
+      var tr = document.createElement("tr");
+      var tdDate = document.createElement("td"); tdDate.textContent = s.scheduled_date || "—";
+      var tdTitle = document.createElement("td");
+      if (s.yt_video_id) {
+        var a = document.createElement("a");
+        a.href = "https://www.youtube.com/watch?v=" + encodeURIComponent(s.yt_video_id);
+        a.target = "_blank"; a.rel = "noopener"; a.style.color = "#7cc3ff";
+        a.textContent = s.title || s.yt_video_id;
+        tdTitle.appendChild(a);
+      } else {
+        tdTitle.textContent = s.title || "—";
+      }
+      var tdState = document.createElement("td");
+      tdState.className = s.state === "ended" ? "ok" : (s.state === "live" ? "warn" : "muted");
+      tdState.textContent = s.state || "—";
+      var tdAtt = document.createElement("td"); tdAtt.textContent = s.attendance_count != null ? s.attendance_count : "—";
+      var tdStart = document.createElement("td"); tdStart.className = "muted"; tdStart.textContent = s.actual_start_at ? s.actual_start_at.slice(11, 19) : "—";
+      var tdEnd = document.createElement("td"); tdEnd.className = "muted"; tdEnd.textContent = s.actual_end_at ? s.actual_end_at.slice(11, 19) : "—";
+      tr.append(tdDate, tdTitle, tdState, tdAtt, tdStart, tdEnd);
+      tb.appendChild(tr);
+    }
+  } catch (e) {
+    if (tb) { var errTr = document.createElement("tr"); var errTd = document.createElement("td"); errTd.colSpan = 6; errTd.className = "stale"; errTd.textContent = e.message; errTr.appendChild(errTd); tb.appendChild(errTr); }
+  }
+}
+var streamsLoadBtn = $("#streams-load");
+if (streamsLoadBtn) streamsLoadBtn.addEventListener("click", loadStreams);
 async function loadAnalytics() {
   var range = ($("#analytics-range") || {}).value || "30d";
   var qs = "?range=" + range;
