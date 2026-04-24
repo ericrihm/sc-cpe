@@ -54,17 +54,30 @@
     });
 
     var tabs = document.querySelectorAll(".tab");
+    function activateTab(tab) {
+        var target = tab.dataset.tab;
+        for (var j = 0; j < tabs.length; j++) {
+            tabs[j].classList.toggle("active", tabs[j] === tab);
+            tabs[j].setAttribute("aria-selected", tabs[j] === tab ? "true" : "false");
+            tabs[j].setAttribute("tabindex", tabs[j] === tab ? "0" : "-1");
+        }
+        var panels = document.querySelectorAll(".tab-panel");
+        for (var j = 0; j < panels.length; j++) {
+            var isActive = panels[j].id === "panel-" + target;
+            panels[j].classList.toggle("active", isActive);
+            panels[j].hidden = !isActive;
+        }
+        tab.focus();
+    }
     for (var i = 0; i < tabs.length; i++) {
-        tabs[i].addEventListener("click", function () {
-            var target = this.dataset.tab;
-            for (var j = 0; j < tabs.length; j++) {
-                tabs[j].classList.toggle("active", tabs[j] === this);
-                tabs[j].setAttribute("aria-selected", tabs[j] === this ? "true" : "false");
-            }
-            var panels = document.querySelectorAll(".tab-panel");
-            for (var j = 0; j < panels.length; j++) {
-                panels[j].classList.toggle("active", panels[j].id === "panel-" + target);
-            }
+        tabs[i].setAttribute("tabindex", tabs[i].classList.contains("active") ? "0" : "-1");
+        tabs[i].addEventListener("click", function () { activateTab(this); });
+        tabs[i].addEventListener("keydown", function (e) {
+            var idx = Array.prototype.indexOf.call(tabs, this);
+            if (e.key === "ArrowRight") { activateTab(tabs[(idx + 1) % tabs.length]); e.preventDefault(); }
+            else if (e.key === "ArrowLeft") { activateTab(tabs[(idx - 1 + tabs.length) % tabs.length]); e.preventDefault(); }
+            else if (e.key === "Home") { activateTab(tabs[0]); e.preventDefault(); }
+            else if (e.key === "End") { activateTab(tabs[tabs.length - 1]); e.preventDefault(); }
         });
     }
 })();
