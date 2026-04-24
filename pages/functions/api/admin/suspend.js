@@ -1,7 +1,10 @@
-import { json, isAdmin, audit, clientIp, ipHash, now } from "../../_lib.js";
+import { json, isAdmin, audit, clientIp, ipHash, now, rateLimit } from "../../_lib.js";
 
 export async function onRequestPost({ request, env }) {
     if (!(await isAdmin(env, request))) return json({ error: "unauthorized" }, 401);
+
+    const rl = await rateLimit(env, `admin_suspend:${await ipHash(clientIp(request))}`, 30);
+    if (!rl.ok) return json(rl.body, rl.status, rl.headers);
 
     let body;
     try { body = await request.json(); }

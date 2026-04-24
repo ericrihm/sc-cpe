@@ -1079,6 +1079,107 @@ Email delivery and appeals system metrics.
 }
 ```
 
+### `GET /api/admin/streams`
+
+Recent livestream sessions with attendance counts.
+
+**Auth:** bearer  
+**Rate limit:** 60 req/hr per IP
+
+**Query parameters**
+
+| Param | Type | Default | Notes |
+|-------|------|---------|-------|
+| `days` | int | `30` | 1–365, clamped |
+
+**Response**
+
+```json
+{
+  "ok": true,
+  "streams": [
+    {
+      "id": "ULID",
+      "yt_video_id": "dQw4w9WgXcQ",
+      "title": "Daily Threat Briefing — 2026-04-24",
+      "scheduled_date": "2026-04-24",
+      "state": "ended",
+      "actual_start_at": "2026-04-24T12:00:00Z",
+      "actual_end_at": "2026-04-24T13:00:00Z",
+      "attendance_count": 42
+    }
+  ]
+}
+```
+
+### `POST /api/admin/suspend`
+
+Suspend or unsuspend a user. Suspended users cannot earn attendance or receive certs. Writes an audit trail entry.
+
+**Auth:** bearer  
+**Rate limit:** 30 req/hr per IP
+
+**Body**
+
+```json
+{
+  "user_id": "ULID",
+  "suspended": true,
+  "reason": "Policy violation"
+}
+```
+
+**Response**
+
+```json
+{ "ok": true, "user_id": "ULID", "suspended_at": "2026-04-24T18:00:00Z" }
+```
+
+Set `suspended: false` to unsuspend; response has `"suspended_at": null`.
+
+**Audit:** `user_suspended` / `user_unsuspended`
+
+### `GET /api/admin/email-suppression`
+
+List email addresses blocked from sending (bounced/complained).
+
+**Auth:** bearer  
+**Rate limit:** 60 req/hr per IP
+
+**Response**
+
+```json
+{
+  "ok": true,
+  "suppressions": [
+    {
+      "email_masked": "use***@example.com",
+      "reason": "hard_bounce",
+      "event_id": "evt_abc123",
+      "created_at": "2026-04-24T10:00:00Z"
+    }
+  ]
+}
+```
+
+### `DELETE /api/admin/email-suppression`
+
+Remove an address from the suppression list. Requires the full (unmasked) email.
+
+**Auth:** bearer
+
+**Body**
+
+```json
+{ "email": "user@example.com" }
+```
+
+**Response:** `{ "ok": true }`
+
+**Errors:** `not_found` (404) if the email is not suppressed.
+
+**Audit:** `suppression_removed`
+
 ---
 
 ## 6. Admin auth
