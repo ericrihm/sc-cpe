@@ -90,6 +90,35 @@ HB_URL="$ORIGIN/api/admin/heartbeat-status"
 check "no auth → 401" 401 "$(code "$HB_URL")"
 check "valid bearer → 200" 200 "$(code -H "Authorization: Bearer $ADMIN_TOKEN" "$HB_URL")"
 
+echo "== security headers =="
+HEADERS=$(curl -s -D- -o /dev/null "$ORIGIN/")
+header_has() {
+    echo "$HEADERS" | grep -qi "$1" && { echo "  ok   $1 present"; pass=$((pass+1)); } \
+        || { echo "  FAIL $1 missing"; fail=$((fail+1)); }
+}
+header_has "X-Content-Type-Options: nosniff"
+header_has "X-Frame-Options: DENY"
+header_has "Referrer-Policy: no-referrer"
+header_has "Strict-Transport-Security"
+header_has "Permissions-Policy"
+header_has "Content-Security-Policy"
+header_has "X-Request-Id"
+header_has "Cross-Origin-Opener-Policy"
+
+echo "== honeypot trap =="
+check "wp-admin → 404 (trapped)" 404 "$(code "$ORIGIN/wp-admin")"
+check ".env → 404 (trapped)" 404 "$(code "$ORIGIN/.env")"
+check ".git/config → 404 (trapped)" 404 "$(code "$ORIGIN/.git/config")"
+
+echo "== CSP report endpoint =="
+check "csp-report POST → 204" 204 "$(code -X POST -H 'Content-Type: application/json' \
+    -d '{"csp-report":{"blocked-uri":"test","violated-directive":"script-src"}}' \
+    "$ORIGIN/api/csp-report")"
+
+echo "== token format validation =="
+check "me/short-token → 400" 400 "$(code "$ORIGIN/api/me/abc123")"
+check "me/uppercase-token → 400" 400 "$(code "$ORIGIN/api/me/$(printf '%.0sA' $(seq 1 64))")"
+
 echo "== fixture pollution guardrail =="
 stats=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" "$ORIGIN/api/admin/ops-stats")
 pollution=$(echo "$stats" | grep -oE '"fixture_pollution":\{[^}]*\}')
