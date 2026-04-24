@@ -547,6 +547,37 @@ function buildUserRow(u) {
         meta.appendChild(appSpan);
     }
 
+    var detail = document.createElement("div");
+    detail.className = "user-detail";
+    detail.style.cssText = "display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--adm-border);font-size:12px;";
+    var detailGrid = document.createElement("div");
+    detailGrid.style.cssText = "display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px 16px;";
+    var fields = [
+        ["Created", u.created_at], ["Verified", u.verified_at],
+        ["Email", u.email], ["Legal name", u.legal_name],
+        ["YT Channel", u.yt_channel_id], ["YT Display Name", u.yt_display_name_seen],
+        ["Suspended", u.suspended_at], ["Deleted", u.deleted_at],
+    ];
+    for (var fi = 0; fi < fields.length; fi++) {
+        var fd = document.createElement("div");
+        var fl = document.createElement("div");
+        fl.style.cssText = "color:var(--adm-muted-dim);font-size:10px;text-transform:uppercase;letter-spacing:0.06em;";
+        fl.textContent = fields[fi][0];
+        var fv = document.createElement("div");
+        fv.style.fontFamily = "monospace";
+        fv.style.wordBreak = "break-all";
+        fv.textContent = fields[fi][1] || "—";
+        fd.append(fl, fv);
+        detailGrid.appendChild(fd);
+    }
+    detail.appendChild(detailGrid);
+
+    var detailToggle = document.createElement("button");
+    detailToggle.className = "refresh detail-toggle-btn";
+    detailToggle.dataset.uid = u.id;
+    detailToggle.style.cssText = "font-size:11px;padding:3px 10px;background:transparent;border:1px solid var(--adm-border);color:var(--adm-muted);";
+    detailToggle.textContent = "Details";
+
     var actions = document.createElement("div");
     actions.className = "user-actions";
     var certsBtn = document.createElement("button");
@@ -565,13 +596,13 @@ function buildUserRow(u) {
     suspendBtn.dataset.suspended = u.suspended_at ? "1" : "";
     suspendBtn.style.cssText = "font-size:11px;padding:3px 10px;" + (u.suspended_at ? "" : "background:#5c1515;");
     suspendBtn.textContent = u.suspended_at ? "Unsuspend" : "Suspend";
-    actions.append(certsBtn, grantBtn, suspendBtn);
+    actions.append(certsBtn, grantBtn, suspendBtn, detailToggle);
 
     var expand = document.createElement("div");
     expand.className = "cert-expand";
     expand.id = "certs-" + u.id;
 
-    row.append(header, meta, actions, expand);
+    row.append(header, meta, actions, detail, expand);
     return row;
 }
 
@@ -647,6 +678,16 @@ function renderCertSubTable(container, certs) {
 var userResultsBox = $("#user-results");
 if (userResultsBox) {
     userResultsBox.addEventListener("click", async function (e) {
+        var detailBtn = e.target.closest(".detail-toggle-btn");
+        if (detailBtn) {
+            var detailEl = detailBtn.closest(".user-row").querySelector(".user-detail");
+            if (detailEl) {
+                var showing = detailEl.style.display !== "none";
+                detailEl.style.display = showing ? "none" : "";
+                detailBtn.textContent = showing ? "Details" : "Hide details";
+            }
+            return;
+        }
         var certsBtn = e.target.closest(".view-certs-btn");
         if (certsBtn && !certsBtn.disabled) {
             var uid = certsBtn.dataset.uid;
