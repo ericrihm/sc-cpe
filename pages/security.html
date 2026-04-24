@@ -100,12 +100,27 @@
 </div>
 -->
 
+<h2>Defense posture</h2>
+<p style="font-size:.85rem;color:var(--muted);margin-bottom:.75rem;">What you're up against. Source is public &mdash; we're not hiding behind obscurity.</p>
+<ul style="font-size:.85rem;line-height:1.8;">
+  <li><strong>CSP:</strong> <code>script-src 'self'</code> &mdash; no inline scripts, no eval, with <code>report-uri</code> violation monitoring</li>
+  <li><strong>SRI:</strong> CDN scripts pinned with SHA-384 integrity hashes</li>
+  <li><strong>Auth:</strong> Constant-time HMAC comparison on bearer tokens, <code>__Host-</code> prefix cookies with HttpOnly/Secure/SameSite=Strict</li>
+  <li><strong>Rate limiting:</strong> Fail-closed on all endpoints (missing KV = 503, not silent pass). X-RateLimit-* headers on every 429</li>
+  <li><strong>CSRF:</strong> Origin validation on all state-changing <code>/api/me/*</code> endpoints</li>
+  <li><strong>Audit trail:</strong> Hash-chained append-only log with UNIQUE index on <code>prev_hash</code> &mdash; tamper-evident by construction</li>
+  <li><strong>Monitoring:</strong> Honeypot traps, security event counters, CSP violation logging, real-time admin dashboard</li>
+  <li><strong>CI/CD:</strong> CodeQL SAST + gitleaks secret scanning + post-deploy smoke tests on every push</li>
+  <li><strong>Certs:</strong> PAdES-T signed PDFs with public CRL and independent verification portal</li>
+</ul>
+
 <h2>Resources</h2>
 <ul style="font-size:.9rem;">
   <li><a href="/.well-known/security.txt">security.txt</a> (RFC 9116)</li>
   <li><a href="/privacy.html#security">Privacy policy &mdash; security section</a></li>
   <li><a href="https://github.com/ericrihm/sc-cpe">Source code (GitHub)</a></li>
   <li><a href="https://github.com/ericrihm/sc-cpe/blob/main/SECURITY.md">SECURITY.md</a></li>
+  <li><a href="/robots.txt">robots.txt</a></li>
 </ul>
 
 <p class="muted small" style="margin-top:2rem;">
