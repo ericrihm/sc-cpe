@@ -190,6 +190,7 @@ async function runMonthlyDigest(env, nowIso) {
         try {
             const prefs = JSON.parse(r.email_prefs || "{}") || {};
             if (prefs.monthly_cert === false) { skipped++; continue; }
+            if (isUnsubscribed(r.email_prefs, "monthly_digest")) { skipped++; continue; }
 
             // Total CPE (all time)
             const totalRow = await env.DB.prepare(
@@ -240,8 +241,11 @@ async function runMonthlyDigest(env, nowIso) {
                     `</table>` +
                     `<p><a href="${dashUrl}" style="display:inline-block;padding:12px 24px;background:#0b3d5c;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">View dashboard</a></p>` +
                     `<p style="color:#777;font-size:13px;">See you at the next Daily Threat Briefing!</p>`,
+                siteBase,
+                unsubscribeUrl: makeUnsubUrl(siteBase, r.dashboard_token, "monthly_digest"),
             });
 
+            const digestHdrs = unsubHeaders(siteBase, r.dashboard_token, "monthly_digest");
             await env.DB.prepare(`
                 INSERT INTO email_outbox
                   (id, user_id, template, to_email, subject, payload_json,
@@ -249,7 +253,7 @@ async function runMonthlyDigest(env, nowIso) {
                 VALUES (?1, ?2, 'monthly_digest', ?3, ?4, ?5, ?6, 'queued', 0, ?7)
             `).bind(
                 ulid(), r.user_id, r.email, subject,
-                JSON.stringify({ html_body: html, text_body: text }),
+                JSON.stringify({ html_body: html, text_body: text, headers: digestHdrs }),
                 `monthly_digest:${r.user_id}:${periodYyyymm}`, nowIso,
             ).run();
             queued++;
@@ -316,8 +320,11 @@ function emailDivider() {
     return `<hr style="border:none;border-top:1px solid #e6eaee;margin:20px 0;">`;
 }
 
-function emailShell({ title, preheader, bodyHtml, siteBase = "https://sc-cpe-web.pages.dev" }) {
+function emailShell({ title, preheader, bodyHtml, siteBase = "https://sc-cpe-web.pages.dev", unsubscribeUrl }) {
     const safeTitle = escapeHtml(title);
+    const unsub = unsubscribeUrl
+        ? `<br/><a href="${unsubscribeUrl}" style="color:#777;">Unsubscribe</a> from these emails.`
+        : "";
     return `<!doctype html>
 <html><body style="margin:0;padding:0;background:#f4f6f8;font-family:Helvetica,Arial,sans-serif;color:#111;line-height:1.5;">
 <span style="display:none!important;opacity:0;color:transparent;height:0;width:0;overflow:hidden;">${escapeHtml(preheader || "")}</span>
@@ -331,11 +338,30 @@ function emailShell({ title, preheader, bodyHtml, siteBase = "https://sc-cpe-web
   </div>
   <div style="padding:16px 24px;border-top:1px solid #e6eaee;font-size:11px;color:#777;">
     You're receiving this because you registered at
-    <a href="${siteBase}" style="color:#777;">Simply Cyber CPE</a>.<br/>
+    <a href="${siteBase}" style="color:#777;">Simply Cyber CPE</a>.${unsub}<br/>
     Questions? Reply to this email.
   </div>
 </div>
 </body></html>`;
+}
+
+function isUnsubscribed(emailPrefsJson, category) {
+    try {
+        const prefs = JSON.parse(emailPrefsJson || "{}") || {};
+        return Array.isArray(prefs.unsubscribed) && prefs.unsubscribed.includes(category);
+    } catch { return false; }
+}
+
+function makeUnsubUrl(siteBase, dashboardToken, category) {
+    return `${siteBase}/api/me/${dashboardToken}/unsubscribe?cat=${category}`;
+}
+
+function unsubHeaders(siteBase, dashboardToken, category) {
+    const url = makeUnsubUrl(siteBase, dashboardToken, category);
+    return {
+        "List-Unsubscribe": `<${url}>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    };
 }
 
 // Prior month as YYYYMM string. Runs on the 8th, so "this month minus one".
@@ -378,6 +404,7 @@ async function runCertNudges(env, nowIso) {
         try {
             const prefs = JSON.parse(r.email_prefs || "{}") || {};
             if (prefs.monthly_cert === false) { skipped++; continue; }
+            if (isUnsubscribed(r.email_prefs, "cert_nudge")) { skipped++; continue; }
 
             const verifyUrl = `${siteBase}/verify.html?t=${r.public_token}`;
             const dashUrl = `${siteBase}/dashboard.html?t=${r.dashboard_token}`;
@@ -399,8 +426,10 @@ async function runCertNudges(env, nowIso) {
                 preheader: "Everything look right? Let us know in 30 seconds",
                 bodyHtml,
                 siteBase,
+                unsubscribeUrl: makeUnsubUrl(siteBase, r.dashboard_token, "cert_nudge"),
             });
 
+            const nudgeHdrs = unsubHeaders(siteBase, r.dashboard_token, "cert_nudge");
             await env.DB.prepare(`
                 INSERT INTO email_outbox
                   (id, user_id, template, to_email, subject, payload_json,
@@ -408,7 +437,7 @@ async function runCertNudges(env, nowIso) {
                 VALUES (?1, ?2, 'cert_nudge', ?3, ?4, ?5, ?6, 'queued', 0, ?7)
             `).bind(
                 ulid(), r.user_id, r.email, subject,
-                JSON.stringify({ html_body: html, text_body: text }),
+                JSON.stringify({ html_body: html, text_body: text, headers: nudgeHdrs }),
                 `cert_nudge:${r.cert_id}`, nowIso,
             ).run();
             queued++;
@@ -445,6 +474,7 @@ async function runRenewalNudges(env, nowIso) {
         try { prefs = JSON.parse(r.email_prefs || "{}") || {}; } catch { continue; }
         const rt = prefs.renewal_tracker;
         if (!rt || !rt.cert_name || !rt.deadline || !rt.cpe_required) continue;
+        if (isUnsubscribed(r.email_prefs, "renewal_nudge")) { skipped++; continue; }
         checked++;
 
         const totalRow = await env.DB.prepare(
@@ -513,8 +543,10 @@ async function queueRenewalEmail(env, user, rt, earned, value, type, daysLeft, s
         preheader,
         bodyHtml,
         siteBase,
+        unsubscribeUrl: makeUnsubUrl(siteBase, user.dashboard_token, "renewal_nudge"),
     });
 
+    const renewHdrs = unsubHeaders(siteBase, user.dashboard_token, "renewal_nudge");
     try {
         await env.DB.prepare(`
             INSERT INTO email_outbox
@@ -523,7 +555,7 @@ async function queueRenewalEmail(env, user, rt, earned, value, type, daysLeft, s
             VALUES (?1, ?2, 'renewal_nudge', ?3, ?4, ?5, ?6, 'queued', 0, ?7)
         `).bind(
             ulid(), user.id, user.email, subject,
-            JSON.stringify({ html_body: html, text_body: text }),
+            JSON.stringify({ html_body: html, text_body: text, headers: renewHdrs }),
             idemKey, nowIso,
         ).run();
         return "queued";

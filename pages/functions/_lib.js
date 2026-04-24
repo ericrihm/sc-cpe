@@ -293,8 +293,11 @@ export function emailDivider() {
     return `<hr style="border:none;border-top:1px solid #e6eaee;margin:20px 0;">`;
 }
 
-export function emailShell({ title, preheader = "", bodyHtml, siteBase = "https://sc-cpe-web.pages.dev" }) {
+export function emailShell({ title, preheader = "", bodyHtml, siteBase = "https://sc-cpe-web.pages.dev", unsubscribeUrl }) {
     const safeTitle = escapeHtml(title);
+    const unsub = unsubscribeUrl
+        ? `<br/><a href="${unsubscribeUrl}" style="color:#777;">Unsubscribe</a> from these emails.`
+        : "";
     return `<!doctype html>
 <html><body style="margin:0;padding:0;background:#f4f6f8;font-family:Helvetica,Arial,sans-serif;color:#111;line-height:1.5;">
 <span style="display:none!important;opacity:0;color:transparent;height:0;width:0;overflow:hidden;">${escapeHtml(preheader)}</span>
@@ -308,11 +311,30 @@ export function emailShell({ title, preheader = "", bodyHtml, siteBase = "https:
   </div>
   <div style="padding:16px 24px;border-top:1px solid #e6eaee;font-size:11px;color:#777;">
     You're receiving this because you registered at
-    <a href="${siteBase}" style="color:#777;">Simply Cyber CPE</a>.<br/>
+    <a href="${siteBase}" style="color:#777;">Simply Cyber CPE</a>.${unsub}<br/>
     Questions? Reply to this email.
   </div>
 </div>
 </body></html>`;
+}
+
+export function isUnsubscribed(emailPrefsJson, category) {
+    try {
+        const prefs = JSON.parse(emailPrefsJson || "{}") || {};
+        return Array.isArray(prefs.unsubscribed) && prefs.unsubscribed.includes(category);
+    } catch { return false; }
+}
+
+export function unsubscribeUrl(siteBase, dashboardToken, category) {
+    return `${siteBase}/api/me/${dashboardToken}/unsubscribe?cat=${category}`;
+}
+
+export function unsubscribeHeaders(siteBase, dashboardToken, category) {
+    const url = unsubscribeUrl(siteBase, dashboardToken, category);
+    return {
+        "List-Unsubscribe": `<${url}>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    };
 }
 
 // Insert a row into email_outbox. The email-sender Worker (polls every
