@@ -61,69 +61,77 @@ test("updateStreak: first attendance → streak = 1", async () => {
     const db = mockDB("2026-04-24", {
         current_streak: 0, longest_streak: 0, last_attendance_date: null,
     });
-    await updateStreak({ DB: db }, "u1", "s1");
+    const result = await updateStreak({ DB: db }, "u1", "s1");
     const u = db.getUpdate();
     assert.equal(u.streak, 1);
     assert.equal(u.longest, 1);
     assert.equal(u.date, "2026-04-24");
+    assert.deepEqual(result, { newStreak: 1, isNew: true });
 });
 
 test("updateStreak: consecutive weekday → streak increments", async () => {
     const db = mockDB("2026-04-24", {
         current_streak: 3, longest_streak: 5, last_attendance_date: "2026-04-23",
     });
-    await updateStreak({ DB: db }, "u1", "s1");
+    const result = await updateStreak({ DB: db }, "u1", "s1");
     const u = db.getUpdate();
     assert.equal(u.streak, 4);
     assert.equal(u.longest, 5);
+    assert.deepEqual(result, { newStreak: 4, isNew: true });
 });
 
 test("updateStreak: Monday after Friday → streak continues", async () => {
     const db = mockDB("2026-04-20", {
         current_streak: 2, longest_streak: 2, last_attendance_date: "2026-04-17",
     });
-    await updateStreak({ DB: db }, "u1", "s1");
+    const result = await updateStreak({ DB: db }, "u1", "s1");
     const u = db.getUpdate();
     assert.equal(u.streak, 3);
     assert.equal(u.longest, 3);
+    assert.deepEqual(result, { newStreak: 3, isNew: true });
 });
 
 test("updateStreak: gap in attendance → streak resets to 1", async () => {
     const db = mockDB("2026-04-24", {
         current_streak: 5, longest_streak: 10, last_attendance_date: "2026-04-21",
     });
-    await updateStreak({ DB: db }, "u1", "s1");
+    const result = await updateStreak({ DB: db }, "u1", "s1");
     const u = db.getUpdate();
     assert.equal(u.streak, 1);
     assert.equal(u.longest, 10);
+    assert.deepEqual(result, { newStreak: 1, isNew: true });
 });
 
 test("updateStreak: same day duplicate → no update", async () => {
     const db = mockDB("2026-04-24", {
         current_streak: 3, longest_streak: 5, last_attendance_date: "2026-04-24",
     });
-    await updateStreak({ DB: db }, "u1", "s1");
+    const result = await updateStreak({ DB: db }, "u1", "s1");
     assert.equal(db.getUpdate(), null);
+    assert.equal(result, null);
 });
 
 test("updateStreak: new streak beats longest → longest updated", async () => {
     const db = mockDB("2026-04-24", {
         current_streak: 9, longest_streak: 9, last_attendance_date: "2026-04-23",
     });
-    await updateStreak({ DB: db }, "u1", "s1");
+    const result = await updateStreak({ DB: db }, "u1", "s1");
     const u = db.getUpdate();
     assert.equal(u.streak, 10);
     assert.equal(u.longest, 10);
+    assert.deepEqual(result, { newStreak: 10, isNew: true });
 });
 
 test("updateStreak: no stream found → no-op", async () => {
     const db = mockDB(null, null);
-    await updateStreak({ DB: db }, "u1", "s1");
+    const result = await updateStreak({ DB: db }, "u1", "s1");
     assert.equal(db.getUpdate(), null);
+    assert.equal(result, null);
 });
 
 test("updateStreak: no user found → no-op", async () => {
     const db = mockDB("2026-04-24", null);
-    await updateStreak({ DB: db }, "u1", "s1");
+    const result = await updateStreak({ DB: db }, "u1", "s1");
     assert.equal(db.getUpdate(), null);
+    assert.equal(result, null);
 });
