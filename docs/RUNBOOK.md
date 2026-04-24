@@ -205,3 +205,42 @@ without enforcement (`p=none`). Once reports confirm alignment, consider
 escalating to `p=quarantine`.
 
 Verify: `dig TXT _dmarc.signalplane.co +short`
+
+## Open Badge Signing Key (Ed25519)
+
+### Initial setup
+
+Generate an Ed25519 keypair and store the private key as a Pages secret:
+
+```sh
+node -e "
+(async () => {
+  const kp = await crypto.subtle.generateKey('Ed25519', true, ['sign','verify']);
+  const raw = new Uint8Array(await crypto.subtle.exportKey('raw', kp.privateKey));
+  console.log(Buffer.from(raw).toString('base64'));
+})();
+"
+```
+
+Then store it:
+
+```sh
+cd pages && wrangler pages secret put OB_SIGNING_KEY
+# paste the base64 string when prompted
+```
+
+### Verify
+
+```sh
+curl -s https://sc-cpe-web.pages.dev/api/ob/jwks | jq .
+```
+
+Should return a JWK with `"kty": "OKP"`, `"crv": "Ed25519"`, and a populated `x` field.
+
+### Rotation
+
+Same as initial setup. Generate a new key, update the secret, redeploy.
+After rotation, credentials signed with the old key are no longer verifiable
+via the JWKS endpoint. If backward verification matters, keep the old public
+key in the JWKS response (multi-key support — add a second entry to the
+`keys` array with a different `kid`).
