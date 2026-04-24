@@ -83,7 +83,7 @@ export async function onRequestPost({ params, request, env }) {
     if (cert.deleted_at) return json({ error: "user_deleted" }, 409);
 
     const rl = await rateLimit(env, `cert_resend:${cert.id}`, 5);
-    if (!rl.ok) return json(rl.body, rl.status);
+    if (!rl.ok) return json(rl.body, rl.status, rl.headers);
 
     // period_yyyymm "202602" -> "February 2026"
     const yyyy = parseInt(cert.period_yyyymm.slice(0, 4), 10);

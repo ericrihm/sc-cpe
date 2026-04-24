@@ -6,7 +6,7 @@ shipped with this document; the rest are tracked here with concrete
 fix shapes so they don't drift into "someday." Ordered by codex's
 priority ranking (attacker ROI × likelihood / fix cost).
 
-## Shipped with this commit
+## Shipped
 
 - [x] **Dependabot weekly.** `.github/dependabot.yml` — GH Actions +
       pip ecosystems, Mon 09:00 ET cadence, auto-merge OFF (manual
@@ -16,23 +16,44 @@ priority ranking (attacker ROI × likelihood / fix cost).
 - [x] **Weekly automated audit-chain verify.** `.github/workflows/
       audit-chain-weekly.yml` — runs `scripts/verify_audit_chain.py`
       every Monday, Discord-pings on failure.
+- [x] **CSP `unsafe-inline` removed from `script-src`.** All inline
+      `<script>` blocks extracted to external `.js` files (2026-04-17).
+      `style-src 'unsafe-inline'` retained — removing it requires
+      refactoring all inline `style=` attributes.
+- [x] **Subresource Integrity (SRI).** JSZip CDN script in
+      `dashboard.html` pinned with `integrity="sha384-..."`. Turnstile
+      can't use SRI (A/B variant changes from Cloudflare).
+- [x] **CSP violation reporting.** `report-uri /api/csp-report` added
+      to CSP header. Endpoint at `api/csp-report.js` collects
+      violations, counts in KV (`sec:csp_violation:*`), stores up to 50
+      detail entries per hour.
+- [x] **X-RateLimit-\* response headers.** `rateLimit()` helper returns
+      `Limit`, `Remaining`, `Reset` (and `Retry-After` on 429). All 17
+      rate-limited endpoints now pass these headers through to responses.
+      Anti-enumeration endpoints (recover, admin login) intentionally
+      omit them on 429 to avoid leaking timing info.
+- [x] **X-Request-Id correlation.** Middleware sets `X-Request-Id` from
+      Cloudflare `cf-ray` header or `crypto.randomUUID()` fallback on
+      every response.
+- [x] **Security event monitoring.** `securityEvent()` helper tracks
+      auth failures, rate limit trips, and CSP violations via KV
+      counters. Admin dashboard endpoint at
+      `api/admin/security-events.js` returns 24h rolling counts with
+      hourly breakdown and kill-switch states.
+- [x] **Constant-time admin auth.** `isAdmin()` uses HMAC-based
+      constant-time comparison for bearer tokens, preventing timing
+      side-channel attacks.
+- [x] **Security policy.** `SECURITY.md` + `/security.html` public
+      page with scope, rules of engagement, SLA, hall of fame.
 
 ## Open (ordered by priority)
 
-### 1. CSP `unsafe-inline` removal
+### 1. ~~CSP `unsafe-inline` removal~~ ✓ SHIPPED
 
-- Location: [`pages/functions/_middleware.js:16`](../pages/functions/_middleware.js),
-  every `<style>` and inline `<script>` block across `pages/*.html`.
-- Problem: CSP still allows `'unsafe-inline'` on `script-src` and
-  `style-src`. One HTML-injection via user-rendered content = script
-  execution. The biggest remaining web-tier attack surface.
-- Fix path: externalise inline JS to `/*.js` files, externalise
-  inline CSS to `/style.css` (or per-page files), then tighten the
-  CSP header to drop `'unsafe-inline'`. Use nonces only as a last
-  resort for a handful of blocks that can't be externalised.
-- Estimate: 1–2 days, one PR per page to keep each diff reviewable.
-- Gate to starting: first-week mobile + a11y hands-on pass, so we
-  don't migrate styles that are about to change.
+- `script-src 'unsafe-inline'` removed 2026-04-17 (all inline JS
+  extracted to external files). `style-src 'unsafe-inline'` retained —
+  refactoring inline `style=` attributes is lower priority since style
+  injection is not an XSS vector.
 
 ### 2. Signed commits + signed release tags
 

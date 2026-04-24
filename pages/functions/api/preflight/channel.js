@@ -65,7 +65,7 @@ export async function onRequestGet({ request, env }) {
 
     const ipH = await ipHash(clientIp(request));
     const rlIp = await rateLimit(env, `preflight_channel_ip:${ipH}`, PROBES_PER_IP_PER_HOUR);
-    if (!rlIp.ok) return json(rlIp.body, rlIp.status);
+    if (!rlIp.ok) return json(rlIp.body, rlIp.status, rlIp.headers);
 
     const url = new URL(request.url);
     const q = url.searchParams.get("q");
@@ -83,7 +83,7 @@ export async function onRequestGet({ request, env }) {
         `preflight_channel_ch:${parsed.id}:${day}`,
         PROBES_PER_CHANNEL_PER_DAY,
         86_400 + 60);
-    if (!rlChan.ok) return json(rlChan.body, rlChan.status);
+    if (!rlChan.ok) return json(rlChan.body, rlChan.status, rlChan.headers);
 
     const taken = await env.DB.prepare(
         "SELECT id FROM users WHERE yt_channel_id = ?1 AND state = 'active'"

@@ -78,7 +78,7 @@ export async function onRequestPost({ params, request, env }) {
     // 503 instead of silently disabling the cap.
     const hourBucket = new Date().toISOString().slice(0, 13);
     const rl = await rateLimit(env, `resend_code:${user.id}:${hourBucket}`, MAX_PER_HOUR);
-    if (!rl.ok) return json(rl.body, rl.status);
+    if (!rl.ok) return json(rl.body, rl.status, rl.headers);
 
     const code = await uniqueCode(env);
     // 72h — see register.js for rationale (race-attack window vs. weekend).
