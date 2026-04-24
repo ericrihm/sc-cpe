@@ -202,6 +202,7 @@ describe("E2E: register -> attend -> cert -> verify", () => {
             { match: /FROM users WHERE dashboard_token/, handler: () => ({ first: activeUser }) },
             { match: /FROM attendance a JOIN streams/, handler: () => ({ all: [attendanceRow] }) },
             { match: /FROM certs WHERE user_id.*state != 'regenerated'/s, handler: () => ({ all: [certForDashboard] }) },
+            { match: /FROM email_outbox.*idempotency_key IN/s, handler: () => ({ all: [] }) },
             { match: /FROM appeals WHERE user_id/, handler: () => ({ all: [] }) },
             {
                 match: /FROM audit_log.*action IN \('code_posted_outside_window'/s,

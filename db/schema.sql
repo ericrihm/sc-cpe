@@ -24,6 +24,7 @@ CREATE TABLE users (
     created_at            TEXT NOT NULL,
     verified_at           TEXT,
     deleted_at            TEXT,
+    suspended_at          TEXT,
     CHECK (state IN ('pending_verification','active','inactive','banned','deleted','expired')),
     show_on_leaderboard   INTEGER NOT NULL DEFAULT 0,
     badge_token           TEXT,

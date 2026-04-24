@@ -1138,6 +1138,7 @@ JOIN attendance a ON a.user_id = u.id
 JOIN streams s ON s.id = a.stream_id
 WHERE u.state = 'active'
   AND u.deleted_at IS NULL
+  AND u.suspended_at IS NULL
   AND strftime('%Y%m', s.scheduled_date) = ?
 GROUP BY u.id, u.email, u.legal_name, u.dashboard_token, u.email_prefs
 HAVING SUM(a.earned_cpe) > 0
@@ -1155,6 +1156,7 @@ SELECT u.id AS user_id, u.email, u.legal_name, u.dashboard_token,
   JOIN streams s ON s.id = a.stream_id
  WHERE u.state = 'active'
    AND u.deleted_at IS NULL
+   AND u.suspended_at IS NULL
    AND strftime('%Y%m', s.scheduled_date) = ?
    AND a.earned_cpe > 0
 """

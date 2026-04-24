@@ -47,6 +47,10 @@
     <div class="section-h">Kill switches <span class="muted" style="font-size:11px;text-transform:none;letter-spacing:0;">— emergency containment for public endpoints</span></div>
     <div id="toggles" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;"></div>
 
+    <div class="section-h">Email Suppression <span class="muted" style="font-size:11px;text-transform:none;letter-spacing:0;">— bounced/complained addresses blocked from sending</span></div>
+    <div id="suppression-rows"></div>
+    <p id="suppression-empty" class="muted" style="font-size:12px;" hidden>No suppressed addresses.</p>
+
     <div class="section-h">Heartbeats</div>
     <table id="hb" class="heartbeat-table"><thead>
       <tr><th>Source</th><th>Status</th><th>Last beat</th><th>Age</th><th>Expected ≤</th><th>On duty</th></tr>

@@ -67,6 +67,41 @@ Checks HMAC admin compare, CSRF gates, preflight/channel rate-limit, and
 audit chain integrity. Any FAIL = roll back or investigate before letting a
 briefing run.
 
+## Incident Response
+
+### Severity levels
+
+| Level | Trigger | Response target | Examples |
+|-------|---------|----------------|----------|
+| P1 — System down | All heartbeats stale, audit chain broken, cert generation failed >12h | 4 hours | Poller + purge + email-sender all stale; chain fork detected |
+| P2 — Degraded | Single source stale after auto-heal, email delivery <80%, >100 queued emails >30 min old | 24 hours | Poller stale (no attendance credited), email backlog growing |
+| P3 — Cosmetic | Schema drift, non-blocking ops-stats warnings, cert nudge timing off | 1 week | Schema drift alert (no data loss, DDL mismatch only) |
+
+### Escalation path
+
+1. Watchdog detects stale source → runs `self-heal.sh` automatically.
+2. Self-heal fails → watchdog creates GitHub issue with `auto-heal-escalation`
+   label + diagnostic bundle.
+3. Operator receives GitHub notification → triages per severity table.
+4. P1 with no response within 4h → check Discord alert webhook.
+5. Manual intervention: `gh workflow run heal.yml -f sources="<source>"` or
+   direct `wrangler` commands per the relevant RUNBOOK section.
+
+### Post-incident
+
+After resolving any P1 or P2, append an entry to the Past Incidents section below.
+
+## Past Incidents
+
+_(None yet. Each entry follows this template:)_
+
+### YYYY-MM-DD — one-line summary
+
+- **Trigger:** What watchdog detected
+- **Root cause:** What actually went wrong
+- **Resolution:** What fixed it
+- **Follow-up:** Any preventive action taken
+
 ## Poller worker
 
 - Lives at `workers/poller/`. Auto-deployed by
