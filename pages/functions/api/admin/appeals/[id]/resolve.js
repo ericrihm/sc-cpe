@@ -1,4 +1,4 @@
-import { ulid, json, audit, clientIp, ipHash, isAdmin, now, getCpePerDay } from "../../../../_lib.js";
+import { ulid, json, audit, clientIp, ipHash, isAdmin, now, getCpePerDay, queueEmail, escapeHtml, emailShell, emailButton, emailDivider } from "../../../../_lib.js";
 
 // POST /api/admin/appeals/{id}/resolve
 // Auth: Authorization: Bearer <ADMIN_TOKEN>
@@ -120,6 +120,38 @@ export async function onRequestPost({ params, request, env }) {
         },
         { ip_hash: await ipHash(clientIp(request)) },
     );
+
+    if (decision === "deny") {
+        const user = await env.DB.prepare(
+            `SELECT email, legal_name, dashboard_token FROM users WHERE id = ?1`,
+        ).bind(appeal.user_id).first();
+        if (user?.email && !user.email.endsWith("@invalid")) {
+            const siteBase = new URL(request.url).origin;
+            const dashUrl = `${siteBase}/dashboard.html?t=${user.dashboard_token}`;
+            const subj = "Your SC-CPE appeal has been reviewed";
+            const txt = `Hi ${user.legal_name},\n\nYour appeal for CPE credit has been reviewed and was not approved.\n\nYou can file a new appeal from your dashboard if you have additional evidence.\n\n— SC-CPE`;
+            const htm = emailShell({
+                title: "Appeal Decision",
+                preheader: "Your CPE credit appeal has been reviewed",
+                bodyHtml: `<p>Hi ${escapeHtml(user.legal_name)},</p>
+<p>Your appeal for CPE credit has been reviewed and <strong>was not approved</strong>.</p>
+<p>If you believe this was in error or have additional evidence, you can file a new appeal from your dashboard.</p>
+${emailButton("Go to Dashboard", dashUrl)}
+${emailDivider()}
+<p style="color:#888;font-size:13px;">This is an automated notification. Do not reply to this email.</p>`,
+                siteBase,
+            });
+            await queueEmail(env, {
+                userId: appeal.user_id,
+                template: "appeal_denied",
+                to: user.email,
+                subject: subj,
+                html: htm,
+                text: txt,
+                idempotencyKey: `appeal_denied:${appeal.id}:${ts}`,
+            });
+        }
+    }
 
     return json({
         ok: true,
