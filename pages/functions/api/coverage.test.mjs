@@ -265,7 +265,7 @@ test("cert-feedback: ownership check — wrong user → 404", async () => {
     ]);
     const r = await certFeedbackPost({
         params: { token: "a".repeat(32) },
-        env: { DB: db },
+        env: { DB: db, RATE_KV: kvPermissive },
         request: req("https://sc-cpe-web.pages.dev/api/me/x/cert-feedback",
             { body: { cert_id: "c1", rating: "typo" } }),
     });
@@ -283,7 +283,7 @@ test("cert-feedback: valid ok rating → 200, no audit row", async () => {
     ]);
     const r = await certFeedbackPost({
         params: { token: "a".repeat(32) },
-        env: { DB: db },
+        env: { DB: db, RATE_KV: kvPermissive },
         request: req("https://sc-cpe-web.pages.dev/api/me/x/cert-feedback",
             { body: { cert_id: "c1", rating: "ok" } }),
     });
@@ -305,7 +305,7 @@ test("cert-feedback: typo rating → 200 + audit row", async () => {
     ]);
     const r = await certFeedbackPost({
         params: { token: "a".repeat(32) },
-        env: { DB: db },
+        env: { DB: db, RATE_KV: kvPermissive },
         request: req("https://sc-cpe-web.pages.dev/api/me/x/cert-feedback",
             { body: { cert_id: "c1", rating: "typo", note: "name misspelled" } }),
     });

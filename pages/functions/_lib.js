@@ -191,10 +191,22 @@ export async function rateLimit(env, key, max, ttlSec = 3700) {
     }
     const current = parseInt(await env.RATE_KV.get(key), 10) || 0;
     if (current >= max) {
+        const bucket = new Date().toISOString().slice(0, 13);
+        const evtKey = `sec:rl_trip:${key.split(":")[0]}:${bucket}`;
+        env.RATE_KV.put(evtKey, String((parseInt(await env.RATE_KV.get(evtKey), 10) || 0) + 1),
+            { expirationTtl: 86400 }).catch(() => {});
         return { ok: false, status: 429, body: { error: "rate_limited" } };
     }
     await env.RATE_KV.put(key, String(current + 1), { expirationTtl: ttlSec });
     return { ok: true };
+}
+
+export async function securityEvent(env, category, detail) {
+    if (!env.RATE_KV) return;
+    const bucket = new Date().toISOString().slice(0, 13);
+    const key = `sec:${category}:${bucket}`;
+    const cur = parseInt(await env.RATE_KV.get(key), 10) || 0;
+    await env.RATE_KV.put(key, String(cur + 1), { expirationTtl: 86400 });
 }
 
 // SQLite LIKE wildcards `%` and `_` (and the `\` we use to escape them)
@@ -305,7 +317,11 @@ export async function isAdmin(env, request) {
         const b = new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode(expected)));
         let diff = 0;
         for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
-        return diff === 0;
+        if (diff !== 0) {
+            securityEvent(env, "auth_fail:bearer", "").catch(() => {});
+            return false;
+        }
+        return true;
     }
 
     if (!env.ADMIN_COOKIE_SECRET) return false;

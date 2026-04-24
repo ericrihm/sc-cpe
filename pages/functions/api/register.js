@@ -99,7 +99,9 @@ export async function onRequestPost({ request, env }) {
     // weekend registrations through Monday's). Shorter than the original
     // 7d to limit the window for a chat-tailing race attack on the code.
     const expiresAt = new Date(Date.now() + 3 * 864e5).toISOString();
-    const code = await uniqueCode(env);
+    let code;
+    try { code = await uniqueCode(env); }
+    catch { return json({ error: "temporary_error" }, 503); }
 
     if (existing) {
         await env.DB.prepare(`

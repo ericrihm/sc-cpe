@@ -51,8 +51,9 @@ async function load() {
       fetchJson("/api/admin/audit-chain-verify?limit=200"),
       fetchJson("/api/admin/cert-feedback?rating=typo,wrong&limit=100"),
       fetchJson("/api/admin/toggles"),
+      fetchJson("/api/admin/security-events").catch(function () { return null; }),
     ]);
-    var stats = results[0], hb = results[1], chain = results[2], fb = results[3], toggles = results[4];
+    var stats = results[0], hb = results[1], chain = results[2], fb = results[3], toggles = results[4], secEvents = results[5];
     renderWarnings(stats);
     renderStats(stats);
     renderToggles(toggles);
@@ -60,6 +61,7 @@ async function load() {
     renderChain(chain, stats);
     renderAuditTrail(chain);
     renderFeedback(fb);
+    if (secEvents) renderSecurityEvents(secEvents);
     $("#ts").textContent = "updated " + new Date().toLocaleTimeString();
   } catch (e) {
     $("#err").innerHTML = '<div class="err">' + escapeHtml(e.message) + '</div>';
@@ -228,6 +230,59 @@ $("#fb tbody").addEventListener("click", async function (e) {
     btn.title = String(err.message || err);
   }
 });
+function renderSecurityEvents(d) {
+  var box = $("#sec-events"); if (!box) return;
+  box.innerHTML = "";
+  var total = d.total_events_24h || 0;
+  var summary = document.createElement("div");
+  summary.style.cssText = "display:flex;gap:12px;align-items:center;margin-bottom:12px;";
+  var totalBadge = document.createElement("span");
+  totalBadge.style.cssText = "font-size:2rem;font-weight:700;" + (total > 0 ? "color:var(--bad);" : "color:var(--ok);");
+  totalBadge.textContent = total;
+  var totalLabel = document.createElement("span");
+  totalLabel.className = "muted";
+  totalLabel.textContent = "rate limit trips + auth failures (24h)";
+  summary.append(totalBadge, totalLabel);
+  box.appendChild(summary);
+  if (total === 0) {
+    var quiet = document.createElement("p");
+    quiet.className = "muted";
+    quiet.style.fontSize = "12px";
+    quiet.textContent = "No security events in the last 24 hours.";
+    box.appendChild(quiet);
+    return;
+  }
+  var events = d.events || {};
+  var keys = Object.keys(events).sort(function (a, b) { return events[b].total_24h - events[a].total_24h; });
+  for (var i = 0; i < keys.length; i++) {
+    var k = keys[i];
+    var ev = events[k];
+    var row = document.createElement("div");
+    row.className = "sec-event-row";
+    var label = document.createElement("div");
+    label.className = "sec-event-label";
+    label.textContent = k.replace("rl_trip:", "").replace("auth_fail:", "auth fail: ");
+    var count = document.createElement("div");
+    count.className = "sec-event-count";
+    count.textContent = ev.total_24h;
+    var sparkLine = document.createElement("div");
+    sparkLine.className = "sec-spark";
+    var hourly = ev.hourly || [];
+    var maxVal = 1;
+    for (var j = 0; j < hourly.length; j++) { if (hourly[j].count > maxVal) maxVal = hourly[j].count; }
+    for (var j = 0; j < Math.min(hourly.length, 24); j++) {
+      var bar = document.createElement("div");
+      bar.className = "sec-bar";
+      var pct = Math.max(2, (hourly[j].count / maxVal) * 100);
+      bar.style.height = pct + "%";
+      bar.title = hourly[j].hour + ": " + hourly[j].count;
+      if (hourly[j].count > 0) bar.style.background = "var(--bad)";
+      sparkLine.appendChild(bar);
+    }
+    row.append(label, count, sparkLine);
+    box.appendChild(row);
+  }
+}
 function escapeHtml(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
     return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
@@ -324,7 +379,6 @@ if (signoutBtn) {
     }, { once: true });
 }
 $("#refresh").addEventListener("click", load);
-<<<<<<< HEAD
 var userSearchForm = $("#user-search-form");
 if (userSearchForm) {
     userSearchForm.addEventListener("submit", async function (e) {
@@ -867,8 +921,6 @@ if (attendanceForm) {
         }
     });
 }
-=======
->>>>>>> origin/main
 (async function init() {
     try {
         var testR = await fetch("/api/admin/ops-stats", { credentials: "include" });
@@ -877,10 +929,7 @@ if (attendanceForm) {
             $("#login").style.display = "none";
             $("#app").style.display = "";
             load();
-<<<<<<< HEAD
             loadAppeals();
-=======
->>>>>>> origin/main
             return;
         }
     } catch (e) {}
