@@ -52,7 +52,7 @@ export async function onRequestPost({ params, request, env }) {
     if (!owner) return json({ error: "not_found" }, 404);
 
     const rl = await rateLimit(env, `cert_feedback:${owner.user_id}`, 20);
-    if (!rl.ok) return json(rl.body, rl.status);
+    if (!rl.ok) return json(rl.body, rl.status, rl.headers);
 
     const ts = now();
     const id = ulid();

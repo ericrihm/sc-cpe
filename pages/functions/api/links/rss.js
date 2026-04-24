@@ -7,7 +7,7 @@ function rfc2822(dateStr) {
 export async function onRequestGet({ env, request }) {
     const ipH = await ipHash(clientIp(request));
     const rl = await rateLimit(env, `rss:${ipH}`, 60);
-    if (!rl.ok) return json(rl.body, rl.status);
+    if (!rl.ok) return json(rl.body, rl.status, rl.headers);
 
     const origin = new URL(request.url).origin;
 
