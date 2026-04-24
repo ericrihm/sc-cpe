@@ -62,6 +62,11 @@ async function load() {
     document.getElementById("state").textContent = d.user.state;
     userState = d.user.state;
     badgeToken = d.user.badge_token || null;
+    if (badgeToken) {
+        var profileLink = document.getElementById("profile-link");
+        profileLink.href = "/profile.html?t=" + encodeURIComponent(badgeToken);
+        profileLink.style.display = "inline-block";
+    }
 
     var hasSaved = !!getSavedSession();
     var rememberCard = document.getElementById("remember-card");
@@ -139,7 +144,7 @@ async function load() {
     renderAttendance(d.attendance || []);
 
     renderCerts(d.certs || []);
-    renderStreaks(d.attendance || []);
+    renderStreaks(d.streaks || {}, d.attendance || []);
     if (d.user.state === "active") {
         renderRenewalTracker(d.user.email_prefs, Number(d.total_cpe_earned != null ? d.total_cpe_earned : 0));
     }
@@ -743,48 +748,10 @@ function renderCalendar() {
 }
 
 // --- Streak tracking ---
-function renderStreaks(attendance) {
-    if (!attendance.length) return;
-    var dateArr = [];
-    var seen = {};
-    for (var i = 0; i < attendance.length; i++) {
-        var sd = attendance[i].scheduled_date;
-        if (sd && !seen[sd]) { seen[sd] = true; dateArr.push(sd); }
-    }
-    dateArr.sort();
-    if (!dateArr.length) return;
-
-    var dateSet = {};
-    for (var i = 0; i < dateArr.length; i++) dateSet[dateArr[i]] = true;
-    var today = new Date().toISOString().slice(0, 10);
-    var yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-
-    function prevWeekday(iso) {
-        var d = new Date(iso + "T12:00:00Z");
-        d.setDate(d.getDate() - 1);
-        while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() - 1);
-        return d.toISOString().slice(0, 10);
-    }
-
-    var current = 0;
-    var cursor = dateSet[today] ? today : dateSet[yesterday] ? yesterday : null;
-    if (cursor) {
-        while (dateSet[cursor]) {
-            current++;
-            cursor = prevWeekday(cursor);
-        }
-    }
-
-    var best = 0, run = 0;
-    for (var i = 0; i < dateArr.length; i++) {
-        if (i === 0) { run = 1; }
-        else {
-            var expected = prevWeekday(dateArr[i]);
-            run = (dateArr[i - 1] >= expected) ? run + 1 : 1;
-        }
-        if (run > best) best = run;
-    }
-
+function renderStreaks(streaks, attendance) {
+    var current = streaks.current || 0;
+    var best = streaks.longest || 0;
+    if (current === 0 && best === 0 && !attendance.length) return;
     document.getElementById("streak-current-wrap").hidden = false;
     document.getElementById("streak-best-wrap").hidden = false;
     document.getElementById("streak-current").textContent = current;

@@ -459,6 +459,8 @@ async function processAttendance(env, session, items, now) {
             "UPDATE streams SET distinct_attendees = distinct_attendees + 1 WHERE id = ?1"
         ).bind(session.stream_id).run();
 
+        await updateStreak(env, userId, session.stream_id);
+
         await audit(env, "poller", userId, "attendance_credited", "attendance",
             `${userId}:${session.stream_id}`, null,
             { stream_id: session.stream_id, cpe: rule.cpe_per_day, rule_version: rule.version });
@@ -500,6 +502,41 @@ async function extractShowLinks(env, session, items, now) {
             ).run();
         }
     }
+}
+
+export async function updateStreak(env, userId, streamId) {
+    const stream = await env.DB.prepare(
+        "SELECT scheduled_date FROM streams WHERE id = ?1"
+    ).bind(streamId).first();
+    if (!stream?.scheduled_date) return;
+    const today = stream.scheduled_date;
+
+    const user = await env.DB.prepare(
+        "SELECT current_streak, longest_streak, last_attendance_date FROM users WHERE id = ?1"
+    ).bind(userId).first();
+    if (!user) return;
+
+    let newStreak = 1;
+    if (user.last_attendance_date && user.last_attendance_date !== today) {
+        const expected = prevWeekday(today);
+        if (user.last_attendance_date >= expected) {
+            newStreak = (user.current_streak || 0) + 1;
+        }
+    } else if (user.last_attendance_date === today) {
+        return;
+    }
+
+    const newLongest = Math.max(newStreak, user.longest_streak || 0);
+    await env.DB.prepare(
+        "UPDATE users SET current_streak = ?1, longest_streak = ?2, last_attendance_date = ?3 WHERE id = ?4"
+    ).bind(newStreak, newLongest, today, userId).run();
+}
+
+export function prevWeekday(iso) {
+    const d = new Date(iso + "T12:00:00Z");
+    d.setDate(d.getDate() - 1);
+    while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() - 1);
+    return d.toISOString().slice(0, 10);
 }
 
 function passesMessageFilter(text, minLen) {

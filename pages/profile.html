@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>SC-CPE — Public Profile</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<meta name="theme-color" content="#0b3d5c">
+<meta name="color-scheme" content="light dark">
+<script src="/theme.js"></script>
+<style>
+.profile-card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:2rem; text-align:center; margin:2rem 0; }
+.profile-name { font-size:1.5rem; font-weight:700; margin:0 0 .25rem; }
+.profile-since { color:var(--muted); font-size:.85rem; margin:0 0 1.5rem; }
+.stats-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(120px, 1fr)); gap:1rem; margin:1.5rem 0; }
+.stat-box { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:1rem; }
+.stat-value { font-size:1.8rem; font-weight:700; color:var(--accent, #0b3d5c); }
+.stat-label { font-size:.75rem; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; margin-top:.25rem; }
+.streak-fire { color:#e67e22; }
+</style>
+</head>
+<body>
+<main class="narrow">
+    <h1><a href="/">SC-CPE</a> — Profile</h1>
+    <div id="err" class="err" hidden></div>
+    <div id="profile" hidden>
+        <div class="profile-card">
+            <p class="profile-name" id="profile-name"></p>
+            <p class="profile-since" id="profile-since"></p>
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <div class="stat-value" id="stat-cpe">0</div>
+                    <div class="stat-label">Total CPE</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value" id="stat-sessions">0</div>
+                    <div class="stat-label">Sessions</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value" id="stat-certs">0</div>
+                    <div class="stat-label">Certs Earned</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value"><span id="stat-streak">0</span><span class="streak-fire" id="streak-fire" hidden>d</span></div>
+                    <div class="stat-label">Current Streak</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value" id="stat-best-streak">0</div>
+                    <div class="stat-label">Best Streak</div>
+                </div>
+            </div>
+        </div>
+        <p class="muted" style="text-align:center;font-size:.8rem;">
+            CPE credits verified via cryptographic audit chain.
+            <a href="/verify.html">Verify a certificate</a> |
+            <a href="/leaderboard.html">Leaderboard</a>
+        </p>
+    </div>
+    <div id="not-found" hidden>
+        <p>Profile not found. The link may be invalid or the user may have deleted their account.</p>
+        <p><a href="/">Back to home</a></p>
+    </div>
+    <footer class="site-footer">
+        <a href="/faq.html">FAQ</a>
+        <a href="/leaderboard.html">Leaderboard</a>
+        <a href="/links.html">Show Links</a>
+        <a href="/status.html">Status</a>
+        <a href="/verify.html">Verify a cert</a>
+        <a href="/terms.html">Terms</a>
+        <a href="/privacy.html">Privacy</a>
+    </footer>
+</main>
+<script src="/profile.js"></script>
+</body>
+</html>

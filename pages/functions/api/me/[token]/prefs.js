@@ -1,4 +1,4 @@
-import { json, isSameOrigin } from "../../../_lib.js";
+import { json, isSameOrigin, isValidToken } from "../../../_lib.js";
 
 // POST /api/me/{token}/prefs
 // Body: { "cert_style"?: "bundled"|"per_session"|"both",
@@ -11,7 +11,7 @@ import { json, isSameOrigin } from "../../../_lib.js";
 // CSRF gate: dashboard_token sits in URL → Origin check required.
 export async function onRequestPost({ params, request, env }) {
     const token = params.token;
-    if (!token || token.length < 32) return json({ error: "invalid_token" }, 400);
+    if (!isValidToken(token)) return json({ error: "invalid_token" }, 400);
     if (!isSameOrigin(request, env)) return json({ error: "forbidden_origin" }, 403);
 
     let body;

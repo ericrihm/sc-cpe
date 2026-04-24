@@ -1,0 +1,20 @@
+flowchart TD
+    A([Register]) -->|email + Turnstile| B([Get code via email])
+    B --> C([Post code in YouTube chat])
+    C -.->|visible in| YT{{YouTube API v3}}
+
+    YT -->|live chat| P[Poller]
+    P -->|matches code| DB[(D1 SQLite)]
+
+    DB --> S[Cert Signer]
+    S -->|signed PDF| R2[(R2 Storage)]
+    R2 --> E[Email Sender]
+    E --> RE{{Resend}}
+    RE --> IN([Your inbox])
+
+    style P fill:#3b82f6,stroke:#1e40af,color:#fff
+    style DB fill:#10b981,stroke:#047857,color:#fff
+    style S fill:#8b5cf6,stroke:#6d28d9,color:#fff
+    style E fill:#f59e0b,stroke:#d97706,color:#fff
+    style YT fill:#ef4444,stroke:#b91c1c,color:#fff
+    style RE fill:#ec4899,stroke:#be185d,color:#fff
