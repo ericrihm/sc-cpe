@@ -1,417 +1,408 @@
-# SC‑CPE — Simply Cyber CPE Certificates
+<p align="center">
+  <img src="docs/assets/sample-cert.png" alt="SC-CPE Certificate Sample" width="520">
+  <br/>
+  <strong>SC-CPE</strong> — Simply Cyber CPE Certificates
+  <br/>
+  <em>Automatic, cryptographically verifiable continuing-education certificates<br/>for everyone who shows up to the Daily Threat Briefing.</em>
+</p>
 
-**Get credit for watching the daily briefing.** Automatic, cryptographically
-verifiable continuing‑education certificates for everyone who shows up to the
-[Simply Cyber Daily Threat Briefing](https://www.youtube.com/@simplycyber).
+<p align="center">
+  <a href="https://github.com/ericrihm/sc-cpe/actions/workflows/deploy-prod.yml"><img src="https://github.com/ericrihm/sc-cpe/actions/workflows/deploy-prod.yml/badge.svg?branch=main" alt="Deploy"></a>
+  <a href="https://github.com/ericrihm/sc-cpe/actions/workflows/smoke.yml"><img src="https://github.com/ericrihm/sc-cpe/actions/workflows/smoke.yml/badge.svg" alt="Smoke"></a>
+  <a href="https://github.com/ericrihm/sc-cpe/actions/workflows/ci.yml"><img src="https://github.com/ericrihm/sc-cpe/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://sc-cpe-web.pages.dev/status.html"><img src="https://img.shields.io/badge/status-live-brightgreen?style=flat" alt="Status: Live"></a>
+  <a href="https://sc-cpe-web.pages.dev/verify.html"><img src="https://img.shields.io/badge/certs-PAdES--T%20signed-blue?style=flat" alt="PAdES-T Signed"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat" alt="MIT License"></a>
+</p>
 
-Works for the programs most of the community is renewing:
+**[Verify a certificate](https://sc-cpe-web.pages.dev/verify.html)** · **[Leaderboard](https://sc-cpe-web.pages.dev/leaderboard.html)** · **[Show links](https://sc-cpe-web.pages.dev/links.html)** · **[Public profiles](https://sc-cpe-web.pages.dev/profile.html)** · **[Contribute](CONTRIBUTING.md)**
 
-| Program | Credit unit | Per session | Typical submission category |
-| --- | --- | --- | --- |
-| **CompTIA** (Security+, CySA+, Network+, PenTest+, CASP+ …) | **CEU** | **0.5 CEU** | Formatted for CE-portal proof-of-attendance: name, date(s), hours, provider, signature |
-| **ISC2** (CISSP, SSCP, CCSP, …) | CPE | 0.5 CPE (Group B) | Ditto — typically uploaded under "Education" |
-| **ISACA** (CISM, CISA, CRISC, …) | CPE | 0.5 CPE | Ditto — "group training / web‑based" |
+# SC-CPE
 
-Acceptance is ultimately the certification body's decision — see Terms §5.
-
-Attend the livestream → post your per‑user code in chat → get a signed
-PDF certificate **per session, per month, or both**. Every step is
-hash‑chained and verifiable years later: the PDF signature + RFC‑3161
-timestamp validate offline in any PAdES‑aware reader, and the
-`pdf_sha256` registry‑match adds a second check against issuer‑published
-records.
-
-### 60‑second quickstart
-
-1. Register at [sc-cpe-web.pages.dev](https://sc-cpe-web.pages.dev) — email + legal name (matches your professional certifications) + Turnstile. Your dashboard link + chat code arrive by email.
-2. Watch the Daily Threat Briefing live (ET 08:00–11:00, Mon–Fri) and post any message containing your code in the YouTube live chat.
-3. Credit lands within ~60s of your post, visible on your dashboard. Cert PDF ships per‑session on demand (~2h) or monthly bundled — whichever you picked.
-4. Drop the PDF onto [`/verify.html`](https://sc-cpe-web.pages.dev/verify.html) any time to confirm the SHA‑256 matches the registered hash client‑side.
-
-> **Status:** in production on Cloudflare. Smoke green, audit chain intact,
-> five fresh heartbeats, hourly synthetic canary, Discord alerting wired
-> across deploy-prod / smoke / watchdog / monthly-certs / cert-sign-pending
-> / schema-drift.
-> Live at **https://sc-cpe-web.pages.dev**.
->
-> Validated today: auth flow, CSRF gates, rate limits, audit-chain
-> integrity, verify-portal PDF-hash match, email queue drain, deploy
-> rollback documentation, Discord alert pipe (real failure → real ping,
-> round-trip ~60s).
-> In-flight polish: hands-on mobile + screen-reader accessibility pass,
-> the first live-briefing evidentiary proof run is scheduled for the
-> next ET-weekday 08:00–11:00 briefing, apex `cpe.simplycyber.io` DNS
-> wiring. None gate the existing service — certificates issued now
-> carry the same signature, same audit chain, same verifiability as
-> every certificate issued after those items ship.
+Automated CPE/CEU certificate issuance for security professionals who attend the Simply Cyber Daily Threat Briefing livestream, with cryptographic proof of attendance and offline-verifiable signed credentials.
 
 ---
 
-## Who runs this, and why trust it
+## What & Why
 
-A CPE cert is only as good as the entity behind it. Three quick answers for
-the skeptical (which is most of this community, appropriately):
+SC-CPE watches the [Simply Cyber Daily Threat Briefing](https://www.youtube.com/@simplycyber) YouTube live chat, matches per-user verification codes, and issues **signed PDF certificates** worth **0.5 CPE / CEU per session**. Every certificate is PAdES-T signed with an RFC-3161 timestamp and anchored to an append-only, hash-chained audit log — verifiable offline, years later, without contacting the issuer.
 
-- **Operator.** Simply Cyber LLC (United States). The source for this service
-  is public at [github.com/ericrihm/sc-cpe](https://github.com/ericrihm/sc-cpe)
-  — every line that decides who gets credit, every policy doc, every
-  deploy workflow. Branch protection + required CI + auto‑deploy means the
-  deployed bundle is the exact SHA you see on GitHub `main`.
-- **Domains.** You'll see three. The web + API live at
-  [sc-cpe-web.pages.dev](https://sc-cpe-web.pages.dev) (apex
-  `cpe.simplycyber.io` is reserved for future DNS wiring — until that lands,
-  `sc-cpe-web.pages.dev` is the canonical origin). Email (registration
-  codes, cert delivery, recovery, revocation notices) ships from
-  `certs@signalplane.co` via Resend, DKIM + SPF aligned with DMARC in
-  place; `signalplane.co` is the operator's verified email domain and hosts
-  the monitored `contact@`, `privacy@`, `security@` inboxes.
-- **Certificate integrity.** Each PDF is PAdES‑T signed with a dedicated
-  code‑signing key whose public fingerprint is printed on the cert
-  itself. The RFC‑3161 timestamp means the signature survives key
-  expiry. You can verify without talking to us: the
-  [verify portal](https://sc-cpe-web.pages.dev/verify.html) shows the
-  registered SHA‑256 and lets you drop the PDF in to compare client‑side,
-  or inspect the signature in any PAdES‑aware PDF reader.
-- **Audit integrity.** Every state transition — registration, attendance
-  credit, cert issue, delivery, revocation — writes an append‑only,
-  SHA‑256 hash‑chained row. `scripts/verify_audit_chain.py` replays the
-  whole chain against the live DB; a `UNIQUE INDEX` on `prev_hash`
-  serialises concurrent writers so accidental or racing chain forks
-  fail at insert time rather than silently branching.
-- **Security disclosure.** See
-  [security.txt](https://sc-cpe-web.pages.dev/.well-known/security.txt)
-  or email `certs@signalplane.co` with `[SECURITY]` in the subject.
-  3‑day acknowledgement, 7‑day triage, 30‑day fix plan for P0/P1
-  findings. (All operator inbound mail goes to a single inbox at
-  launch; see [Privacy §13](https://sc-cpe-web.pages.dev/privacy.html#13)
-  for the full `[SECURITY]` / `[PRIVACY]` / `[ACCOUNT]` / `[CERT]`
-  prefix scheme.)
-- **Live service health.** [`/status.html`](https://sc-cpe-web.pages.dev/status.html)
-  auto‑refreshes every 30s from `/api/health` and shows per‑cron
-  staleness in plain English; [`/faq.html`](https://sc-cpe-web.pages.dev/faq.html)
-  covers the common operational questions (missing credits, email
-  delays, verification for CE‑portal auditors).
+CPE tracking is a pain point for security professionals — manual logs, inconsistent records, and no way to independently verify attendance. Unlike traditional self-reported CPE systems, SC-CPE solves this by automating the entire pipeline from livestream attendance through signed certificate delivery, giving holders a credential that any auditor can check without trusting the issuer.
+
+> [!TIP]
+> 20 weekday briefings/month = **10 CPE**. Enough to cover a significant chunk of most annual renewal requirements.
 
 ---
 
-## What the certificate looks like
+## Supported Programs
 
-![Sample SC‑CPE certificate of attendance](docs/assets/sample-cert.png)
+| Program | Credit | Per Session | Submission Format |
+|:--------|:-------|:------------|:------------------|
+| **CompTIA** (Security+, CySA+, CASP+, PenTest+, Network+ ...) | CEU | 0.5 CEU | Proof-of-attendance: name, date(s), hours, provider, signature |
+| **ISC2** (CISSP, SSCP, CCSP ...) | CPE | 0.5 CPE (Group B) | Same fields — upload under "Education" |
+| **ISACA** (CISM, CISA, CRISC, CGEIT, CDPSE ...) | CPE | 0.5 CPE | All 7 ISACA audit-evidence fields present |
 
-> Sample — `Jane Doe`, 12 sessions × 0.5 = **6 CEU / CPE** for the month.
-> [Download the full PDF](docs/assets/sample-cert.pdf) at print resolution.
-> Real certs are PAdES‑T signed with an RFC‑3161 timestamp and anchored to
-> an append‑only audit chain.
+Acceptance is ultimately the certification body's decision — see [Terms §5](https://sc-cpe-web.pages.dev/terms.html#5).
 
-Everything a CompTIA CE Portal submission (or ISC2 / ISACA upload) asks for
-is on the face of the document: **recipient name, issuer, activity title,
-date(s) attended, hours earned, signature, and a public verify URL + QR**.
-
-## Two ways to get your cert
-
-You pick in the dashboard — change it any time.
-
-- **Per‑session (recommended for CompTIA).** One signed PDF per briefing
-  you attended. CompTIA's CE portal logs one activity per submission, so
-  per‑session certs paste in cleanly. Request them on demand from the
-  dashboard; they're signed within 2 hours.
-- **Monthly bundled (recommended for ISC2 / ISACA).** One PDF listing
-  every session that month with a single hours total. Easier to attach
-  to an annual rollup than 20 individual certs.
-- **Both.** You'll get per‑session + monthly bundled. Useful if you
-  maintain multiple certifications.
+> [!IMPORTANT]
+> **ISACA 2027 update:** Starting January 2027, ISACA splits CPE into *certification-aligned* (90 CPE min) and *professional-aligned* (30 CPE max). The Daily Threat Briefing covers threats, risk management, security operations, and governance — all certification-aligned domains. SC-CPE certificates already include the activity description field needed for domain-relevance verification.
 
 ---
 
-## Why it exists
-
-Continuing‑education credit is one of the main reasons professionals block
-off time for the daily briefing, but tracking attendance and issuing certs
-by hand doesn't scale past a few dozen people. SC‑CPE does it end‑to‑end:
-
-- **Zero manual ops.** A poller watches the YouTube live chat, a monthly
-  cron issues PDFs, a Worker drains the outbox.
-- **Verifiable without us (partially).** Each cert carries a PAdES‑T
-  signature and an RFC‑3161 timestamp — those validate in any
-  PAdES‑aware PDF reader with no issuer contact required, so a
-  recipient can always confirm the PDF was signed by the SC‑CPE key
-  and hasn't been modified since. Registry‑match verification (via
-  `/verify.html` or `/api/crl.json`) is the second layer and relies on
-  issuer‑operated records remaining available.
-- **Private by default.** Chat logs purge daily (capped + resumable so a
-  flooded prefix can't stall the worker). PII never leaves Cloudflare.
-  The append‑only audit log writes only hashes, enums, and counts —
-  never raw emails, admin free‑text reasons, or search queries — so
-  account deletion remains meaningful years after the fact. Dashboard
-  tokens are per‑user; admin endpoints use bearer tokens (CSRF‑immune
-  by construction).
-- **Small, boring, cheap.** Single D1 database, three Workers, one Pages
-  site. Estimated at cents/month for the expected volume.
-
----
-
-## How attendance → certificate works
+## Quickstart
 
 ```
- 1.  Register at  /register.html
-     → one‑time sign‑up with email + Turnstile. Your dashboard link and
-       personal 6‑char chat code are emailed to the address you entered —
-       the HTTP response never contains them, so email possession is the
-       only activation gate (a Turnstile‑solver who knows your address
-       cannot hijack the registration).
-
- 2.  Watch the stream and post your code in YouTube live chat.
-     → The poller (runs every minute, 08:00‑11:00 ET Mon–Fri) ingests
-       the chat, matches your code to your user row, and credits
-       0.5 CEU / CPE for that session. The code must be posted *during*
-       the live window — pre‑stream chat and replays don't count, and
-       the dashboard tells you if you posted too early.
-
- 3.  Pick per‑session, bundled, or both in the dashboard.
-     → Per‑session certs arrive within ~2h of request. Bundled certs
-       ship once a month. Both are PAdES‑T signed and emailed via Resend.
-
- 4.  Submit to your CE portal.
-     → Upload the PDF under "Attending webinars/seminars/training" (or
-       your program's equivalent). The cert itself is the proof document.
-
- 5.  Verify any cert anytime.
-     → /verify.html?t=PUBLIC_TOKEN returns the recipient, sessions,
-       and audit chain position. Drop the PDF onto the page in step 2
-       and the browser recomputes its SHA‑256 client‑side and compares
-       to the registered hash — a lookalike PDF with a leaked token
-       fails the match. Anyone — including your CE auditor — can check
-       without talking to us; the file never leaves the browser.
+1. Register    →  sc-cpe-web.pages.dev  (email + legal name + Turnstile)
+2. Get code    →  check your email for SC-CPE{XXXX-XXXX}
+3. Post code   →  paste it in YouTube live chat during the briefing
+4. Get credit  →  shows on your dashboard within ~60 seconds
+5. Get cert    →  per-session (~2h) or monthly bundle — your pick
 ```
 
-**0.5 CEU / CPE per qualifying briefing** (the stream runs ~1h;
-Simply Cyber scopes the instructional portion to ~30 min, which maps
-cleanly to 0.5 credit under ISC2 / ISACA / CompTIA accounting) · up
-to ~20 briefings/month · per‑session or bundled (or both) · full
-reissue flow if your name or email is wrong.
-
-Your YouTube channel auto‑links the first time the poller matches your code in
-a live briefing chat. If credits are granted manually (admin reconciliation —
-e.g. the poller missed a briefing), the channel stays unlinked until your next
-auto‑matched post. The dashboard shows this state honestly rather than implying
-you haven't posted yet.
+Your dashboard link arrives by email from `certs@signalplane.co`. Lost it? Just visit [`/dashboard`](https://sc-cpe-web.pages.dev/dashboard.html) — an inline login form emails you a fresh link. You can also opt-in to "remember this device" so your dashboard loads without the URL token.
 
 ---
 
-## Why this cert is authentic
+## How It Works
 
-Anyone can print a PDF that says "attended." What separates SC‑CPE from a
-fill‑in template is that every cert is anchored to four independent pieces
-of evidence that survive long after the session ended:
-
-1. **Time‑gated attendance.** The poller only credits messages whose
-   YouTube `publishedAt` timestamp falls inside the live window
-   (`actual_start_at` ± configured grace). Posting your code in the
-   pre‑stream chat or the next day's replay does *not* earn credit, and
-   the attempt is written to the audit log — so the "attended live"
-   claim on the cert is structurally defensible. Rejected messages
-   surface back on your dashboard with the exact timestamp we saw and
-   the window that was open, so you always know why credit didn't land.
-2. **Hash‑chained audit log.** Every state transition from registration
-   through cert delivery is recorded in an append‑only, SHA‑256 chained
-   table. A `UNIQUE INDEX` on `prev_hash` serialises concurrent writers
-   so accidental or racing forks fail at insert time rather than
-   silently branching. `scripts/verify_audit_chain.py` replays the
-   whole chain against the live database end‑to‑end; the admin endpoint
-   `/api/admin/audit-chain-verify` does the same walk live. The
-   canonical row serialisation is byte‑identical across Pages Functions,
-   Workers, and the Python cert signer — `scripts/test_chain_parity.mjs`
-   guards that invariant in CI. Signing keys are CA‑rooted; the public
-   cert fingerprint is embedded on every PDF so a verifier doesn't
-   need our help to check a signature.
-
-   ```
-   user_registered → code_matched → attendance_credited → cert_issued → email_sent
-          ▲                                                      ▲
-          └───────── prev_hash = sha256(canonicalAuditRow(tip)) ─┘
-   ```
-3. **PAdES‑T signature + RFC‑3161 timestamp.** Certs are signed with a
-   dedicated CA‑rooted code‑signing key and bound to a trusted timestamp
-   authority, so the signature outlives the signing key's validity
-   period. The signing cert's SHA‑256 fingerprint is stamped on the face
-   of the PDF.
-4. **Public verify URL + QR.** Each cert carries a `/verify.html?t=…`
-   link auditors can open directly — no SC‑CPE login required — which
-   recomputes the PDF hash, shows the audit‑chain position, and returns
-   the session evidence (first message id, first message SHA‑256,
-   rule version).
-
-The underlying attendance row records `first_msg_id` and `first_msg_sha256`
-— retrievable via the verify URL — so an auditor can cross‑reference the
-cert against YouTube's own liveChatMessages record.
-
----
-
-## Architecture
-
-```
-                    ┌─────────────────────────────┐
- YouTube live chat  │  Workers / poller           │  per‑minute, ET 08‑11 Mon–Fri
- ──────────────────►│  matches codes → D1         │
-                    └──────────────┬──────────────┘
-                                   │
-┌──────────────┐                   ▼
-│ Pages        │        ┌─────────────────────┐
-│ Functions    │───────►│  Cloudflare D1      │  schema: db/schema.sql
-│ (API + UI)   │        │  (authoritative)    │  append‑only audit_log
-└──────┬───────┘        └────────┬────────────┘
-       │                         │
-       │                         ▼
-       │               ┌─────────────────────┐
-       │   monthly     │  services/certs     │  Python · WeasyPrint · endesive
-       └──────────────►│  PDF + PAdES‑T sign │  → R2 + email_outbox
-                       └────────┬────────────┘
-                                │
-                       ┌────────▼────────────┐      ┌──────────────────────┐
-                       │  Workers / email‑   │─────►│  Resend              │
-                       │  sender (drains     │      │  certs@signalplane.co│
-                       │  email_outbox)      │      └──────────────────────┘
-                       └────────┬────────────┘
-                                │
-                       ┌────────▼────────────┐
-                       │  Workers / purge    │  daily 09:00 UTC
-                       │  R2 chat GC +       │  security digest, weekly
-                       │  digests + nudges   │  digest, cert‑feedback nudge
-                       └─────────────────────┘
-```
-
-- **Frontend + API:** Cloudflare Pages Functions (`pages/`)
-- **DB:** Cloudflare D1 (SQLite) — `db/schema.sql` is authoritative, migrations in `db/migrations/`
-- **Storage:** R2 for raw chat JSON + signed PDFs (chat purges daily)
-- **Email:** Resend from `certs@signalplane.co` (DKIM + SPF aligned)
-- **Cert signing:** Python 3.11, WeasyPrint render, `endesive` PAdES‑T with RFC‑3161 timestamp
-
----
-
-## Observability
-
-| Signal | Where | Cadence |
-| --- | --- | --- |
-| `poller` heartbeat | D1 `heartbeats` | every minute during stream window |
-| `purge` / `security_alerts` / `weekly_digest` / `cert_nudge` | D1 `heartbeats` | daily / weekly / monthly |
-| `email_sender` heartbeat | D1 `heartbeats` | every run |
-| Synthetic canary | GH Actions `smoke.yml` | hourly, pings prod, writes `canary` heartbeat |
-| Watchdog | GH Actions `watchdog.yml` | 15‑minute `/api/health` poll, Discord alerts with dedup |
-| Audit chain | `/api/admin/audit-chain-verify` | on‑demand, full walk + unique‑index assertion |
-| Schema drift | GH Actions `schema-drift.yml` | weekly D1‑vs‑`schema.sql` diff |
-
-Admins can trigger any cron block immediately without waiting for its
-schedule:
-
-```bash
-curl -H "Authorization: Bearer $ADMIN_TOKEN" \
-  -X POST "https://sc-cpe-purge.ericrihm.workers.dev/?only=cert_nudge"
-# only ∈ purge | security_alerts | weekly_digest | cert_nudge | all
-```
-
----
-
-## Key endpoints
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/diagram-how-it-works-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="docs/assets/diagram-how-it-works-light.svg">
+  <img alt="How it works — registration through cert delivery" src="docs/assets/diagram-how-it-works-light.svg" width="100%">
+</picture>
 
 <details>
-<summary>Full API surface</summary>
+<summary><strong>Detailed data flow</strong></summary>
 
-| Path | Auth | Purpose |
-| --- | --- | --- |
-| `POST /api/register` | Turnstile | Sign‑up |
-| `GET /api/me/{token}` | dashboard‑token | User view |
-| `POST /api/me/{token}/cert-feedback` | dashboard‑token + CSRF | Report typo/wrong |
-| `POST /api/me/{token}/prefs` | dashboard‑token + CSRF | Set `cert_style` (bundled / per_session / both), nudge opt‑out |
-| `POST /api/me/{token}/cert-per-session/{stream_id}` | dashboard‑token + CSRF | Request single‑session cert (idempotent) |
-| `GET /api/health` | public | External watchdog poll |
-| `GET /api/admin/heartbeat-status` | bearer | Per‑source staleness |
-| `GET /api/admin/audit-chain-verify` | bearer | Full chain walk |
-| `GET /api/admin/ops-stats` | bearer | Dashboard counts |
-| `GET /api/admin/cert-feedback` | bearer | Non‑ok cert‑feedback inbox |
-| `POST /api/admin/cert/{id}/reissue` | bearer | Queue regenerated cert (supersedes chain) |
-| `POST /api/admin/canary-beat` | bearer | Hourly smoke heartbeat |
+```
+ 1.  Register at sc-cpe-web.pages.dev
+     → email + Turnstile. Dashboard link + SC-CPE{XXXX-XXXX} code arrive
+       by email. The HTTP response never contains them — email possession
+       is the activation gate.
 
-Pages:
+ 2.  Post your code in YouTube live chat during the stream.
+     → The poller (every minute, 08:00-11:00 ET Mon-Fri) ingests chat,
+       matches your code, and credits 0.5 CPE. Pre-stream chat and
+       replays don't count. Dashboard tells you if you posted too early.
 
-- `/dashboard.html?t=TOKEN` — user dashboard (attendance, certs, feedback)
-- `/admin.html` — operator dashboard (paste `ADMIN_TOKEN` in‑page)
-- `/verify.html?t=PUBLIC_TOKEN` — public cert verification
+ 3.  Pick cert style in the dashboard: per-session, bundled, or both.
+     → Per-session certs arrive within ~2h. Bundled certs ship monthly.
+       Both are PAdES-T signed.
+
+ 4.  Submit to your CE portal.
+     → Upload the PDF under "webinars/seminars/training." The cert is
+       the proof document.
+
+ 5.  Verify any cert at /verify.html
+     → Drop the PDF on the page. SHA-256 is recomputed client-side and
+       compared to the registered hash. Anyone — including auditors —
+       can check without contacting us.
+```
 
 </details>
 
 ---
 
-## Developing
+## Architecture
 
-Prerequisites: Node 20+, Python 3.11+, `wrangler` logged in.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/diagram-architecture-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="docs/assets/diagram-architecture-light.svg">
+  <img alt="Architecture — Cloudflare Edge, External services, GitHub Actions" src="docs/assets/diagram-architecture-light.svg" width="100%">
+</picture>
 
-```bash
-scripts/install_hooks.sh                 # git hooks — runs test suite pre‑push
-bash scripts/test.sh                     # pure‑logic tests (130/130 currently)
-scripts/check_schema.sh                  # diff live D1 schema vs repo
-ADMIN_TOKEN=... ORIGIN=https://sc-cpe-web.pages.dev \
-  scripts/smoke_hardening.sh             # read‑only probe of deployed origin
+| Component | Tech | What it does |
+|:----------|:-----|:-------------|
+| **Pages Functions** | Cloudflare Pages | Registration, dashboard, verify, profiles, admin API, analytics, CSV export, links archive |
+| **Poller** | CF Worker · `* * * * *` | Polls YouTube live chat (OAuth + API-key fallback), matches codes, credits attendance, updates streaks, extracts show links |
+| **Email Sender** | CF Worker · `*/2 * * * *` | Drains `email_outbox` via Resend |
+| **Purge** | CF Worker · `0 9 * * *` | Daily R2 chat GC, security digest, weekly digest, cert nudge, renewal nudges, link enrichment, monthly digest, Discord webhooks |
+| **Cert Signer** | Python 3.11 (GH Actions) | WeasyPrint render + `endesive` PAdES-T with RFC-3161 |
+| **Chat Rescan** | Python (GH Actions) · daily 16:00 UTC | Recovers missed attendance from chat replays |
+| **D1** | Cloudflare SQLite | Single source of truth — schema in `db/schema.sql` |
+| **R2** | Cloudflare Object Storage | Raw chat JSONL (purges daily) + signed PDF certs + weekly backups |
+| **KV** | Cloudflare KV | Rate-limit counters + circuit breaker state |
+
+---
+
+## Tech Stack
+
+| Layer | Tech |
+|:------|:-----|
+| Frontend | Cloudflare Pages (static HTML + JS, CSP `script-src 'self'`) |
+| API | Cloudflare Pages Functions (V8 isolates) |
+| Workers | Cloudflare Workers (poller, purge, email-sender) |
+| Database | Cloudflare D1 (SQLite) |
+| Storage | Cloudflare R2 (certs, chat, backups) |
+| Caching | Cloudflare KV (rate limits, circuit breakers) |
+| Email | Resend (DKIM + SPF + DMARC) |
+| Certs | Python + WeasyPrint + endesive (PAdES-T) |
+| CI/CD | GitHub Actions (13 workflows) |
+
+---
+
+## Certificate Integrity
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/diagram-cert-integrity-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="docs/assets/diagram-cert-integrity-light.svg">
+  <img alt="Certificate integrity — four layers of verification" src="docs/assets/diagram-cert-integrity-light.svg" width="100%">
+</picture>
+
+> [!NOTE]
+> Anyone can generate a PDF that says "attended." SC-CPE certificates are different because each one is anchored to four independent, durable pieces of evidence.
+
+<table>
+<tr>
+<td width="50%">
+
+**1. Time-gated attendance** — The poller only credits messages whose YouTube `publishedAt` falls inside the live window. Pre-stream chat and replays don't count. Rejected attempts are logged and surfaced on your dashboard.
+
+**2. Hash-chained audit log** — Every state transition is recorded in an append-only, SHA-256 chained table with a `UNIQUE INDEX` on `prev_hash`. Chain forks fail at insert time. `verify_audit_chain.py` replays the full chain.
+
+</td>
+<td width="50%">
+
+**3. PAdES-T + RFC-3161** — Certs are signed with a dedicated CA-rooted key and bound to a trusted timestamp authority. The signature outlives the key's validity period. The signing cert fingerprint is on the face of every PDF.
+
+**4. Public verify URL** — Each cert carries a `/verify.html?t=...` link anyone can open — no login required. Drop the PDF on the page and the browser recomputes its SHA-256 client-side against the registered hash.
+
+</td>
+</tr>
+</table>
+
+```
+user_registered → code_matched → attendance_credited → cert_issued → email_sent
+       ▲                                                      ▲
+       └──────── prev_hash = sha256(canonicalAuditRow(tip)) ──┘
 ```
 
-Regenerate the sample cert used in this README:
+---
+
+## Features
+
+### Cert Delivery Options
+
+| Option | Best for | Delivery |
+|:-------|:---------|:---------|
+| **Per-session** | CompTIA (1 activity per submission) | On demand, ~2h after request |
+| **Monthly bundle** | ISC2 / ISACA (annual rollup) | Auto-generated end of month |
+| **Both** | Multiple certifications | Per-session + monthly |
+
+Change your preference anytime from the dashboard.
+
+### Community & Engagement
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/diagram-features-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="docs/assets/diagram-features-light.svg">
+  <img alt="Features — Dashboard, Community, Admin, and Communications" src="docs/assets/diagram-features-light.svg" width="100%">
+</picture>
+
+**User dashboard** — Attendance calendar, streak tracking (current + longest, weekday-aware), renewal countdown, annual summary, bulk cert download, appeal flow, inline sign-in, and device-memory opt-in.
+
+**Community** — Opt-in leaderboard with streak column, public profiles (privacy-safe: first name + last initial), shareable SVG badges, show links archive with RSS feed.
+
+**Admin & ops** — Analytics dashboard (growth, engagement, certs, system charts), CSV export (users / attendance / certs), appeal resolution queue, feature toggles, cert reissue/revoke/resend, manual attendance grants.
+
+**Communications** — Monthly digest, weekly digest, cert nudges, renewal milestone emails (50% / 75% / 90% + 30-day warning), Discord webhooks (cert announcements + weekly leaderboard top-5).
+
+---
+
+## Observability
+
+| Signal | Source | Cadence |
+|:-------|:-------|:--------|
+| Poller heartbeat | D1 `heartbeats` | Every minute (during stream window) |
+| Purge / security / digest / cert nudge / renewal nudge | D1 `heartbeats` | Daily / weekly / monthly |
+| Email sender | D1 `heartbeats` | Every 2 minutes |
+| Synthetic canary | GH Actions `smoke.yml` | Hourly — pings prod, writes canary heartbeat |
+| Watchdog | GH Actions `watchdog.yml` | Every 15 min — `/api/health` poll, Discord alerts |
+| Audit chain | GH Actions `audit-chain-weekly.yml` | Weekly full chain walk |
+| Schema drift | GH Actions `schema-drift.yml` | Weekly D1-vs-`schema.sql` diff |
+| Chat rescan | GH Actions `rescan-chat.yml` | Daily 16:00 UTC — recovers missed attendance |
+| D1 backup | GH Actions `backup.yml` | Weekly Sun 06:00 UTC → R2 + GitHub Artifact |
+| CodeQL | GH Actions `codeql.yml` | Weekly + on push |
+
+Live status: [`/status.html`](https://sc-cpe-web.pages.dev/status.html) (auto-refreshes every 30s)
+
+---
+
+## CI/CD Pipeline
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/diagram-cicd-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="docs/assets/diagram-cicd-light.svg">
+  <img alt="CI/CD pipeline — push to live in ~2 min" src="docs/assets/diagram-cicd-light.svg" width="100%">
+</picture>
+
+Branch protection on `main`: PRs required, `Node test suite` + `Secret scan (gitleaks)` must pass, no force-push. Auto-merge enabled — `gh pr merge --auto --squash` lands the PR the moment checks go green.
+
+D1 migrations in `db/migrations/` are applied automatically during deploy — the pipeline tracks applied files in `_applied_migrations` and only runs new ones.
+
+**PR previews** — Every pull request gets an isolated preview deployment with its own D1, KV, and R2 bindings. The [`deploy-preview.yml`](.github/workflows/deploy-preview.yml) workflow applies migrations, seeds test data, deploys, and comments the preview URL on the PR.
+
+---
+
+<details>
+<summary><strong>API Surface (49 endpoints)</strong></summary>
+
+### Public
+
+| Path | Auth | Purpose |
+|:-----|:-----|:--------|
+| `POST /api/register` | Turnstile | Sign up |
+| `POST /api/recover` | Turnstile | Recover dashboard link via email |
+| `GET /api/health` | public | External watchdog poll |
+| `GET /api/verify/{token}` | public | Cert verification data |
+| `GET /api/crl.json` | public | Certificate revocation list |
+| `GET /api/leaderboard` | public | Community leaderboard (top 20) |
+| `GET /api/links` | public | Show links archive |
+| `GET /api/links/rss` | public | Show links RSS feed |
+| `GET /api/profile/{token}` | public | Public profile (privacy-safe stats) |
+| `GET /api/badge/{token}` | public | SVG achievement badge |
+| `GET /api/download/{token}` | public | Cert PDF download |
+| `GET /api/preflight/channel` | public | YouTube channel pre-check |
+| `POST /api/csp-report` | public | CSP violation reports |
+
+### User (dashboard-token + CSRF)
+
+| Path | Auth | Purpose |
+|:-----|:-----|:--------|
+| `GET /api/me/{token}` | dashboard-token | User dashboard data |
+| `POST /api/me/{token}/prefs` | + CSRF | Set cert style, nudge opt-out, leaderboard opt-in |
+| `POST /api/me/{token}/cert-per-session/{stream_id}` | + CSRF | Request single-session cert |
+| `POST /api/me/{token}/cert-feedback` | + CSRF | Report cert typo/error |
+| `POST /api/me/{token}/resend-code` | + CSRF | Get a fresh verification code |
+| `POST /api/me/{token}/appeal` | + CSRF | Appeal missed attendance credit |
+| `POST /api/me/{token}/delete` | + CSRF | Account deletion (GDPR) |
+| `POST /api/me/{token}/rotate` | + CSRF | Rotate dashboard token |
+| `GET /api/me/{token}/annual-summary` | dashboard-token | Year-at-a-glance stats |
+
+### Admin (bearer token)
+
+| Path | Auth | Purpose |
+|:-----|:-----|:--------|
+| `GET /api/admin/heartbeat-status` | bearer | Per-source staleness |
+| `GET /api/admin/audit-chain-verify` | bearer | Full chain walk |
+| `GET /api/admin/ops-stats` | bearer | Dashboard counts + warnings |
+| `GET /api/admin/cert-feedback` | bearer | Non-ok feedback inbox |
+| `GET /api/admin/users` | bearer | User search |
+| `GET /api/admin/user/{id}/certs` | bearer | Certs for a specific user |
+| `GET /api/admin/attendance` | bearer | Attendance records |
+| `GET /api/admin/appeals` | bearer | Pending appeals |
+| `POST /api/admin/appeals/{id}/resolve` | bearer | Resolve appeal |
+| `POST /api/admin/cert/{id}/reissue` | bearer | Queue cert regeneration |
+| `POST /api/admin/cert/{token}/resend` | bearer | Resend cert email |
+| `POST /api/admin/revoke` | bearer | Revoke a certificate |
+| `GET /api/admin/export` | bearer | CSV export (users, attendance, certs) |
+| `GET /api/admin/security-events` | bearer | Security event log |
+| `GET /api/admin/streams` | bearer | Recent streams with attendance counts |
+| `POST /api/admin/suspend` | bearer | Suspend / unsuspend a user |
+| `GET/DELETE /api/admin/email-suppression` | bearer | Email suppression list management |
+| `GET /api/admin/analytics/growth` | bearer | User growth time series |
+| `GET /api/admin/analytics/engagement` | bearer | Attendance engagement metrics |
+| `GET /api/admin/analytics/certs` | bearer | Certificate issuance stats |
+| `GET /api/admin/analytics/system` | bearer | System health metrics |
+| `POST /api/admin/canary-beat` | bearer | Hourly smoke heartbeat |
+| `GET/POST /api/admin/toggles` | bearer | Feature toggles |
+| `GET /api/admin/auth/login` | bearer | Admin OAuth login |
+| `GET /api/admin/auth/callback` | bearer | Admin OAuth callback |
+| `GET /api/admin/auth/logout` | bearer | Admin logout |
+| `GET /api/watchdog-state` | bearer | Watchdog health state |
+
+</details>
+
+---
+
+## Design Decisions
+
+- **Hash-chained audit log over simple event table** — append-only with SHA-256 `prev_hash` ensures tampering is detectable years later without a trusted third party. A `UNIQUE INDEX` on `prev_hash` serialises concurrent writers at the database level.
+
+- **Dashboard token over password auth** — a single bearer URL means no password resets, no session management, no cookie consent banners. Trade-off: URL sharing leaks access, mitigated by a separate `badge_token` for public-facing URLs.
+
+- **PAdES-T over simple PDF signing** — RFC-3161 timestamps make certificates verifiable even after the signing key expires. More complexity, but the cert is the product — it must stand on its own.
+
+- **Email-queue pattern over direct send** — decouples email delivery from the request path, enabling retry with idempotency, backpressure visibility via the outbox table, and a clean cursor-advance-on-success contract.
+
+---
+
+## Who Runs This
+
+**Simply Cyber LLC** (United States). Fully open-source at [`github.com/ericrihm/sc-cpe`](https://github.com/ericrihm/sc-cpe) — every line that decides who gets credit, every policy doc, every deploy workflow. Branch protection + required CI + auto-deploy means the deployed code is the exact SHA on `main`.
+
+| Domain | Purpose |
+|:-------|:--------|
+| `sc-cpe-web.pages.dev` | Web + API (canonical origin) |
+| `cpe.simplycyber.io` | Reserved — future DNS wiring |
+| `signalplane.co` | Email domain (DKIM + SPF + DMARC) |
+
+Security disclosure: [`security.txt`](https://sc-cpe-web.pages.dev/.well-known/security.txt) or email `certs@signalplane.co` with `[SECURITY]` in the subject.
+
+---
+
+## Testing & Development
 
 ```bash
-python3 -m venv .venv-sample
-.venv-sample/bin/pip install -r services/certs/requirements.txt pymupdf
-.venv-sample/bin/python scripts/generate_sample_cert.py
+scripts/install_hooks.sh                 # pre-push hook → runs test suite
+bash scripts/test.sh                     # pure-logic tests (251 tests)
+scripts/check_schema.sh                  # diff live D1 schema vs repo
+ADMIN_TOKEN=... ORIGIN=https://sc-cpe-web.pages.dev \
+  scripts/smoke_hardening.sh             # read-only probe of deployed origin
 ```
 
 ## Deploying
 
-Pages + Workers ship automatically on every merge to `main` via
-[`.github/workflows/deploy-prod.yml`](.github/workflows/deploy-prod.yml):
-tests → Pages → Workers (`purge`, `poller`, `email-sender` in parallel) →
-post‑deploy hardening smoke. End‑to‑end ~2 min on a warm runner.
-
-`main` is branch‑protected: merges require a PR with `Node test suite`
-and `Secret scan (gitleaks)` green, no force‑push, no direct commits
-(admin break‑glass is available via `enforce_admins: false`). Auto‑merge
-is on — open a PR and `gh pr merge --auto --squash` lands it the moment
-CI goes green, triggering the deploy.
-
-Typical change flow:
+Auto-deploy on every merge to `main` via [`deploy-prod.yml`](.github/workflows/deploy-prod.yml):
+tests → D1 migrations → Pages → Workers (parallel) → post-deploy smoke. ~2 min on a warm runner.
 
 ```bash
 git checkout -b fix/whatever
-# ...edit...
-git commit -m "fix(x): thing"
+git commit -m "fix(scope): description"
 git push -u origin fix/whatever
-gh pr create --fill
-gh pr merge --auto --squash
+gh pr create --fill && gh pr merge --auto --squash
 ```
 
-The Python cert cron (`services/certs/generate.py`) runs on its own
-schedule in `.github/workflows/{monthly-certs,cert-sign-pending}.yml`,
-independent of the web deploy.
-
-The hourly `smoke.yml` canary keeps running between deploys as an
-ongoing health probe — it doubles the coverage that `deploy-prod`'s
-post‑deploy smoke provides at release time.
-
-**Break-glass direct deploy** (rare: signing infra regression, CI-blocking
-bug). `enforce_admins: false` means admin pushes to `main` bypass the PR
-gate, and the push trigger still fires `deploy-prod`. Prefer toggling
-protection off in Settings → Branches if the emergency is that CI itself
-is red — otherwise just fix-and-push. Re-engage protection immediately
-after.
+> [!CAUTION]
+> **Break-glass only:** `enforce_admins: false` allows admin direct-push to `main`. The push trigger still fires `deploy-prod` with full test suite. Re-engage protection immediately after.
 
 ---
 
-## Repo map
+## Repo Map
 
-- `CLAUDE.md` — working notes, invariants, conventions
-- `docs/RUNBOOK.md` — operator procedures
-- `docs/LTV.md` — legal/compliance reasoning (GDPR Art. 17(3)(e) carve‑out)
-- `outputs/handoffs/` — session‑end briefs
-- `scripts/generate_sample_cert.py` — regenerates `docs/assets/sample-cert.{pdf,png}`
+```
+pages/                 Cloudflare Pages Functions — public web surface
+  functions/api/       JSON API (register, dashboard, admin, analytics, verify, links, profiles)
+  _lib.js              Shared helpers (audit, rate-limit, email, crypto)
+  _heartbeat.js        Staleness predicates for heartbeat monitoring
+  _middleware.js        Security headers (CSP, HSTS, COOP, CORP)
+  *.html / *.js / *.css  15 pages, extracted JS/CSS (CSP-safe, no inline scripts)
+workers/
+  poller/              Per-minute livestream chat poller (OAuth + API-key fallback)
+  purge/               Daily R2 GC + digests + nudges + link enrichment + Discord webhooks
+  email-sender/        Drains email_outbox via Resend
+services/certs/        Python PDF issuer (PAdES-T + RFC-3161)
+db/
+  schema.sql           Authoritative schema
+  migrations/          Append-only numbered migrations (auto-applied on deploy)
+  seed-preview.sql     Test data for PR preview environments
+scripts/               Smoke, schema check, audit verifier, tests, backups, chat rescan
+.github/workflows/     13 workflows: CI, deploy (prod + preview), smoke, watchdog,
+                       cert crons, schema drift, backups, chat rescan, CodeQL
+docs/
+  DESIGN.md            Architecture decisions
+  RUNBOOK.md           Operator procedures
+  LTV.md               Legal/compliance reasoning (GDPR Art. 17(3)(e))
+  VERIFIER_GUIDE.md    Third-party cert verification guide
+  PITCH.md             Simply Cyber team pitch
+```
+
+## Contributing
+
+Built for the [Simply Cyber](https://www.youtube.com/@SimplyCyber) community. Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+Found a bug or have feedback? [Open an issue](https://github.com/ericrihm/sc-cpe/issues) or email certs@signalplane.co.
 
 ## License
 
-Internal. All rights reserved. Cert artefacts are retained under
-GDPR Art. 17(3)(e) as evidentiary records
-(see `pages/functions/api/me/[token]/delete.js`).
+MIT — see [LICENSE](LICENSE) for details. Cert artefacts are retained under GDPR Art. 17(3)(e) as evidentiary records.

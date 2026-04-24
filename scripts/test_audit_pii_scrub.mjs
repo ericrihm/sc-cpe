@@ -66,7 +66,7 @@ test("register: audit row contains email_sha256, never email_lower", async () =>
         request: new Request(`${BASE}/api/register`, {
             method: "POST",
             body: JSON.stringify({ email: EMAIL, legal_name: NAME,
-                legal_name_attested: true, age_attested_13plus: true }),
+                legal_name_attested: true, tos: true }),
         }),
     });
     assert.equal(captured.auditInserts.length, 1);

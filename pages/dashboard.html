@@ -2,203 +2,207 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>SC-CPE — My Dashboard</title>
 <link rel="stylesheet" href="/style.css">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <meta name="theme-color" content="#0b3d5c">
+<meta name="color-scheme" content="light dark">
 <script src="/theme.js"></script>
-<style>
-.cal-nav { display: flex; align-items: center; gap: 12px; margin: 8px 0 10px; }
-.cal-nav button { min-width: 32px; padding: 2px 8px; font-size: 18px; cursor: pointer; }
-.cal-grid {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 4px;
-    font-size: 13px;
-}
-.cal-head { font-weight: 600; text-align: center; padding: 4px 0; color: var(--muted); }
-.cal-cell {
-    border: 1px solid var(--border);
-    background: var(--card);
-    border-radius: 4px;
-    padding: 4px 6px;
-    min-height: 46px;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-}
-.cal-cell.cal-empty { border-color: transparent; background: transparent; }
-.cal-cell.cal-today { outline: 2px solid var(--accent); outline-offset: -2px; }
-.cal-cell .cal-dots { display: flex; gap: 3px; align-items: center; flex-wrap: wrap; }
-.cal-cell .cal-dot { margin: 0; }
-.cal-cell .cal-day { font-weight: 600; color: var(--fg-strong); }
-.cal-cell .cal-marks { font-size: 10px; color: var(--muted); }
-.cal-cell.has-credit { background: var(--ok-soft-bg); border-color: var(--ok-soft-border); }
-.cal-cell.has-credit .cal-day { color: var(--ok-soft-text); }
-.cal-cell.has-appeal-open { background: var(--warn-soft-bg); border-color: var(--warn-soft-border); }
-.cal-cell.has-appeal-open .cal-day { color: var(--warn-soft-text); }
-.cal-cell.has-appeal-granted { background: var(--info-soft-bg); border-color: var(--info-soft-border); }
-.cal-cell.has-appeal-granted .cal-day { color: var(--info-soft-text); }
-.cal-cell.has-appeal-denied { background: var(--bad-soft-bg); border-color: var(--bad-soft-border); }
-.cal-cell.has-appeal-denied .cal-day { color: var(--bad-soft-text); }
-.cal-dot {
-    display: inline-block; width: 10px; height: 10px; border-radius: 50%;
-    vertical-align: middle; margin: 0 2px 2px 8px;
-}
-.cal-dot.cal-credited      { background: var(--ok-soft-border);   border: 1px solid var(--ok); }
-.cal-dot.cal-appeal-open   { background: var(--warn-soft-border); border: 1px solid var(--warn); }
-.cal-dot.cal-appeal-granted{ background: var(--info-soft-border); border: 1px solid var(--accent); }
-.cal-dot.cal-appeal-denied { background: var(--bad-soft-border);  border: 1px solid var(--bad); }
-.cal-legend { margin-top: 8px; }
-
-/* Certificates list — replaces the old table on all viewports. Cards
-   read well on phones and still look clean on desktop. */
-.cert-list { display: flex; flex-direction: column; gap: 10px; }
-.cert-row {
-    border: 1px solid var(--border); border-radius: 6px; padding: 12px 14px;
-    background: var(--card);
-}
-.cert-row.is-superseded { background: var(--card-alt); border-style: dashed; }
-.cert-row-top {
-    display: flex; justify-content: space-between; align-items: baseline;
-    gap: 8px; flex-wrap: wrap;
-}
-.cert-period { font-weight: 600; font-size: 15px; color: var(--fg-strong); }
-.cert-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
-.cert-actions {
-    display: flex; gap: 8px; align-items: center; margin-top: 10px;
-    flex-wrap: wrap;
-}
-.cert-verify {
-    display: inline-block; padding: 5px 10px; font-size: 13px;
-    border: 1px solid var(--accent); border-radius: 4px; color: var(--accent);
-    text-decoration: none; background: var(--card);
-}
-.cert-verify:hover { background: var(--accent-soft-bg); }
-.pill {
-    display: inline-block; padding: 2px 8px; border-radius: 999px;
-    font-size: 11px; font-weight: 600; line-height: 16px;
-}
-.pill-green { background: var(--ok-soft-bg);      color: var(--ok-soft-text); }
-.pill-grey  { background: var(--neutral-soft-bg); color: var(--neutral-soft-text); }
-.pill-red   { background: var(--bad-soft-bg);     color: var(--bad-soft-text); }
-.pill-amber { background: var(--warn-soft-bg);    color: var(--warn-soft-text); }
-.fb-details { font-size: 12px; }
-.fb-details > summary {
-    cursor: pointer; color: var(--muted); list-style: none;
-    padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px;
-}
-.fb-details > summary:hover { background: var(--hover-bg); }
-.fb-details[open] > summary { color: var(--fg-strong); border-color: var(--border-strong); }
-.fb-picker {
-    display: flex; gap: 6px; margin-top: 8px;
-}
-.fb-picker button {
-    font-size: 12px; padding: 4px 10px; border-radius: 4px;
-    border: 1px solid var(--border-strong); background: var(--card);
-    color: var(--fg); cursor: pointer;
-}
-.fb-picker button:hover { background: var(--hover-bg); }
-.fb-picker button[data-r="ok"]:hover    { border-color: var(--ok);   color: var(--ok-soft-text); }
-.fb-picker button[data-r="typo"]:hover  { border-color: var(--warn); color: var(--warn-soft-text); }
-.fb-picker button[data-r="wrong"]:hover { border-color: var(--bad);  color: var(--bad-soft-text); }
-.cert-history-toggle {
-    font-size: 12px; color: var(--muted); cursor: pointer;
-    margin-top: 4px; background: none; border: none; padding: 4px 0;
-}
-.cert-history-toggle:hover { color: var(--fg-strong); text-decoration: underline; }
-
-/* Attendance list — same card pattern as certs for mobile-first UX. */
-.att-list { display: flex; flex-direction: column; gap: 10px; }
-.att-row {
-    border: 1px solid var(--border); border-radius: 6px; padding: 12px 14px;
-    background: var(--card);
-}
-.att-row-top {
-    display: flex; justify-content: space-between; align-items: baseline;
-    gap: 8px; flex-wrap: wrap;
-}
-.att-title {
-    font-weight: 600; font-size: 14px; color: var(--fg-strong); line-height: 1.3;
-    word-break: break-word;
-}
-.att-title a { color: inherit; text-decoration: none; border-bottom: 1px dotted var(--muted); }
-.att-title a:hover { border-bottom-color: var(--accent); color: var(--accent); }
-.att-meta { font-size: 12px; color: var(--muted); margin-top: 4px; }
-.att-actions { margin-top: 10px; }
-.att-ps-btn {
-    font-size: 12px; padding: 5px 10px; border-radius: 4px;
-    border: 1px solid var(--accent); color: var(--accent); background: var(--card);
-    cursor: pointer;
-}
-.att-ps-btn:hover { background: var(--accent-soft-bg); }
-.att-ps-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-.att-ps-done { font-size: 12px; color: var(--ok-soft-text); }
-.warn-list { margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
-.warn-list li { margin-bottom: 4px; }
-
-.msg-ok  { color: var(--ok-soft-text); }
-.msg-bad { color: var(--bad-soft-text); }
-
-.code-expired-note { color: var(--bad-soft-text); }
-.today-credited { color: var(--ok); }
-.today-waiting  { color: var(--warn); }
-.today-missed   { color: var(--warn); }
-
-.window-warn {
-    border-left: 4px solid var(--warn-soft-border);
-    background: var(--warn-soft-bg);
-}
-.window-warn .muted { color: var(--muted); }
-</style>
+<link rel="stylesheet" href="/dashboard.css">
 </head>
 <body>
 <main class="narrow">
-    <h1>My SC-CPE Dashboard</h1>
+    <h1><a href="/">SC-CPE</a> — My Dashboard</h1>
     <div id="err" class="err" hidden></div>
+
+    <section id="login-card" class="card" hidden>
+        <h2 class="card-heading">Welcome back</h2>
+        <p>Enter your email and we'll send you a link — no password needed.</p>
+        <form id="login-form">
+            <label>
+                Email
+                <input name="email" type="email" required maxlength="254" autocomplete="email"
+                       class="login-input">
+            </label>
+            <div class="cf-turnstile" data-sitekey="0x4AAAAAAC9lHHxbfTKNzdFN" data-theme="auto"></div>
+            <button type="submit">Send me my dashboard link</button>
+        </form>
+        <div id="login-err" class="err" hidden></div>
+        <div id="login-ok" hidden>
+            <p class="login-ok-text">Check your inbox!</p>
+            <p>We sent a link to <strong id="login-ok-email"></strong>. It should arrive within a minute or two.</p>
+            <p class="muted">Check spam too if you don't see it.</p>
+        </div>
+        <p class="muted login-register">
+            Don't have an account? <a href="/">Register here</a>
+        </p>
+    </section>
+
+    <section id="skel" aria-label="loading">
+        <div class="card">
+            <div class="skeleton skeleton-line medium"></div>
+            <div class="skeleton skeleton-line wide"></div>
+        </div>
+        <div class="card">
+            <div class="skeleton skeleton-line narrow"></div>
+            <div class="skeleton skeleton-line big"></div>
+        </div>
+        <div class="card">
+            <div class="skeleton skeleton-line medium"></div>
+            <div class="skeleton skeleton-grid">
+                <div class="skeleton skeleton-cell"></div><div class="skeleton skeleton-cell"></div>
+                <div class="skeleton skeleton-cell"></div><div class="skeleton skeleton-cell"></div>
+                <div class="skeleton skeleton-cell"></div><div class="skeleton skeleton-cell"></div>
+                <div class="skeleton skeleton-cell"></div><div class="skeleton skeleton-cell"></div>
+                <div class="skeleton skeleton-cell"></div><div class="skeleton skeleton-cell"></div>
+                <div class="skeleton skeleton-cell"></div><div class="skeleton skeleton-cell"></div>
+                <div class="skeleton skeleton-cell"></div><div class="skeleton skeleton-cell"></div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="skeleton skeleton-line medium"></div>
+            <div class="skeleton skeleton-line wide"></div>
+            <div class="skeleton skeleton-line wide"></div>
+        </div>
+    </section>
     <section id="body" hidden>
+        <div id="suspended-banner" class="card" style="background:var(--bad-soft,#3a1818);border:1px solid var(--bad-soft-border,#6b2a2a);color:var(--bad-soft-text,#ffb4b4);" hidden>
+            <h2 class="card-heading" style="color:inherit;">Account suspended</h2>
+            <p>Your account has been suspended. You will not earn attendance credit until the suspension is lifted. If you believe this is an error, please contact the Simply Cyber team.</p>
+        </div>
+
         <div id="window-warn-card" class="card window-warn" hidden>
-            <h2 style="margin-top:0;">Code posted outside the live window</h2>
-            <p id="window-warn-body" style="margin:0;"></p>
-            <p class="muted" style="font-size:11px;margin:8px 0 0;">
+            <h2 class="card-heading">Code posted outside the live window</h2>
+            <p id="window-warn-body"></p>
+            <p class="muted cert-footer">
                 Post your code during the live briefing to earn CPE. Codes
                 posted in pre-stream chat or the previous day's replay don't
                 count — the cert claims "attended live."
             </p>
         </div>
+
         <div class="card">
             <h2 id="name"></h2>
             <p>Status: <strong id="state"></strong></p>
-            <p id="pending" hidden>
-                We emailed you a verification code. Post it in the
-                Simply Cyber Daily Threat Briefing live chat to bind your
-                YouTube account.<br/>
-                <span id="code-status"></span>
-                <button type="button" id="resend-btn" hidden style="margin-top:8px;">Re-send code by email</button>
-                <span id="resend-msg" class="muted" hidden></span>
-            </p>
+            <div id="pending" hidden>
+                <p id="code-status"></p>
+                <ol class="steps">
+                    <li>
+                        <div class="step-body">
+                            <div class="step-title">Find your code in email</div>
+                            <div class="step-detail">
+                                Look for <strong>"Simply Cyber CPE — your verification code"</strong>
+                                from <strong>noreply@signalplane.co</strong>. Check spam/promotions if you don't see it.
+                            </div>
+                        </div>
+                    </li>
+                    <li>
+                        <div class="step-body">
+                            <div class="step-title">Post it in YouTube live chat</div>
+                            <div class="step-detail">
+                                During the Daily Threat Briefing livestream, paste your <code>SC-CPE{...}</code> code
+                                as a chat message. The system picks it up automatically within ~60 seconds.
+                            </div>
+                        </div>
+                    </li>
+                    <li>
+                        <div class="step-body">
+                            <div class="step-title">Done — you're verified</div>
+                            <div class="step-detail">
+                                Your YouTube account gets linked and attendance starts counting.
+                                This page updates automatically.
+                            </div>
+                        </div>
+                    </li>
+                </ol>
+                <div class="resend-box">
+                    <div class="resend-label">Can't find the email?</div>
+                    <div class="resend-hint">We'll send a fresh code to the email address you registered with. Old codes stop working when a new one is issued.</div>
+                    <button type="button" id="resend-btn" hidden>Send me a new code</button>
+                    <span id="resend-msg" class="muted" hidden></span>
+                </div>
+            </div>
             <p id="active" hidden>
                 <span id="link-line"></span>
                 <span id="channel-wrap" hidden>(<span id="channel" class="muted"></span>)</span>
-                <span id="link-hint" class="muted" style="display:block;font-size:12px;margin-top:4px;" hidden></span>
+                <span id="link-hint" class="muted link-hint" hidden></span>
             </p>
-            <p id="verified-at-line" class="muted" style="font-size:12px;margin:4px 0 0;" hidden></p>
+            <p id="verified-at-line" class="muted verified-at" hidden></p>
         </div>
 
-        <div class="card">
-            <h2>Total CPE earned</h2>
-            <p class="big" id="total"></p>
+        <div class="card" id="stats-card">
+            <div class="stats-row">
+                <div class="stat-block">
+                    <div class="stat-value" id="total">--</div>
+                    <div class="stat-label">CPE earned</div>
+                </div>
+                <div class="stat-block" id="streak-current-wrap" hidden>
+                    <div class="stat-value" id="streak-current">0</div>
+                    <div class="stat-label">current streak</div>
+                </div>
+                <div class="stat-block" id="streak-best-wrap" hidden>
+                    <div class="stat-value" id="streak-best">0</div>
+                    <div class="stat-label">longest streak</div>
+                </div>
+            </div>
+            <button type="button" id="share-btn" class="share-btn" hidden>Share achievement</button>
+            <a id="profile-link" class="share-btn" style="display:none;margin-left:8px;font-size:.8rem;" target="_blank" rel="noopener">View public profile</a>
         </div>
 
         <div class="card" id="today-card" hidden>
-            <h2>Today's Daily Threat Briefing</h2>
+            <h2 class="card-heading">Today's Daily Threat Briefing</h2>
             <p id="today-title" class="muted"></p>
             <p id="today-status"></p>
             <p id="today-hint" class="muted" hidden>
                 Post a qualifying message (3+ characters, letters or numbers) in the
                 live chat to get credited. This page refreshes automatically.
             </p>
+        </div>
+
+        <div class="card link-card" id="link-card" hidden>
+            <h2 class="card-heading">Link your YouTube channel</h2>
+            <p class="muted remember-desc">
+                Your account is active but your YouTube channel isn't linked yet.
+                Post your SC-CPE code in the live chat during the Daily Threat Briefing
+                to link it automatically. Your existing credits are unaffected.
+            </p>
+            <p id="link-code-status"></p>
+            <ol class="steps">
+                <li>
+                    <div class="step-body">
+                        <div class="step-title">Get your code</div>
+                        <div class="step-detail">
+                            Check your email for <strong>"Simply Cyber CPE — your verification code"</strong>
+                            from <strong>noreply@signalplane.co</strong>. Or use the button below to get a fresh one.
+                        </div>
+                    </div>
+                </li>
+                <li>
+                    <div class="step-body">
+                        <div class="step-title">Post it in YouTube live chat</div>
+                        <div class="step-detail">
+                            During the Daily Threat Briefing livestream (ET 08:00–11:00, Mon–Fri),
+                            paste your 6-character code as a chat message.
+                        </div>
+                    </div>
+                </li>
+                <li>
+                    <div class="step-body">
+                        <div class="step-title">Done — channel linked + credit earned</div>
+                        <div class="step-detail">
+                            The system auto-links your YouTube account and credits 0.5 CPE for
+                            that session. This page updates automatically.
+                        </div>
+                    </div>
+                </li>
+            </ol>
+            <div class="resend-box">
+                <div class="resend-label">Need your code?</div>
+                <div class="resend-hint">We'll email your SC-CPE code to the address you registered with.</div>
+                <button type="button" id="link-resend-btn">Send me my code</button>
+                <span id="link-resend-msg" class="muted" hidden></span>
+            </div>
         </div>
 
         <div class="card">
@@ -217,36 +221,6 @@
             </p>
         </div>
 
-        <div class="card" id="rotate-card" hidden>
-            <h2>Dashboard link security</h2>
-            <p class="muted" style="font-size:12px;">
-                This dashboard URL is your account credential. If it leaked
-                (accidentally shared, screenshot posted, lost device), rotate
-                it here. We'll email a fresh URL to the address on file — this
-                page will stop working a few seconds later.
-            </p>
-            <button type="button" id="rotate-btn" style="margin-top:8px;">Rotate dashboard link</button>
-            <span id="rotate-msg" class="muted" hidden style="margin-left:8px;"></span>
-        </div>
-
-        <div class="card" id="prefs-card" hidden>
-            <h2>Certificate delivery</h2>
-            <p class="muted" style="font-size:12px;">
-                Most certification bodies (including (ISC)²) accept the
-                bundled monthly certificate. Pick individual per-session
-                certs only if your certification body specifically asks
-                for per-activity documentation at audit — uncommon.
-                You can also request a one-off per-session cert on any
-                attendance row below.
-            </p>
-            <div id="prefs-radios" style="display:flex;flex-direction:column;gap:6px;margin-top:8px;">
-                <label><input type="radio" name="cert_style" value="bundled"> One monthly bundle <span class="muted" style="font-size:11px;">(recommended)</span></label>
-                <label><input type="radio" name="cert_style" value="per_session"> Individual cert for every attended session</label>
-                <label><input type="radio" name="cert_style" value="both"> Both (bundle + per-session)</label>
-            </div>
-            <p id="prefs-msg" class="muted" style="font-size:11px;margin-top:6px;" hidden></p>
-        </div>
-
         <div class="card">
             <h2>Attendance history</h2>
             <div id="att" class="att-list" hidden></div>
@@ -255,615 +229,161 @@
 
         <div class="card">
             <h2>Certificates</h2>
+            <div id="cert-dl-bar" class="cert-dl-bar" hidden>
+                <button type="button" id="cert-dl-btn">Download All (ZIP)</button>
+                <span class="dl-status" id="cert-dl-status"></span>
+            </div>
             <div id="certs" class="cert-list" hidden></div>
             <p id="cert-empty" hidden class="muted">No certificates yet. Certs are issued monthly.</p>
-            <p class="muted" style="font-size:11px;margin-top:10px;">
+            <p class="muted cert-footer">
                 If a name or session count looks wrong, tap <strong>Report an issue</strong>
                 on the cert — feedback goes straight to the admin digest so we can reissue.
             </p>
         </div>
+
+        <h2 class="section-heading">Settings</h2>
+
+        <div class="card" id="renewal-card" hidden>
+            <h2 class="card-heading">Certification renewal tracker</h2>
+            <div id="renewal-display" hidden>
+                <div class="renewal-summary" id="renewal-summary"></div>
+                <div class="renewal-bar-track"><div class="renewal-bar-fill" id="renewal-bar"></div></div>
+                <div class="renewal-deadline" id="renewal-deadline"></div>
+                <button type="button" class="renewal-edit-btn" id="renewal-edit-btn">Edit</button>
+                <button type="button" class="renewal-edit-btn renewal-remove-btn" id="renewal-remove-btn">Remove</button>
+            </div>
+            <div id="renewal-setup">
+                <p class="muted rotate-desc">Track progress toward your certification renewal CPE requirement.</p>
+                <form class="renewal-form" id="renewal-form">
+                    <label>Certification name <input type="text" id="renewal-cert-name" placeholder="CISSP, CISM, etc." maxlength="100" required></label>
+                    <label>Renewal deadline <input type="date" id="renewal-deadline-input" required></label>
+                    <label>CPE required <input type="number" id="renewal-cpe-req" min="1" max="9999" placeholder="60" required></label>
+                    <div class="renewal-actions">
+                        <button type="submit">Save</button>
+                        <button type="button" class="appeal-cancel" id="renewal-cancel-btn" hidden>Cancel</button>
+                    </div>
+                    <span id="renewal-msg" class="muted prefs-hint" hidden></span>
+                </form>
+            </div>
+        </div>
+
+        <div class="card" id="prefs-card" hidden>
+            <h2 class="card-heading">Certificate delivery</h2>
+            <p class="muted rotate-desc">
+                Most certification bodies (including (ISC)²) accept the
+                bundled monthly certificate. Pick individual per-session
+                certs only if your certification body specifically asks
+                for per-activity documentation at audit — uncommon.
+                You can also request a one-off per-session cert on any
+                attendance row above.
+            </p>
+            <div id="prefs-radios" class="prefs-radios">
+                <label><input type="radio" name="cert_style" value="bundled"> One monthly bundle <span class="muted prefs-hint">(recommended)</span></label>
+                <label><input type="radio" name="cert_style" value="per_session"> Individual cert for every attended session</label>
+                <label><input type="radio" name="cert_style" value="both"> Both (bundle + per-session)</label>
+            </div>
+            <p id="prefs-msg" class="muted prefs-hint" hidden></p>
+        </div>
+
+        <div class="card" id="email-prefs-card" hidden>
+            <h2 class="card-heading">Email preferences</h2>
+            <p class="muted rotate-desc">
+                Choose which engagement emails you receive. Transactional emails
+                (registration, cert delivery, security) are always sent.
+            </p>
+            <div class="prefs-radios" id="email-prefs-checks">
+                <label><input type="checkbox" data-cat="monthly_digest" checked> Monthly digest</label>
+                <label><input type="checkbox" data-cat="cert_nudge" checked> Certificate reminders</label>
+                <label><input type="checkbox" data-cat="renewal_nudge" checked> Renewal reminders</label>
+                <label><input type="checkbox" data-cat="streak_milestone" checked> Streak milestones</label>
+            </div>
+            <p id="email-prefs-msg" class="muted prefs-hint" hidden></p>
+        </div>
+
+        <div class="card" id="leaderboard-card" hidden>
+            <h2 class="card-heading">Community leaderboard</h2>
+            <label class="check">
+                <input type="checkbox" id="leaderboard-toggle">
+                <span>Show me on the <a href="/leaderboard.html">community leaderboard</a>
+                <span class="muted leaderboard-hint">Your first name and last initial will be visible. Email and full name are never shown.</span></span>
+            </label>
+            <span id="leaderboard-msg" class="muted prefs-hint" hidden></span>
+        </div>
+
+        <h2 class="section-heading">Account</h2>
+
+        <div class="card link-card" id="remember-card" hidden>
+            <h2 class="card-heading">Remember this device?</h2>
+            <p class="muted remember-desc">
+                Save your session so you can return to this dashboard without
+                the email link. Only use this on a personal device you trust.
+            </p>
+            <div class="remember-actions">
+                <button type="button" id="remember-yes-btn">Yes, remember me</button>
+                <button type="button" id="remember-no-btn" class="btn-ghost">No thanks</button>
+            </div>
+        </div>
+
+        <div class="card" id="signout-card" hidden>
+            <p class="muted signout-text">
+                This device remembers your dashboard.
+                <button type="button" id="signout-btn" class="signout-link">Forget this device</button>
+            </p>
+        </div>
+
+        <div class="card" id="rotate-card" hidden>
+            <h2 class="card-heading">Dashboard link security</h2>
+            <p class="muted rotate-desc">
+                This dashboard URL is your account credential. If it leaked
+                (accidentally shared, screenshot posted, lost device), rotate
+                it here. We'll email a fresh URL to the address on file — this
+                page will stop working a few seconds later.
+            </p>
+            <button type="button" id="rotate-btn">Rotate dashboard link</button>
+            <span id="rotate-msg" class="muted" hidden></span>
+        </div>
+
+        <div id="share-modal" class="share-modal-overlay" hidden>
+            <div class="share-modal">
+                <div class="modal-header">
+                    <h2 class="card-heading">Share your achievement</h2>
+                    <button type="button" id="share-close" class="modal-close" aria-label="close">&times;</button>
+                </div>
+                <div class="badge-preview">
+                    <img id="share-badge-img" alt="SC-CPE Badge">
+                </div>
+                <div class="share-section">
+                    <label class="small share-field-label">Badge page link</label>
+                    <div class="share-url-row">
+                        <input type="text" id="share-url" readonly class="share-url-input">
+                        <button type="button" id="copy-url-btn" class="share-copy-btn">Copy</button>
+                    </div>
+                    <span id="copy-msg" class="muted prefs-hint" hidden></span>
+                </div>
+                <div class="share-section">
+                    <label class="small share-field-label">Share text</label>
+                    <textarea id="share-text" readonly rows="3" class="share-textarea"></textarea>
+                    <button type="button" id="copy-text-btn" class="share-copy-btn">Copy text</button>
+                </div>
+                <div class="share-social-row">
+                    <a id="modal-linkedin" class="share-link-btn btn-linkedin" target="_blank" rel="noopener">LinkedIn</a>
+                    <a id="modal-x" class="share-link-btn btn-x" target="_blank" rel="noopener">X / Twitter</a>
+                </div>
+            </div>
+        </div>
     </section>
+    <footer class="site-footer">
+        <a href="/faq.html">FAQ</a>
+        <a href="/leaderboard.html">Leaderboard</a>
+        <a href="/links.html">Show Links</a>
+        <a href="/status.html">Status</a>
+        <a href="/verify.html">Verify a cert</a>
+        <a href="/terms.html">Terms</a>
+        <a href="/privacy.html">Privacy</a>
+    </footer>
 </main>
-<script>
-const token = new URLSearchParams(location.search).get("t");
-const err = document.getElementById("err");
-
-async function load() {
-    if (!token) { err.textContent = "missing token in URL"; err.hidden = false; return; }
-    const r = await fetch(`/api/me/${encodeURIComponent(token)}`);
-    if (!r.ok) {
-        err.textContent = r.status === 404
-            ? "dashboard not found — check the link in your email"
-            : `error loading dashboard (${r.status})`;
-        err.hidden = false;
-        return;
-    }
-    const d = await r.json();
-    document.getElementById("body").hidden = false;
-    document.getElementById("name").textContent = d.user.legal_name;
-    document.getElementById("state").textContent = d.user.state;
-
-    // Rotate card is available to both pending and active users — either
-    // can have a leaked dashboard URL and need to invalidate it.
-    document.getElementById("rotate-card").hidden = false;
-
-    if (d.user.state === "active") {
-        const prefsCard = document.getElementById("prefs-card");
-        prefsCard.hidden = false;
-        const style = (d.user.email_prefs && d.user.email_prefs.cert_style) || "bundled";
-        const radio = document.querySelector(`input[name="cert_style"][value="${style}"]`);
-        if (radio) radio.checked = true;
-    }
-
-    if (d.user.state === "pending_verification") {
-        document.getElementById("pending").hidden = false;
-        renderCodeStatus(d.user.code_state, d.user.code_expires_at);
-    } else if (d.user.state === "active") {
-        document.getElementById("active").hidden = false;
-        const channelId = d.user.yt_channel_id || "";
-        const displayName = d.user.yt_display_name_seen || "";
-        const line = document.getElementById("link-line");
-        const hint = document.getElementById("link-hint");
-        const channelWrap = document.getElementById("channel-wrap");
-
-        if (channelId && displayName) {
-            line.innerHTML = `Linked to YouTube as <strong>${escapeHtml(displayName)}</strong>`;
-            document.getElementById("channel").textContent = channelId;
-            channelWrap.hidden = false;
-            hint.hidden = true;
-        } else if (channelId) {
-            line.innerHTML = `Linked to YouTube <span class="pill pill-green" style="margin-left:4px;">Verified</span>`;
-            document.getElementById("channel").textContent = channelId;
-            channelWrap.hidden = false;
-            hint.hidden = true;
-        } else {
-            line.innerHTML = `Account <span class="pill pill-green" style="margin-left:4px;">Active</span>`;
-            channelWrap.hidden = true;
-            hint.innerHTML = "YouTube channel not yet linked. Auto-linking happens the first time the poller matches your SC-CPE code in a live briefing chat. Admin-reconciled credits (e.g. when the poller missed a briefing) don&rsquo;t link a channel — post your code during the next live briefing and we&rsquo;ll attach it automatically. Your existing credits are unaffected either way.";
-            hint.hidden = false;
-        }
-
-        if (d.user.verified_at) {
-            document.getElementById("verified-at-line").textContent =
-                `Verified ${formatDateTime(d.user.verified_at)}`;
-            document.getElementById("verified-at-line").hidden = false;
-        }
-    }
-
-    const cpe = Number(d.total_cpe_earned ?? 0);
-    document.getElementById("total").textContent = `${cpe.toFixed(1)} CPE`;
-
-    renderWindowWarnings(d.code_window_warnings || []);
-
-    calData = { attendance: d.attendance || [], appeals: d.appeals || [] };
-    renderToday(d.today);
-    renderCalendar();
-
-    renderAttendance(d.attendance || []);
-
-    renderCerts(d.certs || []);
-}
-
-function formatDateTime(iso) {
-    if (!iso) return "";
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return iso;
-    return d.toLocaleString(undefined, {
-        year: "numeric", month: "short", day: "numeric",
-        hour: "numeric", minute: "2-digit",
-    });
-}
-
-function formatDate(iso) {
-    if (!iso) return "";
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return iso;
-    return d.toLocaleDateString(undefined, {
-        year: "numeric", month: "short", day: "numeric",
-    });
-}
-
-function attendanceBadge(row) {
-    // Distinguishes the four possible provenance combinations so an auditor
-    // looking at the dashboard can tell at a glance whether a given credit
-    // is backed by live-chat evidence or only by admin discretion.
-    const hasEvidence = row.first_msg_sha256 && row.first_msg_sha256.length > 0;
-    if (row.source === "poll") {
-        return { cls: "pill-green", label: "Credited (live chat)",
-                 title: "Your message was seen in YouTube live chat during the live window." };
-    }
-    if (row.source === "admin_manual" && hasEvidence) {
-        return { cls: "pill-green", label: "Credited (admin-reconciled)",
-                 title: "Credit was added by an admin with chat evidence validated against the live window." };
-    }
-    if (row.source === "admin_manual") {
-        return { cls: "pill-amber", label: "Granted (admin)",
-                 title: "Credit was added manually by an admin without chat-evidence validation." };
-    }
-    if (row.source === "appeal_granted") {
-        return { cls: "pill-amber", label: "Credit via appeal",
-                 title: "Credit was granted after you filed an appeal." };
-    }
-    return { cls: "pill-grey", label: row.source };
-}
-
-function renderWindowWarnings(warnings) {
-    const card = document.getElementById("window-warn-card");
-    const body = document.getElementById("window-warn-body");
-    if (!warnings.length) { card.hidden = true; return; }
-    card.hidden = false;
-    body.innerHTML = "";
-    const intro = document.createElement("p");
-    intro.style.margin = "0 0 6px";
-    intro.textContent = warnings.length === 1
-        ? "We detected a chat message that couldn't be credited:"
-        : `We detected ${warnings.length} chat messages that couldn't be credited:`;
-    body.appendChild(intro);
-    const ul = document.createElement("ul");
-    ul.className = "warn-list";
-    for (const w of warnings.slice(0, 5)) {
-        const li = document.createElement("li");
-        const when = formatDateTime(w.posted_at);
-        const openAt = formatDateTime(w.window_open_at);
-        const label = w.kind === "attendance"
-            ? `Your message at <strong>${escapeHtml(when)}</strong> was posted before the live window opened (${escapeHtml(openAt)}) — no attendance credit was applied.`
-            : `Your verification code was posted at <strong>${escapeHtml(when)}</strong>, before the live window opened (${escapeHtml(openAt)}) — account not verified from that post.`;
-        li.innerHTML = label;
-        ul.appendChild(li);
-    }
-    body.appendChild(ul);
-}
-
-function renderAttendance(items) {
-    const host = document.getElementById("att");
-    host.innerHTML = "";
-    if (items.length === 0) {
-        document.getElementById("att-empty").hidden = false;
-        return;
-    }
-    host.hidden = false;
-    for (const a of items) {
-        const row = document.createElement("div");
-        row.className = "att-row";
-        const title = escapeHtml(a.title || a.yt_video_id);
-        const yt = `https://youtu.be/${encodeURIComponent(a.yt_video_id)}`;
-        const badge = attendanceBadge(a);
-        const headerRight = `<span class="pill ${badge.cls}"${badge.title ? ` title="${escapeHtml(badge.title)}"` : ""}>${escapeHtml(badge.label)}</span>`;
-        const date = formatDate(a.scheduled_date);
-        const hasEvidence = a.first_msg_sha256 && a.first_msg_sha256.length > 0;
-        const metaParts = [`${date}`, `${a.earned_cpe} CPE`];
-        if (a.source === "poll" || hasEvidence) {
-            metaParts.push(`first message ${formatDateTime(a.first_msg_at)}`);
-        }
-        if (a.credited_at) metaParts.push(`credited ${formatDateTime(a.credited_at)}`);
-        const meta = metaParts.join(" · ");
-        const actions = a.per_session_cert_exists
-            ? `<span class="att-ps-done">per-session cert issued</span>`
-            : `<button type="button" class="att-ps-btn" data-stream="${a.stream_id}">Request per-session cert</button>`;
-        row.innerHTML = `
-            <div class="att-row-top">
-                <div>
-                    <div class="att-title"><a href="${yt}" target="_blank" rel="noopener">${title}</a></div>
-                    <div class="att-meta">${meta}</div>
-                </div>
-                ${headerRight}
-            </div>
-            <div class="att-actions">${actions}</div>
-        `;
-        host.appendChild(row);
-    }
-    host.addEventListener("click", async (e) => {
-        const btn = e.target.closest(".att-ps-btn");
-        if (!btn || btn.disabled) return;
-        btn.disabled = true;
-        const stream = btn.dataset.stream;
-        const original = btn.textContent;
-        btn.textContent = "sending…";
-        try {
-            const r = await fetch(
-                `/api/me/${encodeURIComponent(token)}/cert-per-session/${encodeURIComponent(stream)}`,
-                { method: "POST", headers: { "Content-Type": "application/json" } },
-            );
-            const j = await r.json().catch(() => ({}));
-            if (!r.ok) throw new Error(j.error || "HTTP " + r.status);
-            btn.outerHTML = `<span class="att-ps-done">${j.existing ? "already issued" : "queued — arrives within ~2h"}</span>`;
-        } catch (err) {
-            btn.disabled = false;
-            btn.textContent = original;
-            btn.title = String(err.message || err);
-        }
-    });
-}
-
-function formatPeriod(yyyymm) {
-    // "202603" → "March 2026". Falls back to the raw value if malformed.
-    if (!/^\d{6}$/.test(yyyymm)) return yyyymm;
-    const year = Number(yyyymm.slice(0, 4));
-    const mo = Number(yyyymm.slice(4, 6)) - 1;
-    const months = ["January","February","March","April","May","June",
-                    "July","August","September","October","November","December"];
-    if (mo < 0 || mo > 11) return yyyymm;
-    return `${months[mo]} ${year}`;
-}
-
-function certStatePill(c, isSuperseded) {
-    // Maps DB states to user-facing labels. A "revoked" cert that was
-    // replaced by a newer active cert is framed as "Replaced" (neutral)
-    // rather than "Revoked" (alarming) — only genuinely-revoked-with-no-
-    // successor deserves the red treatment.
-    if (isSuperseded) return { cls: "pill-grey", label: "Replaced", title: "Superseded by a newer cert for this period." };
-    switch (c.state) {
-        case "delivered": return { cls: "pill-green", label: "Delivered" };
-        case "viewed_by_auditor": return { cls: "pill-green", label: "Viewed by auditor" };
-        case "generated": return { cls: "pill-amber", label: "Signed — not yet delivered" };
-        case "pending": return { cls: "pill-amber", label: "Signing…" };
-        case "revoked": return { cls: "pill-red", label: "Revoked" };
-        default: return { cls: "pill-grey", label: c.state };
-    }
-}
-
-function certKindLabel(k) {
-    return k === "per_session" ? "per-session" : "monthly bundle";
-}
-
-function renderCerts(items) {
-    const host = document.getElementById("certs");
-    host.innerHTML = "";
-    if (items.length === 0) {
-        document.getElementById("cert-empty").hidden = false;
-        return;
-    }
-    host.hidden = false;
-
-    // Group by period+kind so replaced/older certs collapse under the
-    // current one. Without this, a reissued month looks like 3 broken
-    // rows + 1 good row, which reads as "something is wrong."
-    const groups = new Map();
-    for (const c of items) {
-        const k = `${c.period_yyyymm}:${c.cert_kind}`;
-        if (!groups.has(k)) groups.set(k, []);
-        groups.get(k).push(c);
-    }
-    const primaryStates = new Set(["delivered", "viewed_by_auditor", "generated", "pending"]);
-    for (const list of groups.values()) {
-        const primary = list.find(c => primaryStates.has(c.state)) || list[0];
-        const history = list.filter(c => c !== primary);
-        host.appendChild(certCard(primary, false));
-        if (history.length) {
-            const wrap = document.createElement("div");
-            const btn = document.createElement("button");
-            btn.type = "button"; btn.className = "cert-history-toggle";
-            btn.textContent = `Show ${history.length} earlier version${history.length > 1 ? "s" : ""}`;
-            const box = document.createElement("div");
-            box.hidden = true;
-            btn.addEventListener("click", () => {
-                box.hidden = !box.hidden;
-                btn.textContent = box.hidden
-                    ? `Show ${history.length} earlier version${history.length > 1 ? "s" : ""}`
-                    : `Hide earlier versions`;
-            });
-            for (const h of history) box.appendChild(certCard(h, true));
-            wrap.appendChild(btn); wrap.appendChild(box);
-            host.appendChild(wrap);
-        }
-    }
-}
-
-function certCard(c, isSuperseded) {
-    const row = document.createElement("div");
-    row.className = "cert-row" + (isSuperseded ? " is-superseded" : "");
-    const pill = certStatePill(c, isSuperseded);
-    const period = formatPeriod(c.period_yyyymm);
-    const cpe = Number(c.cpe_total).toFixed(1);
-    const s = c.sessions_count === 1 ? "session" : "sessions";
-    // Auditor-visible timeline. Surfacing these dates makes the cert
-    // independently verifiable without us — an auditor can cross-reference
-    // the delivered_at / first_viewed_at timestamps against the signed PDF
-    // metadata and the public audit chain.
-    const timeline = [];
-    if (c.generated_at) timeline.push(`signed ${formatDateTime(c.generated_at)}`);
-    if (c.delivered_at) timeline.push(`delivered ${formatDateTime(c.delivered_at)}`);
-    if (c.first_viewed_at) timeline.push(`first viewed by auditor ${formatDateTime(c.first_viewed_at)}`);
-    const timelineHtml = timeline.length
-        ? `<div class="cert-meta" style="margin-top:6px;font-style:italic;">${escapeHtml(timeline.join(" · "))}</div>`
-        : "";
-
-    row.innerHTML = `
-        <div class="cert-row-top">
-            <div>
-                <div class="cert-period">${escapeHtml(period)}</div>
-                <div class="cert-meta">${cpe} CPE · ${c.sessions_count} ${s} · ${certKindLabel(c.cert_kind)}</div>
-                ${timelineHtml}
-            </div>
-            <span class="pill ${pill.cls}"${pill.title ? ` title="${escapeHtml(pill.title)}"` : ""}>${escapeHtml(pill.label)}</span>
-        </div>
-        <div class="cert-actions">
-            <a class="cert-verify" href="/verify.html?t=${encodeURIComponent(c.public_token)}" target="_blank" rel="noopener">Open certificate ↗</a>
-            <details class="fb-details" data-cert="${c.id}">
-                <summary>Report an issue</summary>
-                <div class="fb-picker">
-                    <button type="button" class="fb-btn" data-r="ok" title="Everything looks right">Looks good</button>
-                    <button type="button" class="fb-btn" data-r="typo" title="Name or metadata typo">Typo</button>
-                    <button type="button" class="fb-btn" data-r="wrong" title="Wrong data / missing sessions">Wrong</button>
-                </div>
-                <span class="fb-msg muted" style="display:none;font-size:11px;"></span>
-            </details>
-        </div>
-    `;
-    row.querySelector(".fb-picker").addEventListener("click", async (e) => {
-        const btn = e.target.closest(".fb-btn");
-        if (!btn) return;
-        const rating = btn.dataset.r;
-        let note = null;
-        if (rating !== "ok") {
-            note = prompt(`What's ${rating}? (optional, max 500 chars)`) || null;
-        }
-        const msg = row.querySelector(".fb-msg");
-        msg.style.display = "inline";
-        msg.textContent = "sending…";
-        try {
-            const r = await fetch(`/api/me/${encodeURIComponent(token)}/cert-feedback`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ cert_id: c.id, rating, note }),
-            });
-            if (!r.ok) throw new Error("HTTP " + r.status);
-            msg.textContent = rating === "ok" ? "thanks!" : "logged — we'll follow up";
-        } catch (err) {
-            msg.textContent = "failed: " + err.message;
-        }
-    });
-    return row;
-}
-
-function renderCodeStatus(codeState, codeExpiresAt) {
-    const status = document.getElementById("code-status");
-    const btn = document.getElementById("resend-btn");
-    const friendly = codeExpiresAt
-        ? new Date(codeExpiresAt).toLocaleString(undefined, {
-            year: "numeric", month: "short", day: "numeric",
-            hour: "2-digit", minute: "2-digit",
-          })
-        : "";
-    if (codeState === "active") {
-        status.innerHTML = `Your code expires <strong>${friendly}</strong>. Lost it?`;
-        btn.hidden = false;
-    } else if (codeState === "expired") {
-        status.innerHTML = `<strong class="code-expired-note">Your code expired ${friendly}.</strong>
-            Request a fresh one — the new code is delivered by email.`;
-        btn.hidden = false;
-    } else {
-        status.textContent = "No active code on file. Request one below.";
-        btn.hidden = false;
-    }
-}
-
-document.getElementById("prefs-radios").addEventListener("change", async (e) => {
-    const radio = e.target.closest('input[name="cert_style"]');
-    if (!radio) return;
-    const msg = document.getElementById("prefs-msg");
-    msg.hidden = false;
-    msg.textContent = "saving…";
-    try {
-        const r = await fetch(`/api/me/${encodeURIComponent(token)}/prefs`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ cert_style: radio.value }),
-        });
-        if (!r.ok) throw new Error("HTTP " + r.status);
-        msg.textContent = "saved — next monthly run will respect this.";
-    } catch (err) {
-        msg.textContent = "failed: " + err.message;
-    }
-});
-
-document.getElementById("rotate-btn").addEventListener("click", async () => {
-    if (!confirm("Rotate your dashboard link now?\n\nWe'll email the new URL to the address on file. This page will stop working a few seconds later.")) return;
-    const btn = document.getElementById("rotate-btn");
-    const msg = document.getElementById("rotate-msg");
-    btn.disabled = true;
-    msg.hidden = true;
-    try {
-        const r = await fetch(`/api/me/${encodeURIComponent(token)}/rotate`,
-            { method: "POST" });
-        const d = await r.json().catch(() => ({}));
-        if (r.ok) {
-            msg.textContent = "Rotated. Check your email for the new link — this one stops working shortly.";
-            msg.style.color = "var(--ok-soft-text)";
-            btn.textContent = "Rotated ✓";
-            // Leave button disabled — the old token is already invalid.
-        } else if (r.status === 429) {
-            msg.textContent = "Too many rotations — try again in an hour.";
-            msg.style.color = "var(--bad-soft-text)";
-            btn.disabled = false;
-        } else if (r.status === 403) {
-            msg.textContent = "Blocked (origin check failed). Open the dashboard URL directly in your browser.";
-            msg.style.color = "var(--bad-soft-text)";
-            btn.disabled = false;
-        } else {
-            msg.textContent = `Couldn't rotate (${r.status}).`;
-            msg.style.color = "var(--bad-soft-text)";
-            btn.disabled = false;
-        }
-        msg.hidden = false;
-    } catch {
-        msg.textContent = "Network error — try again.";
-        msg.style.color = "var(--bad-soft-text)";
-        msg.hidden = false;
-        btn.disabled = false;
-    }
-});
-
-document.getElementById("resend-btn").addEventListener("click", async () => {
-    const btn = document.getElementById("resend-btn");
-    const msg = document.getElementById("resend-msg");
-    btn.disabled = true;
-    msg.hidden = true;
-    try {
-        const r = await fetch(`/api/me/${encodeURIComponent(token)}/resend-code`,
-            { method: "POST" });
-        const d = await r.json().catch(() => ({}));
-        if (r.ok) {
-            msg.textContent = "New code sent. Check your email.";
-            msg.style.color = "var(--ok-soft-text)";
-        } else if (r.status === 429) {
-            msg.textContent = "Too many requests — try again in an hour.";
-            msg.style.color = "var(--bad-soft-text)";
-        } else if (r.status === 409) {
-            msg.textContent = "Already verified — no code needed.";
-            msg.style.color = "var(--ok-soft-text)";
-        } else {
-            msg.textContent = `Couldn't send code (${r.status}).`;
-            msg.style.color = "var(--bad-soft-text)";
-        }
-        msg.hidden = false;
-    } catch {
-        msg.textContent = "Network error — try again.";
-        msg.style.color = "var(--bad-soft-text)";
-        msg.hidden = false;
-    } finally {
-        btn.disabled = false;
-    }
-});
-
-function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, c => ({
-        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;",
-    }[c]));
-}
-
-// Near-real-time credit receipt. While a stream is live, poll /api/me every
-// 30s so a qualifying chat message flips the badge from "waiting" to
-// "credited" within one poller cycle. Stops polling once the stream
-// completes or the user is already credited.
-let refreshTimer = null;
-function renderToday(today) {
-    const card = document.getElementById("today-card");
-    if (!today) {
-        card.hidden = true;
-        if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
-        return;
-    }
-    card.hidden = false;
-    document.getElementById("today-title").textContent =
-        (today.title || "") + (today.actual_start_at
-            ? "  ·  started " + new Date(today.actual_start_at).toLocaleTimeString()
-            : "");
-    const status = document.getElementById("today-status");
-    const hint = document.getElementById("today-hint");
-    if (today.credited) {
-        status.innerHTML = "<strong class='today-credited'>&#10003; Credited</strong> &nbsp;0.5 CPE recorded for this session.";
-        hint.hidden = true;
-    } else if (today.state === "live") {
-        status.innerHTML = "<strong class='today-waiting'>&#9203; Waiting for qualifying message</strong>";
-        hint.hidden = false;
-        if (refreshTimer) clearTimeout(refreshTimer);
-        refreshTimer = setTimeout(() => { refreshTimer = null; load(); }, 30000);
-        return;
-    } else {
-        const credits = (calData.attendance || []).length;
-        const lastCredit = credits
-            ? [...calData.attendance].sort((a, b) =>
-                (b.session_date || "").localeCompare(a.session_date || ""))[0]
-            : null;
-        const priorLine = credits
-            ? ` You have <strong>${credits}</strong> prior session${credits === 1 ? "" : "s"} credited` +
-              (lastCredit ? ` (most recent ${lastCredit.session_date}).` : ".")
-            : "";
-        status.innerHTML =
-            "<strong class='today-missed'>This session ended without credit.</strong> " +
-            "We didn't see your code in the chat for this briefing." + priorLine +
-            " <br><span class='muted' style='font-size:12px;'>" +
-            "If you believe you posted a qualifying message, open an appeal from the attendance calendar." +
-            "</span>";
-        hint.hidden = true;
-    }
-    if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
-}
-
-// Calendar state — user can page backward/forward. Default is the month
-// containing today so the current DTB is visible on load.
-let calCursor = new Date();
-calCursor.setDate(1);
-let calData = { attendance: [], appeals: [] };
-
-document.getElementById("cal-prev").addEventListener("click", () => {
-    calCursor.setMonth(calCursor.getMonth() - 1);
-    renderCalendar();
-});
-document.getElementById("cal-next").addEventListener("click", () => {
-    calCursor.setMonth(calCursor.getMonth() + 1);
-    renderCalendar();
-});
-
-function renderCalendar() {
-    const grid = document.getElementById("cal");
-    grid.innerHTML = "";
-    const y = calCursor.getFullYear();
-    const m = calCursor.getMonth();
-    document.getElementById("cal-label").textContent =
-        calCursor.toLocaleDateString(undefined, { month: "long", year: "numeric" });
-
-    for (const h of ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]) {
-        const d = document.createElement("div");
-        d.className = "cal-head";
-        d.textContent = h;
-        grid.appendChild(d);
-    }
-
-    const credited = new Set();
-    for (const a of calData.attendance) if (a.scheduled_date) credited.add(a.scheduled_date);
-    const appealsByDate = new Map();
-    for (const ap of calData.appeals) {
-        if (!appealsByDate.has(ap.claimed_date)) appealsByDate.set(ap.claimed_date, []);
-        appealsByDate.get(ap.claimed_date).push(ap);
-    }
-
-    const firstDow = new Date(y, m, 1).getDay();
-    const daysInMonth = new Date(y, m + 1, 0).getDate();
-    const todayIso = new Date().toISOString().slice(0, 10);
-
-    for (let i = 0; i < firstDow; i++) {
-        const cell = document.createElement("div");
-        cell.className = "cal-cell cal-empty";
-        grid.appendChild(cell);
-    }
-    for (let day = 1; day <= daysInMonth; day++) {
-        const iso = `${y}-${String(m + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-        const cell = document.createElement("div");
-        cell.className = "cal-cell";
-        if (iso === todayIso) cell.classList.add("cal-today");
-
-        const dots = [];
-        if (credited.has(iso)) {
-            cell.classList.add("has-credit");
-            dots.push(`<span class="cal-dot cal-credited" title="credited"></span>`);
-        }
-        const appeals = appealsByDate.get(iso) || [];
-        for (const ap of appeals) {
-            if (ap.state === "open") {
-                cell.classList.add("has-appeal-open");
-                dots.push(`<span class="cal-dot cal-appeal-open" title="appeal pending"></span>`);
-            } else if (ap.state === "granted") {
-                cell.classList.add("has-appeal-granted");
-                dots.push(`<span class="cal-dot cal-appeal-granted" title="appeal granted"></span>`);
-            } else if (ap.state === "denied") {
-                cell.classList.add("has-appeal-denied");
-                dots.push(`<span class="cal-dot cal-appeal-denied" title="appeal denied"></span>`);
-            }
-        }
-
-        cell.innerHTML = `<span class="cal-day">${day}</span>
-            <span class="cal-dots">${dots.join("")}</span>`;
-        cell.title = [
-            credited.has(iso) ? "credited" : "",
-            ...appeals.map(ap => `appeal ${ap.state}`),
-        ].filter(Boolean).join(" · ") || iso;
-        grid.appendChild(cell);
-    }
-}
-
-load();
-</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG" crossorigin="anonymous" defer></script>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+<script src="/dashboard.js"></script>
 </body>
 </html>

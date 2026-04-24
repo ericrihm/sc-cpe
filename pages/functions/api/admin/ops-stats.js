@@ -20,6 +20,7 @@ export async function onRequestGet({ request, env }) {
         outboxOldestQueued, outboxOldestFailed,
         certsPending, certsOldestPending,
         auditTip,
+        activeNoChannel,
     ] = await Promise.all([
         env.DB.prepare("SELECT COUNT(*) AS n FROM users WHERE deleted_at IS NULL").first(),
         env.DB.prepare("SELECT COUNT(*) AS n FROM users WHERE state = 'active'").first(),
@@ -36,10 +37,17 @@ export async function onRequestGet({ request, env }) {
         env.DB.prepare("SELECT COUNT(*) AS n FROM certs WHERE state = 'pending'").first(),
         env.DB.prepare("SELECT MIN(created_at) AS ts FROM certs WHERE state = 'pending'").first(),
         env.DB.prepare("SELECT id, ts, prev_hash FROM audit_log ORDER BY ts DESC, id DESC LIMIT 1").first(),
+        env.DB.prepare(
+            "SELECT COUNT(*) AS n FROM users WHERE state = 'active' AND yt_channel_id IS NULL AND deleted_at IS NULL"
+        ).first(),
     ]);
 
     const nowMs = Date.now();
     const ageSecs = (iso) => iso ? Math.max(0, Math.floor((nowMs - new Date(iso).getTime()) / 1000)) : null;
+
+    const pollerBeat = await env.DB.prepare(
+        "SELECT detail_json FROM heartbeats WHERE source = 'poller'"
+    ).first();
 
     const fixtureStreams = await env.DB.prepare(
         "SELECT COUNT(*) AS n FROM streams WHERE id LIKE '01KTEST%' OR yt_video_id LIKE 'TEST%'",
@@ -59,6 +67,7 @@ export async function onRequestGet({ request, env }) {
             total: usersTotal?.n ?? 0,
             active: usersActive?.n ?? 0,
             pending: usersPending?.n ?? 0,
+            active_no_channel: activeNoChannel?.n ?? 0,
         },
         last_24h: {
             attendance: attendance24h?.n ?? 0,
@@ -87,6 +96,11 @@ export async function onRequestGet({ request, env }) {
             streams: fixtureStreams?.n ?? 0,
             attendance: fixtureAttendance?.n ?? 0,
             users: fixtureUsers?.n ?? 0,
+        },
+        poller: {
+            auth_method: pollerBeat?.detail_json
+                ? (JSON.parse(pollerBeat.detail_json).auth_method ?? null)
+                : null,
         },
     };
     payload.warnings = computeWarnings(payload);
@@ -155,10 +169,24 @@ export function computeWarnings(s) {
             `${s.users.pending} pending vs ${s.users.active} active — unusually high unverified signup rate`);
     }
 
+    // Active users without a YouTube channel can't complete verification
+    // via the normal chat-code flow. Usually means admin-granted attendance
+    // or a resend-code regression — either way, worth investigating.
+    if (s.users.active_no_channel > 0) {
+        push("warn", "active_no_channel",
+            `${s.users.active_no_channel} active user(s) without YouTube channel linked — may need resend-code`);
+    }
+
     // Open appeals: anything open > 0 is worth an admin eyeball.
     if (s.appeals_open > 0) {
         push("warn", "appeals_open",
             `${s.appeals_open} open appeal(s) awaiting admin review`);
+    }
+
+    // OAuth degraded — poller is using API key fallback instead of OAuth.
+    if (s.poller?.auth_method === "api_key") {
+        push("warn", "poller_oauth_degraded",
+            "Poller is using API key fallback — OAuth refresh token may have expired (7-day testing mode limit)");
     }
 
     // Fixture pollution in prod — test data leaked into production DB.

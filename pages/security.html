@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Security &mdash; Simply Cyber CPE</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<meta name="theme-color" content="#0b3d5c">
+<style>
+.scope-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin:1rem 0 1.5rem; }
+@media (max-width:600px) { .scope-grid { grid-template-columns:1fr; } }
+.scope-card { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:1rem; }
+.scope-card h3 { margin:0 0 .5rem; font-size:.95rem; }
+.scope-card ul { margin:0; padding-left:1.25rem; font-size:.85rem; color:var(--muted); }
+.rules-list { list-style:none; padding:0; margin:1rem 0; }
+.rules-list li { padding:.5rem 0; border-bottom:1px solid var(--border); font-size:.9rem; }
+.rules-list li:last-child { border-bottom:none; }
+.rules-list .do { color:var(--ok); font-weight:600; }
+.rules-list .dont { color:var(--bad); font-weight:600; }
+.sla-table { width:100%; border-collapse:collapse; margin:1rem 0; font-size:.85rem; }
+.sla-table th, .sla-table td { text-align:left; padding:.5rem .75rem; border-bottom:1px solid var(--border); }
+.sla-table th { color:var(--muted); font-weight:500; font-size:.8rem; text-transform:uppercase; letter-spacing:.04em; }
+.hof-entry { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:1rem 1.25rem; margin:.75rem 0; }
+.hof-entry .name { font-weight:600; }
+.hof-entry .date { color:var(--muted); font-size:.8rem; }
+.hof-entry .detail { font-size:.85rem; color:var(--muted); margin-top:.25rem; }
+.empty-hof { text-align:center; padding:2rem; color:var(--muted); font-style:italic; border:1px dashed var(--border); border-radius:8px; margin:1rem 0; }
+</style>
+</head>
+<body>
+<main class="narrow">
+
+<h1><a href="/">SC-CPE</a> Security</h1>
+<p class="lead">We take security seriously. If you find a vulnerability, we want to hear about it.</p>
+
+<h2>Scope</h2>
+<div class="scope-grid">
+  <div class="scope-card" style="border-color:var(--ok-soft-border);background:var(--ok-soft-bg);">
+    <h3 style="color:var(--ok);">In scope</h3>
+    <ul>
+      <li>Certificate forgery / revocation bypass</li>
+      <li>Audit log tampering or chain-break</li>
+      <li>Auth bypass on <code>/api/admin/*</code> or <code>/api/me/*</code></li>
+      <li>Cross-user data leakage (dashboard token, cert, attendance)</li>
+      <li>XSS / injection reaching the verify portal or PDF issuer</li>
+      <li>CSRF on state-changing endpoints</li>
+      <li>Rate limit bypass or amplification</li>
+      <li>Information disclosure (PII, secrets, stack traces)</li>
+    </ul>
+  </div>
+  <div class="scope-card" style="border-color:var(--bad-soft-border);background:var(--bad-soft-bg);">
+    <h3 style="color:var(--bad);">Out of scope</h3>
+    <ul>
+      <li>Denial of service without amplification</li>
+      <li>Clickjacking on non-sensitive pages</li>
+      <li>Best-practice header nits without exploit path</li>
+      <li>Theoretical timing attacks on high-entropy tokens</li>
+      <li>Social engineering / phishing of users or admins</li>
+      <li>Attacks requiring physical access</li>
+    </ul>
+  </div>
+</div>
+
+<h2>Rules of engagement</h2>
+<ul class="rules-list">
+  <li><span class="do">DO</span> test against the production site: <code>sc-cpe-web.pages.dev</code></li>
+  <li><span class="do">DO</span> create your own test account for testing</li>
+  <li><span class="do">DO</span> report findings to <a href="mailto:certs@signalplane.co?subject=%5BSECURITY%5D%20SC-CPE%20disclosure">certs@signalplane.co</a> with <code>[SECURITY]</code> in the subject</li>
+  <li><span class="do">DO</span> include reproduction steps, impact assessment, and suggested fix if possible</li>
+  <li><span class="dont">DON'T</span> exfiltrate other users' PII or destroy data</li>
+  <li><span class="dont">DON'T</span> spam registration, verification, or chat-code endpoints for volume testing</li>
+  <li><span class="dont">DON'T</span> publicly disclose before the fix ships (coordinated disclosure)</li>
+  <li><span class="dont">DON'T</span> use automated scanners at high volume &mdash; rate limits will trip and you'll poison telemetry</li>
+</ul>
+
+<h2>Response SLA</h2>
+<table class="sla-table">
+  <thead><tr><th>Stage</th><th>Timeline</th></tr></thead>
+  <tbody>
+    <tr><td>Acknowledgement</td><td>3 business days</td></tr>
+    <tr><td>Triage + initial assessment</td><td>7 business days</td></tr>
+    <tr><td>Fix or mitigation (P0/P1)</td><td>30 days</td></tr>
+  </tbody>
+</table>
+
+<h2>Recognition</h2>
+<p>We don't run a paid bug bounty. Researchers who report valid findings are credited below and in the repo's <code>SECURITY.md</code>. Tell us how you'd like to be credited in your report.</p>
+
+<h2>Hall of Fame</h2>
+<div class="empty-hof">
+  Be the first to find a vulnerability and earn your place here.
+</div>
+
+<!-- Template for future entries:
+<div class="hof-entry">
+  <span class="name">Researcher Name</span>
+  <span class="date">2026-04-24</span>
+  <div class="detail">Description of finding &mdash; severity, affected component</div>
+</div>
+-->
+
+<h2>Defense posture</h2>
+<p style="font-size:.85rem;color:var(--muted);margin-bottom:.75rem;">What you're up against. Source is public &mdash; we're not hiding behind obscurity.</p>
+<ul style="font-size:.85rem;line-height:1.8;">
+  <li><strong>CSP:</strong> <code>script-src 'self'</code> &mdash; no inline scripts, no eval, with <code>report-uri</code> violation monitoring</li>
+  <li><strong>SRI:</strong> CDN scripts pinned with SHA-384 integrity hashes</li>
+  <li><strong>Auth:</strong> Constant-time HMAC comparison on bearer tokens, <code>__Host-</code> prefix cookies with HttpOnly/Secure/SameSite=Strict</li>
+  <li><strong>Rate limiting:</strong> Fail-closed on all endpoints (missing KV = 503, not silent pass). X-RateLimit-* headers on every 429</li>
+  <li><strong>CSRF:</strong> Origin validation on all state-changing <code>/api/me/*</code> endpoints</li>
+  <li><strong>Audit trail:</strong> Hash-chained append-only log with UNIQUE index on <code>prev_hash</code> &mdash; tamper-evident by construction</li>
+  <li><strong>Monitoring:</strong> Honeypot traps, security event counters, CSP violation logging, real-time admin dashboard</li>
+  <li><strong>CI/CD:</strong> CodeQL SAST + gitleaks secret scanning + post-deploy smoke tests on every push</li>
+  <li><strong>Certs:</strong> PAdES-T signed PDFs with public CRL and independent verification portal</li>
+</ul>
+
+<h2>Resources</h2>
+<ul style="font-size:.9rem;">
+  <li><a href="/.well-known/security.txt">security.txt</a> (RFC 9116)</li>
+  <li><a href="/privacy.html#security">Privacy policy &mdash; security section</a></li>
+  <li><a href="https://github.com/ericrihm/sc-cpe">Source code (GitHub)</a></li>
+  <li><a href="https://github.com/ericrihm/sc-cpe/blob/main/SECURITY.md">SECURITY.md</a></li>
+  <li><a href="/robots.txt">robots.txt</a></li>
+</ul>
+
+<p class="muted small" style="margin-top:2rem;">
+  This site runs on Cloudflare Pages + Workers + D1. The full source is public.
+  All certificates are PAdES-T signed with a hash-chained audit log.
+  See <a href="https://github.com/ericrihm/sc-cpe/blob/main/docs/DESIGN.md">DESIGN.md</a> for architecture.
+</p>
+
+</main>
+</body>
+</html>

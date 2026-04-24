@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>SC-CPE Achievement Badge</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<meta name="theme-color" content="#0b3d5c">
+<meta property="og:title" content="SC-CPE Achievement Badge">
+<meta property="og:description" content="CPE credits earned attending Simply Cyber's Daily Threat Briefing, verified via cryptographic audit chain.">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="SC-CPE Achievement Badge">
+<meta name="twitter:description" content="CPE credits earned attending Simply Cyber's Daily Threat Briefing.">
+<meta name="color-scheme" content="light dark">
+<script src="/theme.js"></script>
+<link rel="stylesheet" href="/badge.css">
+</head>
+<body>
+<main class="narrow">
+    <h1><a href="/">SC-CPE</a> — Achievement Badge</h1>
+    <div id="err" class="err" hidden></div>
+    <div id="body" hidden>
+        <div class="badge-wrap">
+            <img id="badge-img" alt="SC-CPE Achievement Badge">
+        </div>
+        <div class="stats-grid">
+            <div class="stat-card"><div class="stat-val" id="stat-cpe">--</div><div class="stat-label">CPE earned</div></div>
+            <div class="stat-card"><div class="stat-val" id="stat-streak">--</div><div class="stat-label">Day streak</div></div>
+            <div class="stat-card"><div class="stat-val" id="stat-sessions">--</div><div class="stat-label">Sessions</div></div>
+        </div>
+        <div class="share-row">
+            <a id="share-linkedin" class="btn-linkedin" target="_blank" rel="noopener">Share on LinkedIn</a>
+            <a id="share-x" class="btn-x" target="_blank" rel="noopener">Share on X</a>
+        </div>
+        <p class="badge-verified">
+            Verified via cryptographic audit chain.
+            <a href="https://simplycyber.io" target="_blank" rel="noopener">Simply Cyber</a>
+        </p>
+    </div>
+    <footer class="site-footer">
+        <a href="/faq.html">FAQ</a>
+        <a href="/leaderboard.html">Leaderboard</a>
+        <a href="/links.html">Show Links</a>
+        <a href="/status.html">Status</a>
+        <a href="/verify.html">Verify a cert</a>
+        <a href="/terms.html">Terms</a>
+        <a href="/privacy.html">Privacy</a>
+    </footer>
+</main>
+<script src="/badge.js"></script>
+</body>
+</html>

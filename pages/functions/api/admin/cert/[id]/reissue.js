@@ -35,6 +35,9 @@ export async function onRequestPost({ params, request, env }) {
     if (old.state === "revoked") {
         return json({ error: "cannot_reissue_revoked" }, 409);
     }
+    if (old.state === "regenerated") {
+        return json({ error: "cannot_reissue_already_superseded" }, 409);
+    }
 
     const existing = await env.DB.prepare(
         "SELECT id, state FROM certs WHERE supersedes_cert_id = ?1 AND state = 'pending'"
@@ -46,6 +49,10 @@ export async function onRequestPost({ params, request, env }) {
     const newId = ulid();
     const publicToken = randomHex(32);
     const ts = now();
+
+    await env.DB.prepare(
+        "UPDATE certs SET state = 'regenerated' WHERE id = ?1 AND state != 'revoked'"
+    ).bind(certId).run();
 
     await env.DB.prepare(`
         INSERT INTO certs (

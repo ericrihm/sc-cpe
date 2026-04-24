@@ -67,6 +67,41 @@ Checks HMAC admin compare, CSRF gates, preflight/channel rate-limit, and
 audit chain integrity. Any FAIL = roll back or investigate before letting a
 briefing run.
 
+## Incident Response
+
+### Severity levels
+
+| Level | Trigger | Response target | Examples |
+|-------|---------|----------------|----------|
+| P1 — System down | All heartbeats stale, audit chain broken, cert generation failed >12h | 4 hours | Poller + purge + email-sender all stale; chain fork detected |
+| P2 — Degraded | Single source stale after auto-heal, email delivery <80%, >100 queued emails >30 min old | 24 hours | Poller stale (no attendance credited), email backlog growing |
+| P3 — Cosmetic | Schema drift, non-blocking ops-stats warnings, cert nudge timing off | 1 week | Schema drift alert (no data loss, DDL mismatch only) |
+
+### Escalation path
+
+1. Watchdog detects stale source → runs `self-heal.sh` automatically.
+2. Self-heal fails → watchdog creates GitHub issue with `auto-heal-escalation`
+   label + diagnostic bundle.
+3. Operator receives GitHub notification → triages per severity table.
+4. P1 with no response within 4h → check Discord alert webhook.
+5. Manual intervention: `gh workflow run heal.yml -f sources="<source>"` or
+   direct `wrangler` commands per the relevant RUNBOOK section.
+
+### Post-incident
+
+After resolving any P1 or P2, append an entry to the Past Incidents section below.
+
+## Past Incidents
+
+_(None yet. Each entry follows this template:)_
+
+### YYYY-MM-DD — one-line summary
+
+- **Trigger:** What watchdog detected
+- **Root cause:** What actually went wrong
+- **Resolution:** What fixed it
+- **Follow-up:** Any preventive action taken
+
 ## Poller worker
 
 - Lives at `workers/poller/`. Auto-deployed by
@@ -140,3 +175,106 @@ cd pages && wrangler pages secret put ADMIN_TOKEN
 The HMAC compare in `isAdmin` means wrong tokens leak nothing about the
 expected token's length or bytes — rotating is still prudent on any
 suspected exposure.
+
+## Disaster Recovery
+
+### How backups work
+
+- **Weekly** (Sunday 06:00 UTC): GitHub Actions exports D1 via `wrangler d1 export`,
+  uploads the SQL dump to R2 bucket `sc-cpe-backups`, and saves a 30-day GitHub
+  artifact as secondary copy.
+- **Retention:** R2 keeps 90 days (lifecycle rule). GitHub artifacts keep 30 days.
+  Local `/tmp` keeps 4 files (rotated).
+- **Data loss window:** Up to 7 days (weekly cadence). If this is too wide,
+  increase the cron frequency in `.github/workflows/backup.yml`.
+
+### List available backups
+
+```sh
+bash scripts/restore_d1.sh --list
+```
+
+### Restore from R2
+
+```sh
+# Most recent backup
+bash scripts/restore_d1.sh --latest --confirm
+
+# Specific backup
+bash scripts/restore_d1.sh d1-backup-20260420-060012.sql --confirm
+```
+
+**Warning:** This overwrites the production D1 database. All data written
+since the backup was taken will be lost.
+
+### Test the restore path
+
+Trigger the backup workflow with `test_restore=true`:
+
+```sh
+gh workflow run backup.yml -f test_restore=true
+```
+
+This creates a throwaway D1, imports the backup, runs sanity queries, and
+deletes the throwaway DB. It does not touch production.
+
+### After a restore
+
+1. Run `scripts/smoke_hardening.sh` to verify endpoints work.
+2. Check `/api/admin/audit-chain-verify` — the chain should be intact
+   (the backup includes all audit rows).
+3. Check heartbeats — cron workers will re-beat on their next tick.
+4. Any registrations, attendance, or certs created since the backup was
+   taken are lost. Communicate to affected users if applicable.
+
+## DNS: DMARC Record
+
+Add a TXT record for `_dmarc.signalplane.co`:
+
+```
+v=DMARC1; p=none; rua=mailto:dmarc-reports@signalplane.co
+```
+
+DKIM is configured via Resend. SPF is set. This adds DMARC reporting
+without enforcement (`p=none`). Once reports confirm alignment, consider
+escalating to `p=quarantine`.
+
+Verify: `dig TXT _dmarc.signalplane.co +short`
+
+## Open Badge Signing Key (Ed25519)
+
+### Initial setup
+
+Generate an Ed25519 keypair and store the private key as a Pages secret:
+
+```sh
+node -e "
+const crypto = require('crypto');
+const kp = crypto.generateKeyPairSync('ed25519');
+const der = kp.privateKey.export({ type: 'pkcs8', format: 'der' });
+console.log(der.slice(-32).toString('base64'));
+"
+```
+
+Then store it:
+
+```sh
+cd pages && wrangler pages secret put OB_SIGNING_KEY
+# paste the base64 string when prompted
+```
+
+### Verify
+
+```sh
+curl -s https://sc-cpe-web.pages.dev/api/ob/jwks | jq .
+```
+
+Should return a JWK with `"kty": "OKP"`, `"crv": "Ed25519"`, and a populated `x` field.
+
+### Rotation
+
+Same as initial setup. Generate a new key, update the secret, redeploy.
+After rotation, credentials signed with the old key are no longer verifiable
+via the JWKS endpoint. If backward verification matters, keep the old public
+key in the JWKS response (multi-key support — add a second entry to the
+`keys` array with a different `kid`).

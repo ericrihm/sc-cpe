@@ -1,4 +1,4 @@
-import { audit, clientIp, ipHash } from "../../_lib.js";
+import { json, audit, clientIp, ipHash, rateLimit } from "../../_lib.js";
 
 // Durable cert-PDF download endpoint. Email links point here instead of at
 // a presigned R2 URL because S3 presigned URLs cap at 604800s (7 days) —
@@ -15,6 +15,10 @@ export async function onRequestGet({ params, env, request }) {
         return new Response("invalid token", { status: 400 });
     }
 
+    const ipH = await ipHash(clientIp(request));
+    const rl = await rateLimit(env, `download:${ipH}`, 60);
+    if (!rl.ok) return json(rl.body, rl.status, rl.headers);
+
     const row = await env.DB.prepare(`
         SELECT id, pdf_r2_key, pdf_sha256, state, period_yyyymm, recipient_name_snapshot
         FROM certs WHERE public_token = ?1
@@ -23,7 +27,7 @@ export async function onRequestGet({ params, env, request }) {
     if (!row) {
         return new Response("not found", { status: 404 });
     }
-    if (row.state === "revoked") {
+    if (row.state === "revoked" || row.state === "regenerated") {
         return new Response("certificate revoked", { status: 410 });
     }
     if (!row.pdf_r2_key) {
@@ -58,7 +62,7 @@ export async function onRequestGet({ params, env, request }) {
         }
     }
 
-    await audit(env, "api", null, "cert_downloaded", "cert", row.id, null, {
+    await audit(env, "api", null, "cert_downloaded", "cert", row.id, null, null, {
         ip_hash: await ipHash(clientIp(request)),
     });
 

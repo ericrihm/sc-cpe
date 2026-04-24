@@ -7,7 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-    isSameOrigin, escapeLike, isValidEmail, isValidName,
+    isSameOrigin, escapeLike, isValidEmail, isValidName, isValidToken,
 } from "./_lib.js";
 
 function req(url, headers = {}) {
@@ -111,4 +111,27 @@ test("isValidName: rejects control chars / zero-width / BOM", () => {
 test("isValidName: requires at least one letter", () => {
     assert.equal(isValidName("1234567"), false);
     assert.equal(isValidName("-- --"), false);
+});
+
+test("isValidToken: accepts 64-char lowercase hex", () => {
+    assert.equal(isValidToken("a".repeat(64)), true);
+    assert.equal(isValidToken("0123456789abcdef".repeat(4)), true);
+});
+
+test("isValidToken: rejects wrong length", () => {
+    assert.equal(isValidToken("a".repeat(63)), false);
+    assert.equal(isValidToken("a".repeat(65)), false);
+    assert.equal(isValidToken(""), false);
+});
+
+test("isValidToken: rejects uppercase and non-hex chars", () => {
+    assert.equal(isValidToken("A".repeat(64)), false);
+    assert.equal(isValidToken("g" + "a".repeat(63)), false);
+    assert.equal(isValidToken("!" + "a".repeat(63)), false);
+});
+
+test("isValidToken: rejects non-string input", () => {
+    assert.equal(isValidToken(null), false);
+    assert.equal(isValidToken(undefined), false);
+    assert.equal(isValidToken(42), false);
 });

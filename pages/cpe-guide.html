@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>SC-CPE — CPE Submission Guide</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<meta name="theme-color" content="#0b3d5c">
+<meta property="og:title" content="SC-CPE — CPE Submission Guide">
+<meta property="og:description" content="Step-by-step guide to submit Simply Cyber CPE credits to CompTIA, ISC2, or ISACA.">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="SC-CPE — CPE Submission Guide">
+<meta name="twitter:description" content="Submit Simply Cyber CPE credits to CompTIA, ISC2, or ISACA.">
+<meta name="color-scheme" content="light dark">
+<script src="/theme.js"></script>
+<link rel="stylesheet" href="/cpe-guide.css">
+</head>
+<body>
+<main class="narrow">
+    <h1><a href="/">SC-CPE</a> — CPE Submission Guide</h1>
+    <p class="guide-intro">Use the steps below to submit your CPE/CEU credits to your certification body. Fields are pre-filled from your certificate — just copy and paste.</p>
+
+    <div class="guide-field-bar" id="field-bar" hidden>
+        <div class="guide-field"><span class="guide-label">Period</span><span class="guide-val" id="f-name">—</span></div>
+        <div class="guide-field"><span class="guide-label">CPE hours</span><span class="guide-val" id="f-hours">—</span></div>
+        <div class="guide-field"><span class="guide-label">Sessions</span><span class="guide-val" id="f-sessions">—</span></div>
+    </div>
+
+    <div class="tabs" role="tablist" aria-label="Certification body">
+        <button class="tab active" role="tab" id="tab-comptia" aria-selected="true" aria-controls="panel-comptia" data-tab="comptia">CompTIA</button>
+        <button class="tab" role="tab" id="tab-isc2" aria-selected="false" aria-controls="panel-isc2" data-tab="isc2">ISC2</button>
+        <button class="tab" role="tab" id="tab-isaca" aria-selected="false" aria-controls="panel-isaca" data-tab="isaca">ISACA</button>
+    </div>
+
+    <section class="tab-panel active" role="tabpanel" id="panel-comptia" aria-labelledby="tab-comptia">
+        <h2>Submit to CompTIA CE Portal</h2>
+        <ol class="guide-steps">
+            <li>Go to <a href="https://ce.comptia.org" target="_blank" rel="noopener">ce.comptia.org</a> and sign in</li>
+            <li>Click <strong>Submit a CE Activity</strong></li>
+            <li>Fill in the fields below (click to copy):</li>
+        </ol>
+        <table class="copy-table">
+            <tr><td>Activity Title</td><td><button class="copy-btn" data-value="Simply Cyber Daily Threat Briefing">Simply Cyber Daily Threat Briefing</button></td></tr>
+            <tr><td>Provider</td><td><button class="copy-btn" data-value="Simply Cyber LLC">Simply Cyber LLC</button></td></tr>
+            <tr><td>CEU Amount</td><td><button class="copy-btn" id="ct-hours">—</button></td></tr>
+            <tr><td>Date Range</td><td><button class="copy-btn" id="ct-dates">—</button></td></tr>
+            <tr><td>Verification URL</td><td><button class="copy-btn" id="ct-verify">—</button></td></tr>
+        </table>
+        <ol class="guide-steps" start="4">
+            <li>Upload your <strong>signed PDF certificate</strong> as evidence: <a id="ct-dl" href="#" class="guide-dl-btn">Download PDF</a></li>
+            <li>Click <strong>Submit</strong></li>
+        </ol>
+    </section>
+
+    <section class="tab-panel" role="tabpanel" id="panel-isc2" aria-labelledby="tab-isc2" hidden>
+        <h2>Submit to ISC2 CPE Portal</h2>
+        <ol class="guide-steps">
+            <li>Go to <a href="https://cpe.isc2.org" target="_blank" rel="noopener">cpe.isc2.org</a> and sign in</li>
+            <li>Click <strong>Report CPE Credits</strong> → <strong>Education</strong></li>
+            <li>Fill in the fields below (click to copy):</li>
+        </ol>
+        <table class="copy-table">
+            <tr><td>Activity Name</td><td><button class="copy-btn" data-value="Simply Cyber Daily Threat Briefing — Live Cybersecurity Briefing">Simply Cyber Daily Threat Briefing — Live Cybersecurity Briefing</button></td></tr>
+            <tr><td>CPE Credits (Group B)</td><td><button class="copy-btn" id="i2-hours">—</button></td></tr>
+            <tr><td>Completion Date</td><td><button class="copy-btn" id="i2-dates">—</button></td></tr>
+            <tr><td>Verification URL</td><td><button class="copy-btn" id="i2-verify">—</button></td></tr>
+        </table>
+        <ol class="guide-steps" start="4">
+            <li>Upload your <strong>signed PDF certificate</strong>: <a id="i2-dl" href="#" class="guide-dl-btn">Download PDF</a></li>
+            <li>Click <strong>Submit</strong></li>
+        </ol>
+    </section>
+
+    <section class="tab-panel" role="tabpanel" id="panel-isaca" aria-labelledby="tab-isaca" hidden>
+        <h2>Submit to ISACA CPE Portal</h2>
+        <ol class="guide-steps">
+            <li>Go to <a href="https://www.isaca.org/credentialing/cpe" target="_blank" rel="noopener">isaca.org/credentialing/cpe</a> and sign in</li>
+            <li>Click <strong>Report CPE Hours</strong></li>
+            <li>Fill in the fields below (click to copy):</li>
+        </ol>
+        <table class="copy-table">
+            <tr><td>Activity Title</td><td><button class="copy-btn" data-value="Simply Cyber Daily Threat Briefing">Simply Cyber Daily Threat Briefing</button></td></tr>
+            <tr><td>Activity Type</td><td><button class="copy-btn" data-value="Attending professional/educational events or conferences">Attending professional/educational events or conferences</button></td></tr>
+            <tr><td>Provider</td><td><button class="copy-btn" data-value="Simply Cyber LLC">Simply Cyber LLC</button></td></tr>
+            <tr><td>CPE Hours</td><td><button class="copy-btn" id="ia-hours">—</button></td></tr>
+            <tr><td>Completion Date</td><td><button class="copy-btn" id="ia-dates">—</button></td></tr>
+            <tr><td>Description</td><td><button class="copy-btn" data-value="Live daily cybersecurity briefing covering current threats, vulnerabilities, risk management, security operations, incident response, and governance.">Live daily cybersecurity briefing covering current threats, vulnerabilities, risk management, security operations, incident response, and governance.</button></td></tr>
+            <tr><td>Verification URL</td><td><button class="copy-btn" id="ia-verify">—</button></td></tr>
+        </table>
+        <ol class="guide-steps" start="4">
+            <li>Upload your <strong>signed PDF certificate</strong>: <a id="ia-dl" href="#" class="guide-dl-btn">Download PDF</a></li>
+            <li>Click <strong>Submit</strong></li>
+        </ol>
+    </section>
+
+    <p class="guide-footer">Acceptance is ultimately the certification body's decision — see <a href="/terms.html#5">Terms §5</a>.</p>
+</main>
+<script src="/cpe-guide.js"></script>
+</body>
+</html>

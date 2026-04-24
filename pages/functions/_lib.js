@@ -17,17 +17,25 @@ export function randomCode() {
     return s;
 }
 
+export function formatCode(raw) {
+    return `SC-CPE{${raw.slice(0, 4)}-${raw.slice(4)}}`;
+}
+
 export function randomToken() {
     const rnd = crypto.getRandomValues(new Uint8Array(32));
     return [...rnd].map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
-export function json(obj, status = 200) {
+const HEX_RE = /^[0-9a-f]{64}$/;
+export function isValidToken(t) { return typeof t === "string" && HEX_RE.test(t); }
+
+export function json(obj, status = 200, extraHeaders = {}) {
     return new Response(JSON.stringify(obj), {
         status,
         headers: {
             "Content-Type": "application/json",
             "Cache-Control": "no-store",
+            ...extraHeaders,
         },
     });
 }
@@ -94,7 +102,7 @@ export async function audit(env, actorType, actorId, action, entityType, entityI
         before_json: before == null ? null : JSON.stringify(before),
         after_json: after == null ? null : JSON.stringify(after),
         ip_hash: opts.ip_hash ?? null,
-        user_agent: opts.user_agent ?? null,
+        user_agent: opts.user_agent ? opts.user_agent.slice(0, 500) : null,
         ts: null,
         prev_hash: null,
     };
@@ -186,11 +194,30 @@ export async function rateLimit(env, key, max, ttlSec = 3700) {
         return { ok: false, status: 503, body: { error: "rate_limiter_unavailable" } };
     }
     const current = parseInt(await env.RATE_KV.get(key), 10) || 0;
+    const headers = {
+        "X-RateLimit-Limit": String(max),
+        "X-RateLimit-Remaining": String(Math.max(0, max - current - 1)),
+        "X-RateLimit-Reset": String(Math.ceil(Date.now() / 1000) + ttlSec),
+    };
     if (current >= max) {
-        return { ok: false, status: 429, body: { error: "rate_limited" } };
+        const bucket = new Date().toISOString().slice(0, 13);
+        const evtKey = `sec:rl_trip:${key.split(":")[0]}:${bucket}`;
+        env.RATE_KV.put(evtKey, String((parseInt(await env.RATE_KV.get(evtKey), 10) || 0) + 1),
+            { expirationTtl: 86400 }).catch(() => {});
+        headers["X-RateLimit-Remaining"] = "0";
+        headers["Retry-After"] = String(ttlSec);
+        return { ok: false, status: 429, body: { error: "rate_limited" }, headers };
     }
     await env.RATE_KV.put(key, String(current + 1), { expirationTtl: ttlSec });
-    return { ok: true };
+    return { ok: true, headers };
+}
+
+export async function securityEvent(env, category, detail) {
+    if (!env.RATE_KV) return;
+    const bucket = new Date().toISOString().slice(0, 13);
+    const key = `sec:${category}:${bucket}`;
+    const cur = parseInt(await env.RATE_KV.get(key), 10) || 0;
+    await env.RATE_KV.put(key, String(cur + 1), { expirationTtl: 86400 });
 }
 
 // SQLite LIKE wildcards `%` and `_` (and the `\` we use to escape them)
@@ -233,12 +260,44 @@ export function escapeHtml(s) {
     ));
 }
 
-// Shared email chrome. All user-facing emails (register, cert delivery,
-// resend, recovery) pass through this so the navy header, footer, and
-// deliverability boilerplate stay consistent. bodyHtml must already be
-// escaped where needed; preheader is the grey preview-pane text.
-export function emailShell({ title, preheader = "", bodyHtml }) {
+export function emailButton(text, url) {
+    return `<p style="text-align:center;margin:24px 0;">
+  <a href="${url}" style="display:inline-block;background:#d4a73a;color:#0b3d5c;
+     font-weight:bold;padding:12px 28px;border-radius:6px;text-decoration:none;
+     font-size:14px;letter-spacing:0.02em;">${escapeHtml(text)}</a>
+</p>`;
+}
+
+export function emailCode(code) {
+    return `<div style="text-align:center;margin:20px 0;">
+  <div style="display:inline-block;background:#0b3d5c;color:#d4a73a;
+       font-family:Menlo,Consolas,monospace;font-size:22px;font-weight:bold;
+       padding:14px 28px;border-radius:8px;letter-spacing:0.06em;">
+       ${escapeHtml(code)}</div>
+</div>`;
+}
+
+export function emailProgress(pct) {
+    const clamped = Math.max(0, Math.min(100, Math.round(pct)));
+    return `<div style="margin:16px 0;">
+  <div style="background:#e6eaee;border-radius:8px;height:20px;overflow:hidden;">
+    <div style="background:linear-gradient(90deg,#0b3d5c,#d4a73a);
+         width:${clamped}%;height:100%;border-radius:8px;"></div>
+  </div>
+  <div style="text-align:center;font-size:13px;color:#555;margin-top:4px;">
+    ${clamped}% complete</div>
+</div>`;
+}
+
+export function emailDivider() {
+    return `<hr style="border:none;border-top:1px solid #e6eaee;margin:20px 0;">`;
+}
+
+export function emailShell({ title, preheader = "", bodyHtml, siteBase = "https://sc-cpe-web.pages.dev", unsubscribeUrl }) {
     const safeTitle = escapeHtml(title);
+    const unsub = unsubscribeUrl
+        ? `<br/><a href="${unsubscribeUrl}" style="color:#777;">Unsubscribe</a> from these emails.`
+        : "";
     return `<!doctype html>
 <html><body style="margin:0;padding:0;background:#f4f6f8;font-family:Helvetica,Arial,sans-serif;color:#111;line-height:1.5;">
 <span style="display:none!important;opacity:0;color:transparent;height:0;width:0;overflow:hidden;">${escapeHtml(preheader)}</span>
@@ -251,11 +310,31 @@ export function emailShell({ title, preheader = "", bodyHtml }) {
     ${bodyHtml}
   </div>
   <div style="padding:16px 24px;border-top:1px solid #e6eaee;font-size:11px;color:#777;">
-    You're receiving this because you registered for Simply Cyber CPE.<br/>
+    You're receiving this because you registered at
+    <a href="${siteBase}" style="color:#777;">Simply Cyber CPE</a>.${unsub}<br/>
     Questions? Reply to this email.
   </div>
 </div>
 </body></html>`;
+}
+
+export function isUnsubscribed(emailPrefsJson, category) {
+    try {
+        const prefs = JSON.parse(emailPrefsJson || "{}") || {};
+        return Array.isArray(prefs.unsubscribed) && prefs.unsubscribed.includes(category);
+    } catch { return false; }
+}
+
+export function unsubscribeUrl(siteBase, dashboardToken, category) {
+    return `${siteBase}/api/me/${dashboardToken}/unsubscribe?cat=${category}`;
+}
+
+export function unsubscribeHeaders(siteBase, dashboardToken, category) {
+    const url = unsubscribeUrl(siteBase, dashboardToken, category);
+    return {
+        "List-Unsubscribe": `<${url}>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    };
 }
 
 // Insert a row into email_outbox. The email-sender Worker (polls every
@@ -264,8 +343,10 @@ export function emailShell({ title, preheader = "", bodyHtml }) {
 // text_body — the drainer does not re-render. `idempotencyKey` must be
 // stable for the logical event (e.g. "register:<userId>:<code>") so a
 // producer retry on the same event doesn't duplicate the email.
-export async function queueEmail(env, { userId, template, to, subject, html, text, idempotencyKey }) {
-    const payload = JSON.stringify({ html_body: html, text_body: text });
+export async function queueEmail(env, { userId, template, to, subject, html, text, idempotencyKey, headers }) {
+    const payloadObj = { html_body: html, text_body: text };
+    if (headers) payloadObj.headers = headers;
+    const payload = JSON.stringify(payloadObj);
     try {
         await env.DB.prepare(`
             INSERT INTO email_outbox
@@ -286,34 +367,41 @@ export async function queueEmail(env, { userId, template, to, subject, html, tex
     }
 }
 
-// Constant-time bearer-token check for admin endpoints. env.ADMIN_TOKEN
-// is set via `wrangler pages secret put ADMIN_TOKEN`. Returns true if the
-// Authorization header matches.
-//
-// Compares HMAC-SHA256 digests of both sides under a per-request random key
-// so neither length nor byte-pattern of the expected token leaks via timing.
-// An earlier impl returned early on length mismatch — that's an enumeration
-// oracle for the secret length.
 export async function isAdmin(env, request) {
     const expected = env.ADMIN_TOKEN;
-    if (!expected) return false;
     const h = request.headers.get("Authorization") || "";
-    const m = /^Bearer\s+(.+)$/i.exec(h);
-    if (!m) return false;
-    const given = m[1];
+    const bearerMatch = /^Bearer\s+(.+)$/i.test(h) && h.replace(/^Bearer\s+/i, "");
+    if (bearerMatch && expected) {
+        const given = bearerMatch;
+        const enc = new TextEncoder();
+        const keyMaterial = crypto.getRandomValues(new Uint8Array(32));
+        const key = await crypto.subtle.importKey(
+            "raw", keyMaterial, { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
+        );
+        const a = new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode(given)));
+        const b = new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode(expected)));
+        let diff = 0;
+        for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+        if (diff !== 0) {
+            securityEvent(env, "auth_fail:bearer", "").catch(() => {});
+            return false;
+        }
+        return true;
+    }
 
-    const enc = new TextEncoder();
-    const keyMaterial = crypto.getRandomValues(new Uint8Array(32));
-    const key = await crypto.subtle.importKey(
-        "raw", keyMaterial, { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
+    if (!env.ADMIN_COOKIE_SECRET) return false;
+    const { parseSessionCookie, parseCookies, COOKIE_NAME } = await import(
+        "./api/admin/auth/_auth_helpers.js"
     );
-    const a = new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode(given)));
-    const b = new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode(expected)));
-    // Both digests are fixed 32 bytes regardless of input length — safe to
-    // compare without leaking the secret's length.
-    let diff = 0;
-    for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
-    return diff === 0;
+    const cookies = parseCookies(request.headers.get("Cookie"));
+    const cookieValue = cookies[COOKIE_NAME];
+    if (!cookieValue) return false;
+    const session = await parseSessionCookie(cookieValue, env.ADMIN_COOKIE_SECRET);
+    if (!session) return false;
+    const admin = await env.DB.prepare(
+        "SELECT id FROM admin_users WHERE lower(email) = ?1"
+    ).bind(session.email.toLowerCase()).first();
+    return !!admin;
 }
 
 export async function constantTimeEqual(a, b) {

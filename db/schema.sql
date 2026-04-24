@@ -24,14 +24,24 @@ CREATE TABLE users (
     created_at            TEXT NOT NULL,
     verified_at           TEXT,
     deleted_at            TEXT,
+    suspended_at          TEXT,
     CHECK (state IN ('pending_verification','active','inactive','banned','deleted','expired')),
+    show_on_leaderboard   INTEGER NOT NULL DEFAULT 0,
+    badge_token           TEXT,
+    discord_user_id       TEXT,
+    current_streak        INTEGER NOT NULL DEFAULT 0,
+    longest_streak        INTEGER NOT NULL DEFAULT 0,
+    last_attendance_date  TEXT,
     CHECK (legal_name_attested IN (0,1)),
-    CHECK (age_attested_13plus IN (0,1))
+    CHECK (age_attested_13plus IN (0,1)),
+    CHECK (show_on_leaderboard IN (0,1))
 );
 CREATE UNIQUE INDEX users_email_unique ON users(lower(email)) WHERE deleted_at IS NULL;
 CREATE UNIQUE INDEX users_channel_unique ON users(yt_channel_id) WHERE yt_channel_id IS NOT NULL AND state = 'active';
 CREATE UNIQUE INDEX users_code_unique ON users(verification_code) WHERE verification_code IS NOT NULL;
 CREATE UNIQUE INDEX users_dashboard_token_unique ON users(dashboard_token);
+CREATE UNIQUE INDEX users_badge_token_unique ON users(badge_token) WHERE badge_token IS NOT NULL;
+CREATE UNIQUE INDEX users_discord_unique ON users(discord_user_id) WHERE discord_user_id IS NOT NULL AND state = 'active';
 
 -- Livestream sessions. One row per YouTube video (not per calendar date).
 CREATE TABLE streams (
@@ -118,12 +128,12 @@ CREATE TABLE certs (
 -- can't ADD CONSTRAINT CHECK on ALTER so migration 003 leaves it off.
 CREATE UNIQUE INDEX certs_user_period_bundled_unique
     ON certs(user_id, period_yyyymm)
-    WHERE cert_kind = 'bundled' AND state != 'revoked';
+    WHERE cert_kind = 'bundled' AND state NOT IN ('revoked', 'regenerated');
 CREATE UNIQUE INDEX certs_user_stream_unique
     ON certs(user_id, stream_id)
     WHERE cert_kind = 'per_session'
       AND stream_id IS NOT NULL
-      AND state != 'revoked';
+      AND state NOT IN ('revoked', 'regenerated');
 CREATE INDEX certs_user_idx ON certs(user_id);
 CREATE INDEX certs_kind_idx ON certs(cert_kind);
 CREATE INDEX certs_pending_idx ON certs(state) WHERE state = 'pending';
@@ -168,7 +178,7 @@ CREATE TABLE email_outbox (
     FOREIGN KEY (user_id) REFERENCES users(id),
     CHECK (state IN ('queued','sending','sent','failed','bounced'))
 );
-CREATE INDEX email_outbox_state_idx ON email_outbox(state) WHERE state IN ('queued','sending');
+CREATE INDEX email_outbox_state_created_idx ON email_outbox(state, created_at) WHERE state IN ('queued','sending');
 
 -- Append-only audit trail. Every state transition writes here.
 -- NEVER UPDATE OR DELETE rows in this table.
@@ -215,6 +225,27 @@ CREATE TABLE kv (
     updated_at            TEXT NOT NULL
 );
 
+-- Links shared by host/moderators during the Daily Threat Briefing.
+CREATE TABLE show_links (
+    id            TEXT PRIMARY KEY,
+    stream_id     TEXT NOT NULL REFERENCES streams(id),
+    url           TEXT NOT NULL,
+    domain        TEXT NOT NULL,
+    title         TEXT,
+    description   TEXT,
+    author_type   TEXT NOT NULL DEFAULT 'owner',
+    author_name   TEXT NOT NULL,
+    yt_channel_id TEXT NOT NULL,
+    yt_message_id TEXT NOT NULL,
+    posted_at     TEXT NOT NULL,
+    enriched_at   TEXT,
+    created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+
+    UNIQUE(stream_id, url)
+);
+CREATE INDEX idx_show_links_stream ON show_links(stream_id);
+CREATE INDEX idx_show_links_enriched ON show_links(enriched_at) WHERE enriched_at IS NULL;
+
 -- Cert-correctness feedback. See db/migrations/002_cert_feedback.sql for rationale.
 CREATE TABLE cert_feedback (
     id              TEXT PRIMARY KEY,
@@ -231,3 +262,29 @@ CREATE TABLE cert_feedback (
 );
 CREATE UNIQUE INDEX cert_feedback_unique ON cert_feedback(user_id, cert_id);
 CREATE INDEX cert_feedback_rating_idx ON cert_feedback(rating) WHERE rating != 'ok';
+
+-- Admin users for magic-link authentication.
+-- Bearer token (ADMIN_TOKEN) stays for machine-to-machine auth.
+CREATE TABLE IF NOT EXISTS admin_users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT UNIQUE NOT NULL,
+    role TEXT NOT NULL DEFAULT 'admin',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    created_by TEXT NOT NULL DEFAULT 'migration'
+);
+
+-- Email suppression list. Populated by the Resend bounce/complaint webhook.
+-- The email-sender skips outbox rows whose to_email is found here.
+CREATE TABLE email_suppression (
+    email       TEXT NOT NULL,
+    reason      TEXT NOT NULL,
+    event_id    TEXT,
+    created_at  TEXT NOT NULL,
+    PRIMARY KEY (email)
+);
+
+-- Deploy-pipeline migration tracking (not app data).
+CREATE TABLE _applied_migrations (
+    filename    TEXT PRIMARY KEY,
+    applied_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);

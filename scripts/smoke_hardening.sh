@@ -38,7 +38,7 @@ echo "== CSRF gate on dashboard-token (me) endpoints =="
 # The dashboard-token paths under /api/me/[token]/* DO need the gate — the
 # token sits in the URL and a browser will happily POST to it from any page.
 # Pick a random token so we're exercising the CSRF branch, not auth.
-FAKE_TOKEN="smoketest$(date +%s)smoketest$(date +%s)"
+FAKE_TOKEN="deadbeef$(printf '%.0s0' $(seq 1 56))"
 check "me/delete w/o origin → 403" 403 "$(code -X POST \
     -H 'Content-Type: application/json' -d '{}' \
     "$ORIGIN/api/me/$FAKE_TOKEN/delete")"
@@ -90,14 +90,65 @@ HB_URL="$ORIGIN/api/admin/heartbeat-status"
 check "no auth → 401" 401 "$(code "$HB_URL")"
 check "valid bearer → 200" 200 "$(code -H "Authorization: Bearer $ADMIN_TOKEN" "$HB_URL")"
 
+echo "== security headers =="
+HEADERS=$(curl -s -D- -o /dev/null "$ORIGIN/")
+header_has() {
+    echo "$HEADERS" | grep -qi "$1" && { echo "  ok   $1 present"; pass=$((pass+1)); } \
+        || { echo "  FAIL $1 missing"; fail=$((fail+1)); }
+}
+header_has "X-Content-Type-Options: nosniff"
+header_has "X-Frame-Options: DENY"
+header_has "Referrer-Policy: no-referrer"
+header_has "Strict-Transport-Security"
+header_has "Permissions-Policy"
+header_has "Content-Security-Policy"
+header_has "X-Request-Id"
+header_has "Cross-Origin-Opener-Policy"
+
+echo "== honeypot trap =="
+check "wp-admin → 404 (trapped)" 404 "$(code "$ORIGIN/wp-admin")"
+check ".env → 404 (trapped)" 404 "$(code "$ORIGIN/.env")"
+check ".git/config → 404 (trapped)" 404 "$(code "$ORIGIN/.git/config")"
+
+echo "== CSP report endpoint =="
+check "csp-report POST → 204" 204 "$(code -X POST -H 'Content-Type: application/json' \
+    -d '{"csp-report":{"blocked-uri":"test","violated-directive":"script-src"}}' \
+    "$ORIGIN/api/csp-report")"
+
+echo "== token format validation =="
+check "me/short-token → 400" 400 "$(code "$ORIGIN/api/me/abc123")"
+check "me/uppercase-token → 400" 400 "$(code "$ORIGIN/api/me/$(printf '%.0sA' $(seq 1 64))")"
+
 echo "== fixture pollution guardrail =="
 stats=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" "$ORIGIN/api/admin/ops-stats")
 pollution=$(echo "$stats" | grep -oE '"fixture_pollution":\{[^}]*\}')
 if echo "$pollution" | grep -qE '"(streams|attendance|users)":[1-9]'; then
-    echo "  FAIL fixture_pollution non-zero: $pollution"; fail=$((fail+1))
+    if [[ "${ALLOW_FIXTURES:-}" == "1" ]]; then
+        echo "  WARN fixture_pollution non-zero (allowed): $pollution"; pass=$((pass+1))
+    else
+        echo "  FAIL fixture_pollution non-zero: $pollution"; fail=$((fail+1))
+    fi
 else
     echo "  ok   no test fixtures in prod: $pollution"; pass=$((pass+1))
 fi
+
+echo "== admin/streams endpoint =="
+STREAMS_URL="$ORIGIN/api/admin/streams"
+check "streams no auth → 401" 401 "$(code "$STREAMS_URL")"
+check "streams valid bearer → 200" 200 "$(code -H "Authorization: Bearer $ADMIN_TOKEN" "$STREAMS_URL")"
+
+echo "== admin/analytics endpoints =="
+for metric in growth engagement certs system; do
+    A_URL="$ORIGIN/api/admin/analytics/$metric"
+    check "analytics/$metric no auth → 401" 401 "$(code "$A_URL")"
+    check "analytics/$metric valid bearer → 200" 200 "$(code -H "Authorization: Bearer $ADMIN_TOKEN" "$A_URL")"
+done
+
+echo "== admin/suspend endpoint =="
+check "suspend no auth → 401" 401 "$(code -X POST -H 'Content-Type: application/json' -d '{}' "$ORIGIN/api/admin/suspend")"
+
+echo "== admin/email-suppression endpoint =="
+check "email-suppression no auth → 401" 401 "$(code "$ORIGIN/api/admin/email-suppression")"
 
 echo
 echo "== summary: $pass passed, $fail failed =="

@@ -2,87 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SC-CPE — Recover your dashboard link</title>
-<link rel="stylesheet" href="/style.css">
-<link rel="icon" type="image/svg+xml" href="/favicon.svg">
-<meta name="theme-color" content="#0b3d5c">
-<meta name="color-scheme" content="light dark">
-<script src="/theme.js"></script>
-<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+<meta http-equiv="refresh" content="0;url=/dashboard.html">
+<title>Redirecting</title>
+<link rel="canonical" href="/dashboard.html">
 </head>
 <body>
-<main class="narrow">
-    <h1>Recover your dashboard link</h1>
-    <p class="lead">Your dashboard URL is the only way to access your attendance and certificates. Enter the email you registered with and we'll send you the link if it's on file.</p>
-
-    <form id="f">
-        <label>
-            Email
-            <input name="email" type="email" required maxlength="254" autocomplete="email">
-        </label>
-        <div class="cf-turnstile" data-sitekey="0x4AAAAAAC9lHHxbfTKNzdFN" data-theme="auto"></div>
-        <button type="submit">Send recovery link</button>
-    </form>
-
-    <div id="err" class="err" hidden></div>
-
-    <section id="ok" hidden>
-        <h2>Request received</h2>
-        <p id="ok-msg">If that email is registered, we've sent a recovery link. Check your inbox (and spam folder).</p>
-        <p class="muted">Didn't get it? Check your spam folder. Recovery requests are rate-limited (5 per IP per hour) — wait an hour and try again, or email support if you're stuck.</p>
-    </section>
-
-    <p class="muted" style="margin-top:2rem;"><a href="/">Back to registration</a></p>
-</main>
-<script>
-const ERROR_COPY = {
-    invalid_email: "That email address doesn't look right.",
-    captcha_failed: "Anti-bot challenge failed — please try again.",
-    invalid_json: "Something went wrong submitting the form.",
-};
-
-document.getElementById("f").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const submitBtn = e.target.querySelector("button[type=submit]");
-    const fd = new FormData(e.target);
-    const turnstileToken = fd.get("cf-turnstile-response");
-    const err = document.getElementById("err");
-    err.hidden = true;
-    if (!turnstileToken) {
-        err.textContent = "Please complete the anti-bot challenge.";
-        err.hidden = false;
-        return;
-    }
-    submitBtn.disabled = true;
-    const originalLabel = submitBtn.textContent;
-    submitBtn.textContent = "Sending…";
-    try {
-        const r = await fetch("/api/recover", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                email: fd.get("email"),
-                turnstile_token: turnstileToken,
-            }),
-        });
-        const data = await r.json();
-        if (!r.ok) {
-            err.textContent = ERROR_COPY[data.error] || `Request failed (${data.error || r.status}).`;
-            err.hidden = false;
-            return;
-        }
-        document.getElementById("f").hidden = true;
-        if (data.message) document.getElementById("ok-msg").textContent = data.message;
-        document.getElementById("ok").hidden = false;
-    } catch (x) {
-        err.textContent = "Network error — check your connection and try again.";
-        err.hidden = false;
-    } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = originalLabel;
-    }
-});
-</script>
+<p>Redirecting to <a href="/dashboard.html">your dashboard</a>.</p>
 </body>
 </html>

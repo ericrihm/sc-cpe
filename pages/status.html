@@ -2,33 +2,18 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>SC-CPE — Status</title>
 <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/status.css">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <meta name="theme-color" content="#0b3d5c">
 <meta name="color-scheme" content="light dark">
 <script src="/theme.js"></script>
-<style>
-  .status-hero { padding: 18px 24px; border-radius: 6px; margin: 12px 0 20px; font-weight: 600; }
-  .status-hero.ok      { background: var(--ok-soft-bg);      border: 1px solid var(--ok-soft-border);      color: var(--ok-soft-text); }
-  .status-hero.stale   { background: var(--bad-soft-bg);     border: 1px solid var(--bad-soft-border);     color: var(--bad-soft-text); }
-  .status-hero.loading { background: var(--neutral-soft-bg); border: 1px solid var(--neutral-soft-border); color: var(--neutral-soft-text); }
-  .src-row { display: flex; align-items: center; gap: 14px; padding: 10px 14px; border: 1px solid var(--border); background: var(--card); border-radius: 4px; margin-bottom: 6px; }
-  .src-row.stale { background: var(--bad-soft-bg); border-color: var(--bad-soft-border); }
-  .src-name { font-family: monospace; font-weight: 600; width: 180px; }
-  .src-badge { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; padding: 3px 8px; border-radius: 10px; }
-  .src-badge.ok      { background: var(--ok-soft-bg);      color: var(--ok-soft-text); }
-  .src-badge.stale   { background: var(--bad-soft-bg);     color: var(--bad-soft-text); }
-  .src-badge.offduty { background: var(--neutral-soft-bg); color: var(--neutral-soft-text); }
-  .src-help { flex: 1; font-size: 12px; color: var(--muted); }
-  .src-meta { color: var(--muted); font-size: 12px; margin-left: auto; font-family: monospace; }
-  .foot { color: var(--muted); font-size: 12px; margin-top: 24px; }
-</style>
 </head>
 <body>
 <main class="narrow">
-  <h1>SC-CPE — Service Status</h1>
+  <h1><a href="/">SC-CPE</a> — Service Status</h1>
   <p class="lead">Automated. Polled every 30 seconds from <code>/api/health</code>. If something below is red, the relevant cron or worker is not beating within its expected cadence.</p>
 
   <div id="hero" class="status-hero loading">checking…</div>
@@ -38,71 +23,16 @@
 
   <p class="foot" id="foot"></p>
   <p class="foot">For longer-form incident updates, see the <a href="https://github.com/ericrihm/sc-cpe/issues?q=label%3Aincident">incidents label</a> on the SC-CPE repo. For ongoing issues that affect your account, email <a href="mailto:certs@signalplane.co?subject=%5BACCOUNT%5D%20status%20page%20issue">certs@signalplane.co</a> with <code>[ACCOUNT]</code> in the subject.</p>
-  <p><a href="/">&larr; Back</a></p>
+  <footer class="site-footer">
+    <a href="/faq.html">FAQ</a>
+    <a href="/leaderboard.html">Leaderboard</a>
+    <a href="/links.html">Show Links</a>
+    <a href="/status.html">Status</a>
+    <a href="/verify.html">Verify a cert</a>
+    <a href="/terms.html">Terms</a>
+    <a href="/privacy.html">Privacy</a>
+  </footer>
 </main>
-<script>
-const FRIENDLY = {
-  poller: {
-    label: "YouTube chat poller",
-    help: "Credits attendance while the Daily Threat Briefing is live. Only on duty ET Mon–Fri 08:00–11:00.",
-  },
-  purge: {
-    label: "Daily chat purge",
-    help: "Cleans raw chat logs from R2. Runs once a day.",
-  },
-  email_sender: {
-    label: "Email delivery",
-    help: "Drains registration, recovery, and monthly certificate emails. Runs every 2 minutes.",
-  },
-  security_alerts: {
-    label: "Security alerts digest",
-    help: "Scans the audit log daily for anything suspicious. Piggybacks on the purge cron.",
-  },
-  canary: {
-    label: "Hourly canary",
-    help: "External synthetic smoke from GitHub Actions. Beats every hour.",
-  },
-};
-function fmtAge(s) {
-  if (s == null) return "—";
-  if (s < 60) return s + "s";
-  if (s < 3600) return Math.floor(s/60) + "m " + (s%60) + "s";
-  return Math.floor(s/3600) + "h " + Math.floor((s%3600)/60) + "m";
-}
-async function refresh() {
-  const hero = document.getElementById("hero");
-  try {
-    const r = await fetch("/api/health", { cache: "no-store" });
-    const d = await r.json();
-    hero.className = "status-hero " + (d.any_stale ? "stale" : "ok");
-    hero.textContent = d.any_stale
-      ? "Some components are stale — see below"
-      : "All systems operational";
-    const box = document.getElementById("sources"); box.innerHTML = "";
-    for (const s of d.sources) {
-      const row = document.createElement("div");
-      row.className = "src-row" + (s.stale ? " stale" : "");
-      const fri = FRIENDLY[s.source] || { label: s.source, help: "" };
-      const badgeCls = !s.expected ? "offduty" : s.stale ? "stale" : "ok";
-      const badgeText = !s.expected ? "off duty" : s.stale ? "stale" : "ok";
-      row.innerHTML =
-        `<div class="src-name">${fri.label}</div>` +
-        `<span class="src-badge ${badgeCls}">${badgeText}</span>` +
-        `<div class="src-help">${fri.help}</div>` +
-        `<div class="src-meta">last ${s.last_beat_at ? fmtAge(s.age_seconds) + " ago" : "never"}</div>`;
-      box.appendChild(row);
-    }
-    document.getElementById("foot").textContent =
-      "Last checked " + new Date(d.now).toLocaleString() +
-      " · poll window active: " + (d.poll_window_active ? "yes" : "no");
-  } catch (e) {
-    hero.className = "status-hero stale";
-    hero.textContent = "Could not fetch status — the status endpoint itself may be down.";
-    document.getElementById("foot").textContent = "Error: " + (e && e.message || e);
-  }
-}
-refresh();
-setInterval(refresh, 30_000);
-</script>
+<script src="/status.js"></script>
 </body>
 </html>

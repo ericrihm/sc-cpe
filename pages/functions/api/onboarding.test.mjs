@@ -68,7 +68,7 @@ const emailOutboxRule = {
 // Stable fake IDs
 const FAKE_ULID = "01HZ99AABBCCDDEEFFGGHH0001";
 const FAKE_TOKEN = "a".repeat(64); // 64-char hex dashboard token
-const SHORT_TOKEN = "a".repeat(32); // minimal valid token
+const SHORT_TOKEN = "a".repeat(64); // valid 64-char hex token
 
 const BASE = "https://sc-cpe-web.pages.dev";
 
@@ -81,7 +81,7 @@ test("register: kill switch set → 503", async () => {
         request: new Request(`${BASE}/api/register`, {
             method: "POST",
             body: JSON.stringify({ email: "a@example.com", legal_name: "A B",
-                legal_name_attested: true, age_attested_13plus: true }),
+                legal_name_attested: true, tos: true }),
         }),
     });
     assert.equal(r.status, 503);
@@ -107,7 +107,7 @@ test("register: invalid email returns 400", async () => {
         request: new Request(`${BASE}/api/register`, {
             method: "POST",
             body: JSON.stringify({ email: "not-an-email", legal_name: "Alice Smith",
-                legal_name_attested: true, age_attested_13plus: true }),
+                legal_name_attested: true, tos: true }),
         }),
     });
     assert.equal(r.status, 400);
@@ -121,7 +121,7 @@ test("register: invalid name returns 400", async () => {
         request: new Request(`${BASE}/api/register`, {
             method: "POST",
             body: JSON.stringify({ email: "alice@example.com", legal_name: "X",
-                legal_name_attested: true, age_attested_13plus: true }),
+                legal_name_attested: true, tos: true }),
         }),
     });
     assert.equal(r.status, 400);
@@ -135,7 +135,7 @@ test("register: missing attestation returns 400", async () => {
         request: new Request(`${BASE}/api/register`, {
             method: "POST",
             body: JSON.stringify({ email: "alice@example.com", legal_name: "Alice Smith",
-                legal_name_attested: false, age_attested_13plus: true }),
+                legal_name_attested: false, tos: true }),
         }),
     });
     assert.equal(r.status, 400);
@@ -155,7 +155,7 @@ test("register: existing active user → 409 without token", async () => {
         request: new Request(`${BASE}/api/register`, {
             method: "POST",
             body: JSON.stringify({ email: "alice@example.com", legal_name: "Alice Smith",
-                legal_name_attested: true, age_attested_13plus: true }),
+                legal_name_attested: true, tos: true }),
         }),
     });
     assert.equal(r.status, 409);
@@ -188,7 +188,7 @@ test("register: new user → 200 must NOT leak dashboard_token or verification_c
         request: new Request(`${BASE}/api/register`, {
             method: "POST",
             body: JSON.stringify({ email: "alice@example.com", legal_name: "Alice Smith",
-                legal_name_attested: true, age_attested_13plus: true }),
+                legal_name_attested: true, tos: true }),
         }),
     });
     assert.equal(r.status, 200);
@@ -214,7 +214,7 @@ test("register: rate limit trips when KV reports 10 prior hits this hour", async
         request: new Request(`${BASE}/api/register`, {
             method: "POST",
             body: JSON.stringify({ email: "alice@example.com", legal_name: "Alice Smith",
-                legal_name_attested: true, age_attested_13plus: true }),
+                legal_name_attested: true, tos: true }),
         }),
     });
     assert.equal(r.status, 429);
@@ -245,7 +245,7 @@ test("register: existing pending user re-registers → 200 must NOT leak dashboa
         request: new Request(`${BASE}/api/register`, {
             method: "POST",
             body: JSON.stringify({ email: "alice@example.com", legal_name: "Alice Smith",
-                legal_name_attested: true, age_attested_13plus: true }),
+                legal_name_attested: true, tos: true }),
         }),
     });
     assert.equal(r.status, 200);
@@ -277,7 +277,7 @@ test("verify: unknown token → 404", async () => {
     ]);
     const r = await verifyGet({
         params: { token: "x".repeat(32) },
-        env: { DB: db },
+        env: { DB: db, RATE_KV: kvPermissive },
         request: new Request(`${BASE}/api/verify/${"x".repeat(32)}`),
     });
     assert.equal(r.status, 404);
@@ -302,7 +302,7 @@ test("verify: generated cert → 200 valid:true", async () => {
     ]);
     const r = await verifyGet({
         params: { token: "x".repeat(32) },
-        env: { DB: db },
+        env: { DB: db, RATE_KV: kvPermissive },
         request: new Request(`${BASE}/api/verify/${"x".repeat(32)}`),
     });
     assert.equal(r.status, 200);
@@ -328,7 +328,7 @@ test("verify: revoked cert → valid:false with mapped reason", async () => {
     ]);
     const r = await verifyGet({
         params: { token: "x".repeat(32) },
-        env: { DB: db },
+        env: { DB: db, RATE_KV: kvPermissive },
         request: new Request(`${BASE}/api/verify/${"x".repeat(32)}`),
     });
     assert.equal(r.status, 200);
@@ -505,7 +505,11 @@ test("delete: valid request → 200 scrubs user", async () => {
         {
             match: /FROM users WHERE dashboard_token/,
             handler: () => ({ first: { id: FAKE_ULID, email: "alice@example.com",
-                state: "active", deleted_at: null } }),
+                legal_name: "Alice Example", state: "active", deleted_at: null } }),
+        },
+        {
+            match: /INSERT INTO email_outbox/,
+            handler: () => ({ run: { meta: {} } }),
         },
         {
             match: /UPDATE users\s+SET email/s,
@@ -540,12 +544,13 @@ test("resend-code: missing Origin → 403 CSRF", async () => {
     assert.equal(j.error, "forbidden_origin");
 });
 
-test("resend-code: already active user → 409", async () => {
+test("resend-code: already active user with linked channel → 409", async () => {
     const db = mockDB([
         {
             match: /FROM users WHERE dashboard_token.*deleted_at IS NULL/s,
             handler: () => ({ first: { id: FAKE_ULID, email: "alice@example.com",
-                legal_name: "Alice", state: "active", dashboard_token: FAKE_TOKEN } }),
+                legal_name: "Alice", state: "active", dashboard_token: FAKE_TOKEN,
+                yt_channel_id: "UC1234567890" } }),
         },
     ]);
     const r = await resendPost({
@@ -556,6 +561,37 @@ test("resend-code: already active user → 409", async () => {
     assert.equal(r.status, 409);
     const j = await r.json();
     assert.equal(j.error, "already_verified");
+});
+
+test("resend-code: active user without YouTube channel → 200 issues code", async () => {
+    let updateCalled = false;
+    const db = mockDB([
+        {
+            match: /FROM users WHERE dashboard_token.*deleted_at IS NULL/s,
+            handler: () => ({ first: { id: FAKE_ULID, email: "alice@example.com",
+                legal_name: "Alice", state: "active", dashboard_token: FAKE_TOKEN,
+                yt_channel_id: null } }),
+        },
+        {
+            match: /FROM users WHERE verification_code/,
+            handler: () => ({ first: null }),
+        },
+        {
+            match: /UPDATE users SET verification_code/,
+            handler: () => { updateCalled = true; return { run: { meta: {} } }; },
+        },
+        emailOutboxRule,
+        ...auditRules,
+    ]);
+    const r = await resendPost({
+        params: { token: SHORT_TOKEN },
+        env: { DB: db, RATE_KV: kvPermissive },
+        request: req(`${BASE}/api/me/${SHORT_TOKEN}/resend-code`),
+    });
+    assert.equal(r.status, 200);
+    const j = await r.json();
+    assert.equal(j.ok, true);
+    assert.ok(updateCalled, "should have issued a new verification code");
 });
 
 test("resend-code: pending user → 200 issues new code", async () => {
@@ -615,7 +651,7 @@ test("rotate: updates dashboard_token, queues email, returns no new token", asyn
             handler: () => ({ first: { id: FAKE_ULID, email: "alice@example.com", legal_name: "Alice Smith" } }),
         },
         {
-            match: /UPDATE users SET dashboard_token = \?1 WHERE id = \?2/,
+            match: /UPDATE users SET dashboard_token = \?1, badge_token = \?2 WHERE id = \?3/,
             handler: (_sql, binds) => { updatedToken = binds[0]; return { run: { meta: {} } }; },
         },
         {

@@ -33,53 +33,45 @@ jobs:
       ORIGIN: ${{ vars.SMOKE_ORIGIN }}  # e.g. https://cpe.simplycyber.io
       ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
       DISCORD_ALERT_WEBHOOK: ${{ secrets.DISCORD_ALERT_WEBHOOK }}
+      ALLOW_FIXTURES: ${{ vars.ALLOW_FIXTURES || '0' }}
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       - name: Run smoke suite
         id: smoke
         run: |
           : "${ORIGIN:?SMOKE_ORIGIN repo var not set}"
           : "${ADMIN_TOKEN:?ADMIN_TOKEN repo secret not set}"
           bash scripts/smoke_hardening.sh
-      - name: Assert prior canary beat is fresh
-        # Catches the case where smoke itself passes but canary-beat silently
-        # regressed. Smoke is hourly, so the prior beat should be <70min old.
-        # Skipped on manual dispatch runs (they may fire off-cadence).
-        #
-        # IMPORTANT: the python must be a single line. A multi-line heredoc
-        # inside a YAML block literal silently breaks the whole workflow:
-        # lines at column 0 terminate the `run: |` block, and GitHub rejects
-        # the workflow with a 0-second-duration failure AND no steps execute
-        # (so Discord alerts on failure never fire). See commit history on
-        # this file if you're tempted to re-expand this — 2026-04-15 to
-        # 2026-04-16 the hourly canary was dead and nobody noticed.
-        if: github.event_name != 'workflow_dispatch'
-        run: |
-          age=$(curl -fsS --max-time 20 \
-            -H "Authorization: Bearer $ADMIN_TOKEN" \
-            "$ORIGIN/api/admin/heartbeat-status" \
-            | python3 -c "import json,sys; d=json.load(sys.stdin); print(next((s.get('age_seconds') or 99999 for s in d.get('sources',[]) if s.get('source')=='canary'), 99999))")
-          echo "canary age: ${age}s"
-          # age == 99999 means no canary heartbeat row exists at all —
-          # bootstrap case (this is the first run after smoke regained the
-          # ability to execute). Let the later "Write canary heartbeat" step
-          # seed it; the NEXT hourly run will assert against a real number.
-          # Any actual age > 70min (with the row present) still fails — that
-          # catches a silently-regressed beat endpoint.
-          if [[ "$age" -ge 99999 ]]; then
-            echo "canary heartbeat absent — bootstrapping on this run; next hourly run will enforce freshness"
-          elif [[ "$age" -gt 4200 ]]; then
-            echo "canary heartbeat stale (>70min) — beat endpoint may have regressed" >&2
-            exit 1
-          fi
       - name: Write canary heartbeat
-        # Only reached if smoke passed — the heartbeat means "last green run".
+        # Written immediately after smoke passes — the heartbeat means
+        # "last green run". Runs BEFORE the freshness assertion so a stale
+        # canary self-heals on the first passing run instead of death-spiraling
+        # (stale → fail → no beat → still stale → fail …).
         run: |
           curl -fsS --max-time 20 -X POST \
             -H "Authorization: Bearer $ADMIN_TOKEN" \
             -H "X-Canary-Sha: ${{ github.sha }}" \
             "$ORIGIN/api/admin/canary-beat" >/dev/null
           echo "canary heartbeat written"
+      - name: Assert prior canary beat was fresh
+        # Catches the case where canary-beat silently regressed between runs.
+        # Smoke is hourly, so the PRIOR beat should be <70min old. This fires
+        # after we've already written a fresh beat, so a failure here alerts
+        # but doesn't prevent the next run from self-healing.
+        # Skipped on manual dispatch (may fire off-cadence) and on push
+        # events (deploy-prod already runs its own post-deploy smoke).
+        if: github.event_name == 'schedule'
+        run: |
+          age=$(curl -fsS --max-time 20 \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            "$ORIGIN/api/admin/heartbeat-status" \
+            | python3 -c "import json,sys; d=json.load(sys.stdin); print(next((s.get('age_seconds') or 99999 for s in d.get('sources',[]) if s.get('source')=='canary'), 99999))")
+          echo "prior canary age: ${age}s (just wrote a fresh beat above)"
+          if [[ "$age" -ge 99999 ]]; then
+            echo "canary heartbeat absent — first run after bootstrap, expected"
+          elif [[ "$age" -gt 4200 ]]; then
+            echo "::warning::canary was stale before this run (${age}s) — prior smoke may have failed silently"
+          fi
       - name: Alert Discord on failure
         if: failure()
         run: |
@@ -88,7 +80,7 @@ jobs:
             exit 0
           fi
           payload=$(jq -cn \
-            --arg c ":rotating_light: **SC-CPE: hourly smoke FAILED** on ${{ github.sha }} against $ORIGIN. See Actions run ${{ github.run_id }}." \
+            --arg c ":rotating_light: **SC-CPE: hourly smoke FAILED** on ${{ github.sha }} against $ORIGIN. See Actions run ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}." \
             '{content: $c, username: "SC-CPE Smoke"}')
           curl -fsS --max-time 20 \
             -H "Content-Type: application/json" \

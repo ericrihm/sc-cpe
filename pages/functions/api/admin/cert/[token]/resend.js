@@ -1,6 +1,6 @@
 import {
     json, audit, clientIp, ipHash, isAdmin, queueEmail, now,
-    escapeHtml, emailShell,
+    escapeHtml, emailShell, emailButton, emailDivider, rateLimit,
 } from "../../../../_lib.js";
 
 // POST /api/admin/cert/{public_token}/resend
@@ -19,43 +19,36 @@ import {
 // retry a stuck send. Use sparingly; the email_outbox drainer also
 // auto-retries failed sends up to MAX_ATTEMPTS.
 
-const SITE_BASE = "https://sc-cpe-web.pages.dev";
-
-function buildBodies({ recipientName, periodDisplay, cpeTotal, sessionsCount, downloadUrl, verifyUrl, issuerName }) {
+function buildBodies({ recipientName, periodDisplay, cpeTotal, sessionsCount, downloadUrl, verifyUrl, issuerName, siteBase }) {
     const cpeStr = Number.isInteger(cpeTotal) ? `${cpeTotal}` : `${cpeTotal.toFixed(1)}`;
     const subject = `Your ${periodDisplay} Simply Cyber CPE certificate (re-issued link)`;
     const text =
         `Hi ${recipientName},\n\n` +
-        `Your ${periodDisplay} Simply Cyber CPE certificate is ready.\n\n` +
+        `Here's a fresh download link for your ${periodDisplay} CPE certificate.\n\n` +
         `  CPE credit hours: ${cpeStr}\n` +
         `  Sessions attended: ${sessionsCount}\n\n` +
-        `Download your signed PDF (this link does not expire):\n  ${downloadUrl}\n\n` +
-        `Anyone (including auditors) can verify this certificate at:\n  ${verifyUrl}\n\n` +
-        `If you previously received a download link that returned an "X-Amz-Expires" ` +
-        `error, the link above replaces it.\n\n— ${issuerName}\n`;
+        `Download: ${downloadUrl}\n\n` +
+        `Verify: ${verifyUrl}\n\n` +
+        `— ${issuerName}\n`;
     const bodyHtml = `
 <p>Hi ${escapeHtml(recipientName)},</p>
-<p>Your <strong>${escapeHtml(periodDisplay)}</strong> Simply Cyber CPE certificate is ready.</p>
-<ul>
-  <li>CPE credit hours: <strong>${escapeHtml(cpeStr)}</strong></li>
-  <li>Sessions attended: <strong>${sessionsCount}</strong></li>
-</ul>
-<p>
-  <a href="${downloadUrl}"
-     style="display:inline-block;background:#0b3d5c;color:#fff;
-            padding:10px 16px;border-radius:4px;text-decoration:none;">
-     Download signed PDF
-  </a><br/>
-  <small style="color:#666;">This link does not expire — re-download anytime.</small>
-</p>
-<p>Anyone (including auditors) can verify this certificate:<br/>
-<a href="${verifyUrl}">${verifyUrl}</a></p>
-<p style="color:#666;font-size:12px;">If you previously received a link that returned an
-<code>X-Amz-Expires</code> error, the link above replaces it.</p>`;
+<p>Here's a fresh download link for your <strong>${escapeHtml(periodDisplay)}</strong> CPE certificate.</p>
+<div style="background:#f4f6f8;border-radius:8px;padding:16px 20px;margin:16px 0;">
+  <table style="width:100%;border-collapse:collapse;">
+    <tr><td style="padding:4px 0;color:#5b6473;">CPE Credits</td><td style="padding:4px 0;font-weight:700;text-align:right;">${escapeHtml(cpeStr)}</td></tr>
+    <tr><td style="padding:4px 0;color:#5b6473;">Sessions</td><td style="padding:4px 0;font-weight:700;text-align:right;">${escapeHtml(String(sessionsCount))}</td></tr>
+    <tr><td style="padding:4px 0;color:#5b6473;">Period</td><td style="padding:4px 0;font-weight:700;text-align:right;">${escapeHtml(periodDisplay)}</td></tr>
+  </table>
+</div>
+${emailButton("Download Signed PDF", downloadUrl)}
+${emailDivider()}
+<p style="font-size:13px;color:#555;">Auditors and employers can verify at:<br/>
+<a href="${verifyUrl}" style="color:#0b3d5c;">${verifyUrl}</a></p>`;
     const html = emailShell({
         title: `${periodDisplay} certificate`,
-        preheader: `Your ${periodDisplay} Simply Cyber CPE certificate is ready.`,
+        preheader: `${cpeStr} CPE credits — download your signed PDF`,
         bodyHtml,
+        siteBase,
     });
     return { subject, html, text };
 }
@@ -84,14 +77,18 @@ export async function onRequestPost({ params, request, env }) {
     if (!cert.pdf_r2_key) return json({ error: "cert_pdf_missing" }, 409);
     if (cert.deleted_at) return json({ error: "user_deleted" }, 409);
 
+    const rl = await rateLimit(env, `cert_resend:${cert.id}`, 5);
+    if (!rl.ok) return json(rl.body, rl.status, rl.headers);
+
     // period_yyyymm "202602" -> "February 2026"
     const yyyy = parseInt(cert.period_yyyymm.slice(0, 4), 10);
     const mm = parseInt(cert.period_yyyymm.slice(4, 6), 10);
     const periodDisplay = new Date(Date.UTC(yyyy, mm - 1, 1))
         .toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
 
-    const downloadUrl = `${SITE_BASE}/api/download/${cert.public_token}`;
-    const verifyUrl = `${SITE_BASE}/verify.html?t=${cert.public_token}`;
+    const siteBase = new URL(request.url).origin;
+    const downloadUrl = `${siteBase}/api/download/${cert.public_token}`;
+    const verifyUrl = `${siteBase}/verify.html?t=${cert.public_token}`;
 
     const bodies = buildBodies({
         recipientName: cert.recipient_name_snapshot || cert.legal_name,
@@ -101,6 +98,7 @@ export async function onRequestPost({ params, request, env }) {
         downloadUrl,
         verifyUrl,
         issuerName: cert.issuer_name_snapshot || "Simply Cyber LLC",
+        siteBase,
     });
 
     // Unique key per admin click so the drainer doesn't dedupe a deliberate

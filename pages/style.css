@@ -48,15 +48,33 @@
 :root[data-theme="light"] { color-scheme: light; }
 
 * { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }   /* prevent iOS landscape auto-zoom */
 body {
     margin: 0;
     font: 16px/1.5 system-ui, -apple-system, Segoe UI, sans-serif;
     color: var(--fg);
     background: var(--bg);
 }
-main.narrow { max-width: 640px; margin: 2rem auto; padding: 0 1rem; }
-h1 { font-size: 1.75rem; margin-bottom: .25rem; }
-h2 { font-size: 1.25rem; margin-top: 1.5rem; }
+main.narrow {
+    max-width: 640px;
+    margin: 1rem auto;               /* mobile-default; bumped up at ≥640px below */
+    /* Bottom padding absorbs iOS home-indicator safe area + gives the
+       submit button clearance from Safari/Chrome mobile's URL bar, which
+       otherwise visually covers the button at scroll-bottom. */
+    padding: 0 1rem max(1.5rem, env(safe-area-inset-bottom) + 1rem);
+}
+@media (min-width: 640px) {
+    main.narrow { margin: 2rem auto; }
+}
+/* Wider viewports: nudge max-width up so the column doesn't feel lost in
+   a 1440px+ browser, while staying within readable measure (~80ch). */
+@media (min-width: 960px) {
+    main.narrow { max-width: 720px; }
+}
+h1 { font-size: 1.75rem; margin-bottom: .25rem; line-height: 1.2; }
+h1 a { color: var(--accent); text-decoration: none; }
+h1 a:hover { text-decoration: underline; text-underline-offset: 3px; }
+h2 { font-size: 1.25rem; margin-top: 1.5rem; line-height: 1.3; }
 .lead { color: var(--muted); margin-bottom: 2rem; }
 .muted { color: var(--muted); }
 .small { font-size: .85rem; }
@@ -84,8 +102,16 @@ form .check {
     font-weight: 400;
     margin-bottom: .75rem;
 }
-form .check input { margin-top: .25rem; }
+form .check input { margin-top: .25rem; flex: 0 0 auto; }
+/* The text (and any nested links) must live in a single child so the
+   flex container doesn't split it into per-word items that wrap into
+   pseudo-columns on narrow screens. min-width:0 lets it actually shrink
+   inside the flex row instead of forcing horizontal overflow. */
+form .check > span { flex: 1 1 auto; min-width: 0; }
 button {
+    /* 44px floor matches the iOS HIG + WCAG 2.5.5 (enhanced) target size.
+       rem-based so user text-scaling grows it too. */
+    min-height: 2.75rem;
     padding: .6rem 1.25rem;
     font: inherit;
     font-weight: 600;
@@ -94,8 +120,13 @@ button {
     border: 0;
     border-radius: 6px;
     cursor: pointer;
+    touch-action: manipulation;  /* kill 300ms tap delay on legacy mobile */
 }
 button:hover { filter: brightness(1.08); }
+button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
 .err {
     background: var(--err-bg);
     color: var(--bad);
@@ -107,8 +138,11 @@ button:hover { filter: brightness(1.08); }
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 1rem 1.25rem;
-    margin: 1rem 0;
+    padding: .85rem 1rem;            /* tighter on narrow screens */
+    margin: .85rem 0;
+}
+@media (min-width: 640px) {
+    .card { padding: 1rem 1.25rem; margin: 1rem 0; }
 }
 .card.ok { border-color: var(--ok); }
 .card.bad { border-color: var(--bad); }
@@ -123,6 +157,11 @@ pre.code, .code {
     font-size: 1.05rem;
     letter-spacing: 1px;
     user-select: all;
+    max-width: 100%;
+    overflow-wrap: anywhere;        /* long tokens/hashes wrap in narrow
+                                       containers instead of horizontally
+                                       pushing the whole layout */
+    word-break: break-all;
 }
 .dash {
     display: inline-block;
@@ -131,8 +170,9 @@ pre.code, .code {
     font-size: .9rem;
 }
 table { width: 100%; border-collapse: collapse; font-size: .95rem; }
-th, td { text-align: left; padding: .5rem .6rem; border-bottom: 1px solid var(--border); }
+th, td { text-align: left; padding: .5rem .6rem; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
 th { color: var(--muted); font-weight: 500; }
+a { overflow-wrap: anywhere; }             /* long URLs wrap on narrow */
 dl { display: grid; grid-template-columns: max-content 1fr; gap: .4rem 1rem; margin: 0; }
 dt { color: var(--muted); }
 dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
@@ -144,16 +184,80 @@ dd.small { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-siz
 }
 a { color: var(--accent); }
 
+/* ── Page title gradient (inner pages) ────────────────── */
+
+main.narrow > h1 {
+    background: linear-gradient(135deg, var(--accent), light-dark(#0b3d5c, #5ba3df));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+main.narrow > h1 a {
+    -webkit-text-fill-color: inherit;
+    text-decoration: none;
+}
+main.narrow > h1 a:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-color: var(--accent);
+}
+
+/* ── Section headers (reusable) ───────────────────────── */
+
+.section-label {
+    text-align: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: light-dark(#0b3d5c, #f4d66a);
+    margin-bottom: 0.5rem;
+}
+.section-title {
+    text-align: center;
+    font-size: clamp(1.4rem, 3vw, 1.75rem);
+    font-weight: 700;
+    margin: 0 0 2rem;
+    line-height: 1.2;
+}
+
+/* ── Footer ───────────────────────────────────────────── */
+
+.site-footer {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 2rem 0;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.5rem;
+    justify-content: center;
+    font-size: 0.85rem;
+}
+.site-footer a {
+    color: var(--muted);
+    text-decoration: none;
+}
+.site-footer a:hover {
+    color: var(--accent);
+}
+.site-footer a:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+
 .theme-toggle {
     position: fixed;
     top: 10px;
     right: 10px;
     z-index: 1000;
-    width: 36px;
-    height: 36px;
+    width: 44px;                    /* iOS HIG + WCAG 2.5.5 target size */
+    height: 44px;
+    min-height: 0;                  /* override the global button floor */
     padding: 0;
     font: inherit;
-    font-size: 16px;
+    font-size: 18px;
     line-height: 1;
     background: var(--card);
     color: var(--fg);
@@ -161,9 +265,31 @@ a { color: var(--accent); }
     border-radius: 50%;
     cursor: pointer;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+    touch-action: manipulation;
 }
 .theme-toggle:hover { background: var(--hover-bg); filter: none; }
 .theme-toggle:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
+}
+
+/* ── Dark mode cyberpunk accents (site-wide) ──────────── */
+
+@media (prefers-color-scheme: dark) {
+    main.narrow > h1 {
+        text-shadow: 0 0 30px rgba(124, 195, 255, 0.1);
+    }
+    .card {
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .card:hover {
+        border-color: rgba(124, 195, 255, 0.15);
+        box-shadow: 0 0 12px rgba(124, 195, 255, 0.04);
+    }
+    button:hover {
+        box-shadow: 0 0 12px rgba(124, 195, 255, 0.15);
+    }
+    .site-footer {
+        border-image: linear-gradient(90deg, transparent, rgba(124, 195, 255, 0.12), transparent) 1;
+    }
 }

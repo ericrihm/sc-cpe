@@ -2,27 +2,18 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>SC-CPE — FAQ &amp; Known Issues</title>
 <link rel="stylesheet" href="/style.css">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <meta name="theme-color" content="#0b3d5c">
 <meta name="color-scheme" content="light dark">
 <script src="/theme.js"></script>
-<style>
-  .faq-q { margin-top: 22px; }
-  .faq-q h3 { margin-bottom: 6px; }
-  .known { border-left: 4px solid var(--warn-soft-border); padding: 4px 12px;
-           background: var(--warn-soft-bg); color: var(--warn-soft-text); margin: 10px 0; }
-  .canned { background: var(--neutral-soft-bg); border: 1px solid var(--neutral-soft-border);
-            color: var(--neutral-soft-text);
-            padding: 12px 16px; border-radius: 4px; margin: 8px 0;
-            font-family: ui-sans-serif, system-ui, sans-serif; }
-</style>
+<link rel="stylesheet" href="/faq.css">
 </head>
 <body>
 <main class="narrow">
-  <h1>FAQ &amp; Known Issues</h1>
+  <h1><a href="/">SC-CPE</a> — FAQ &amp; Known Issues</h1>
   <p class="lead">Plain answers to the questions people actually ask. If
   yours isn't here, email <a href="mailto:certs@signalplane.co?subject=%5BACCOUNT%5D%20FAQ%20suggestion">certs@signalplane.co</a>
   with <code>[ACCOUNT]</code> in the subject and we'll add it. See
@@ -40,16 +31,24 @@
         15-minute pre-stream grace). Your dashboard shows a "posted
         outside window" notice if this is what happened.</li>
       <li><strong>Your YouTube channel was already bound to a different
-        SC-CPE account.</strong> One channel per account. Check with
-        <a href="/preflight.html">the preflight tool</a> before posting.</li>
+        SC-CPE account.</strong> One channel per account.</li>
       <li><strong>The message didn't contain three letters or digits.</strong>
-        A message of just the 8-character code is fine; a single emoji
+        A message of just the <code>SC-CPE{...}</code> code is fine; a single emoji
         is not.</li>
       <li><strong>The poller missed that stream.</strong> Rare but
         possible. File an <em>appeal</em> from your dashboard —
         admin-reconciled credits don't auto-link your YouTube channel
         but the credit will still show up.</li>
     </ul>
+  </div>
+
+  <div class="faq-q">
+    <h3>How do I file an appeal for missed credit?</h3>
+    <p>Open your dashboard and find the date in the attendance calendar.
+    Missed weekdays show an "appeal?" link. Click it, optionally describe
+    what happened, and submit. An admin reviews the appeal and either
+    grants or denies it. Granted appeals credit 0.5 CPE just like a
+    regular attendance.</p>
   </div>
 
   <div class="faq-q">
@@ -133,6 +132,45 @@
   </div>
 
   <div class="faq-q">
+    <h3>How does SC-CPE prove attendance if chat messages aren't stored?</h3>
+    <p>When the poller sees your chat message during the live broadcast,
+    it records three things in the attendance database:</p>
+    <ul>
+      <li>The <strong>YouTube message ID</strong> — a permanent identifier
+        assigned by YouTube to every chat message.</li>
+      <li>A <strong>SHA-256 hash</strong> of the message text — a
+        cryptographic fingerprint that proves a specific message existed,
+        without retaining the text itself.</li>
+      <li>The <strong>timestamp</strong> YouTube assigned to the message,
+        confirming it was posted during the live window.</li>
+    </ul>
+    <p>The raw chat text is purged after 7 days (GDPR data
+    minimisation). The hash, message ID, and timestamp survive
+    indefinitely alongside the hash-chained audit log entry recording
+    the credit. If an auditor needs to verify the original message, the
+    YouTube message ID can be checked against YouTube's own records
+    (while the chat replay remains available).</p>
+    <p>This means SC-CPE's attendance proof does <em>not</em> depend on
+    retaining your chat messages long-term — the cryptographic
+    commitment is the anchor, not the plaintext.</p>
+  </div>
+
+  <div class="faq-q">
+    <h3>Are appeal-granted or admin-granted credits distinguishable from regular attendance?</h3>
+    <p>Yes. Every attendance row carries a <code>source</code> field:
+    <code>poll</code> (the poller saw your chat message),
+    <code>appeal_granted</code> (an admin approved your appeal), or
+    <code>admin_manual</code> (an operator correction). Each source
+    writes a distinct action in the hash-chained audit log. An auditor
+    with database access can always tell how a specific session's credit
+    was earned.</p>
+    <p>The public <a href="/verify.html">verify portal</a> confirms a
+    certificate is authentic and unrevoked, but does not surface the
+    per-session credit source — that level of detail is available in the
+    audit trail, not on the cert face.</p>
+  </div>
+
+  <div class="faq-q">
     <h3>My cert shows "REVOKED". What happened?</h3>
     <p>An admin revoked it. The public verify page shows an opaque
     reason (e.g., <code>issued_in_error</code>, <code>superseded</code>,
@@ -145,12 +183,24 @@
   <div class="faq-q">
     <h3>Will (ISC)² / ISACA / CompTIA actually accept this?</h3>
     <p>They accept self-attested continuing education under their
-    respective CPE programs, and the SC-CPE cert has every field their
-    portals ask for: name, issuer, date(s), hours, signature. We cannot
-    guarantee acceptance — that's ultimately your certification body's
-    policy call — but the cert format matches the category these
-    programs define. See §5 of the <a href="/terms.html#5">Terms</a>
+    respective CPE programs. SC-CPE certificates include all seven
+    fields ISACA requires for audit evidence: attendee name,
+    sponsoring organization, activity title, activity description,
+    date(s), CPE hours awarded, and organizational attestation
+    (PAdES-T digital signature). We cannot guarantee acceptance —
+    that's ultimately your certification body's policy call — but the
+    cert format satisfies the documentation requirements these
+    programs publish. See §5 of the <a href="/terms.html#5">Terms</a>
     for the acceptance disclaimer.</p>
+    <p><strong>ISACA 2027 update:</strong> Starting January 2027,
+    ISACA splits CPE into certification-aligned (90 CPE minimum)
+    and professional-aligned (30 CPE maximum) categories. The Daily
+    Threat Briefing covers cybersecurity threats, risk management,
+    security operations, and governance — these map to
+    certification-aligned domains for CISA, CISM, CRISC, and CGEIT.
+    No action required on your part; SC-CPE certificates already
+    include the activity description needed for domain-relevance
+    verification under the new rules.</p>
   </div>
 
   <h2>Account &amp; security</h2>
@@ -192,12 +242,74 @@
   <div class="faq-q">
     <h3>Why does email come from <code>signalplane.co</code> instead of <code>simplycyber.io</code>?</h3>
     <p><code>signalplane.co</code> is the operator's email domain,
-    DKIM + SPF verified with Resend, DMARC in place.
+    DKIM + SPF verified with Resend.
     <code>simplycyber.io</code> is the community brand and will host
     the app's permanent DNS once <code>cpe.simplycyber.io</code> is
     wired. Splitting the two keeps brand and infrastructure separate —
     the email channel can be revoked without touching the community
     identity.</p>
+  </div>
+
+  <h2>Dashboard features</h2>
+
+  <div class="faq-q">
+    <h3>Can I access my dashboard without the email link every time?</h3>
+    <p>Yes. When you first open your dashboard, you'll see a
+    <strong>"Remember this device?"</strong> prompt. If you click
+    "Yes, remember me," the site saves your session in your browser's
+    local storage. Next time, just visit
+    <code>sc-cpe-web.pages.dev/dashboard</code> directly — no email
+    link needed.</p>
+    <p>The saved session expires after 30 days. You can clear it any
+    time by clicking <strong>"Forget this device"</strong> on the
+    dashboard. Only use this on a personal device you trust — on shared
+    or public computers, click "No thanks."</p>
+  </div>
+
+  <div class="faq-q">
+    <h3>What is the attendance streak?</h3>
+    <p>Your dashboard tracks consecutive weekdays you've attended
+    the Daily Threat Briefing. Weekends don't break the streak.
+    You'll see both your <strong>current streak</strong> and your
+    <strong>longest streak</strong>.</p>
+  </div>
+
+  <div class="faq-q">
+    <h3>What is the renewal tracker?</h3>
+    <p>If you're working toward a certification renewal deadline
+    (e.g., CISSP requires 120 CPE over 3 years), set up the renewal
+    tracker on your dashboard. Enter your cert name, deadline, and
+    CPE required — the dashboard shows a progress bar with how many
+    CPE you've earned so far and how many days remain.</p>
+  </div>
+
+  <div class="faq-q">
+    <h3>Can I download all my certificates at once?</h3>
+    <p>Yes. If you have two or more downloadable certificates, a
+    <strong>"Download All (ZIP)"</strong> button appears on your
+    dashboard. It bundles all your signed PDFs into a single ZIP
+    file.</p>
+  </div>
+
+  <h2>Leaderboard &amp; badges</h2>
+
+  <div class="faq-q">
+    <h3>How does the community leaderboard work?</h3>
+    <p>The <a href="/leaderboard.html">leaderboard</a> ranks users
+    by CPE earned in the current calendar month. It's entirely
+    <strong>opt-in</strong> — toggle "Show me on the leaderboard"
+    on your dashboard to appear. Only your first name and last
+    initial are shown (e.g., "Alex T."). Your email and full name
+    are never displayed.</p>
+  </div>
+
+  <div class="faq-q">
+    <h3>What is the achievement badge?</h3>
+    <p>Your badge is a shareable SVG image showing your CPE earned,
+    attendance streak, and total sessions. Share it on LinkedIn or
+    X directly from your dashboard via the <strong>"Share
+    achievement"</strong> button — or share the badge page URL
+    with anyone.</p>
   </div>
 
   <h2>Known issues</h2>
@@ -211,10 +323,11 @@
   </div>
 
   <div class="known">
-    <strong>DMARC policy is starting at <code>p=quarantine</code>.</strong>
-    This is the recommended first step while we observe reports. It
-    will tighten to <code>p=reject</code> after 2 weeks of clean
-    receiver telemetry. Deliverability is unaffected either way.
+    <strong>DMARC record pending.</strong>
+    <code>signalplane.co</code> has DKIM and SPF in place. A DMARC
+    record (<code>p=none</code> for observability) will be added
+    shortly. Email deliverability is unaffected — DKIM-aligned
+    messages deliver fine without DMARC.
   </div>
 
   <div class="known">
@@ -226,12 +339,20 @@
     page says delays are in effect, that explains it.
   </div>
 
-  <p class="muted" style="margin-top:32px;font-size:12px;">
+  <p class="muted faq-footer-note">
     Missing something? Open an issue at
     <a href="https://github.com/ericrihm/sc-cpe/issues">github.com/ericrihm/sc-cpe/issues</a>
     or email <a href="mailto:certs@signalplane.co">certs@signalplane.co</a>.
   </p>
-  <p><a href="/">&larr; Back to registration</a></p>
+  <footer class="site-footer">
+    <a href="/faq.html">FAQ</a>
+    <a href="/leaderboard.html">Leaderboard</a>
+    <a href="/links.html">Show Links</a>
+    <a href="/status.html">Status</a>
+    <a href="/verify.html">Verify a cert</a>
+    <a href="/terms.html">Terms</a>
+    <a href="/privacy.html">Privacy</a>
+  </footer>
 </main>
 </body>
 </html>

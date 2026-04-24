@@ -1,33 +1,24 @@
 import {
     ulid, json, now, audit, clientIp, ipHash,
-    isValidEmail, verifyTurnstile, escapeHtml, emailShell, rateLimit,
-    sha256Hex, killSwitched, killedResponse,
+    isValidEmail, verifyTurnstile, escapeHtml, emailShell, emailButton,
+    rateLimit, sha256Hex, killSwitched, killedResponse,
 } from "../_lib.js";
 
-const SITE_BASE = "https://sc-cpe-web.pages.dev";
-
-function recoveryEmailBodies({ legalName, dashboardUrl }) {
-    const subject = "Your Simply Cyber CPE dashboard link";
+function recoveryEmailBodies({ legalName, dashboardUrl, siteBase }) {
+    const subject = "Your CPE dashboard link";
     const text = (
         `Hi ${legalName},\n\n` +
-        `You (or someone using your email) requested your Simply Cyber CPE\n` +
-        `dashboard link. Bookmark it — this URL is your account credential.\n\n` +
+        `Here's your Simply Cyber CPE dashboard link.\n` +
+        `Bookmark it — this URL is your account credential.\n\n` +
         `  ${dashboardUrl}\n\n` +
         `If you did not request this, you can ignore the email.\n\n` +
         `— Simply Cyber\n`
     );
     const bodyHtml = `
 <p>Hi ${escapeHtml(legalName)},</p>
-<p>You (or someone using your email) requested your Simply Cyber CPE dashboard link.
-Bookmark it — this URL is your account credential.</p>
-<p>
-  <a href="${dashboardUrl}"
-     style="display:inline-block;background:#0b3d5c;color:#fff;
-            padding:10px 16px;border-radius:4px;text-decoration:none;">
-     Open my dashboard
-  </a>
-</p>
-<p style="word-break:break-all;font-family:Menlo,monospace;font-size:12px;color:#555;">
+<p>Here's your Simply Cyber CPE dashboard link. Bookmark it — this URL is your account credential.</p>
+${emailButton("Open My Dashboard", dashboardUrl)}
+<p style="word-break:break-all;font-family:Menlo,monospace;font-size:12px;color:#555;text-align:center;">
   ${dashboardUrl}
 </p>
 <p style="color:#666;font-size:12px;">If you did not request this, you can ignore
@@ -37,8 +28,9 @@ this email — no further action is taken.</p>`;
         text,
         html: emailShell({
             title: "Dashboard recovery",
-            preheader: "Your Simply Cyber CPE dashboard link",
+            preheader: "Bookmark this link — it's your account credential",
             bodyHtml,
+            siteBase,
         }),
     };
 }
@@ -106,10 +98,11 @@ export async function onRequestPost({ request, env }) {
 
     const emailId = ulid();
     const idempotencyKey = `recover:${user.id}:${hourBucket}`;
-    const dashboardUrl = `${SITE_BASE}/dashboard.html?t=${user.dashboard_token}`;
+    const siteBase = new URL(request.url).origin;
+    const dashboardUrl = `${siteBase}/dashboard.html?t=${user.dashboard_token}`;
     const bodies = recoveryEmailBodies({
         legalName: user.legal_name || "there",
-        dashboardUrl,
+        dashboardUrl, siteBase,
     });
     // Pre-render html_body/text_body into payload_json so the email-sender
     // drainer can dispatch the row without re-rendering. Earlier this row
@@ -135,8 +128,12 @@ export async function onRequestPost({ request, env }) {
         ).run();
     } catch (err) {
         // UNIQUE on idempotency_key means we've already queued in this hour —
-        // swallow and return the same response. Non-UNIQUE errors are real.
-        if (!/UNIQUE/i.test(String(err && err.message || err))) throw err;
+        // swallow and return the same response. Non-UNIQUE errors log + return
+        // the constant response (never leak DB error details to the client).
+        if (!/UNIQUE/i.test(String(err && err.message || err))) {
+            console.error("recover:email_queue_error", String(err));
+            return json(CONSTANT_RESPONSE, 200);
+        }
     }
 
     await audit(

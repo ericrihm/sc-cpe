@@ -1,8 +1,8 @@
-import { json, clientIp, ipHash, rateLimit } from "../../_lib.js";
+import { json, clientIp, ipHash, rateLimit, isValidToken } from "../../_lib.js";
 
 export async function onRequestGet({ params, env, request }) {
     const token = params.token;
-    if (!token || token.length < 32) return json({ error: "invalid_token" }, 400);
+    if (!isValidToken(token)) return json({ error: "invalid_token" }, 400);
 
     // Per-IP rate limit on dashboard reads. Without this an attacker who
     // knows the token-charset and length can grind through guesses against
@@ -11,12 +11,14 @@ export async function onRequestGet({ params, env, request }) {
     // legitimate dashboard polling cadence (30s = 120/hr at the busy end).
     const ipH = await ipHash(clientIp(request));
     const rl = await rateLimit(env, `me_get:${ipH}`, 600);
-    if (!rl.ok) return json(rl.body, rl.status);
+    if (!rl.ok) return json(rl.body, rl.status, rl.headers);
 
     const user = await env.DB.prepare(`
         SELECT id, email, legal_name, yt_channel_id, yt_display_name_seen,
                verification_code, code_expires_at, state, email_prefs,
-               created_at, verified_at
+               show_on_leaderboard, badge_token, created_at, verified_at,
+               current_streak, longest_streak, last_attendance_date,
+               suspended_at
         FROM users WHERE dashboard_token = ?1 AND deleted_at IS NULL
     `).bind(token).first();
 
@@ -38,6 +40,22 @@ export async function onRequestGet({ params, env, request }) {
         FROM certs WHERE user_id = ?1 AND state != 'regenerated'
         ORDER BY period_yyyymm DESC, created_at DESC
     `).bind(user.id).all();
+
+    const certIds = (certs.results || []).map(c => c.id);
+    let emailStatusMap = {};
+    if (certIds.length > 0) {
+        const ph = certIds.map((_, i) => `?${i + 1}`).join(",");
+        const emailRows = await env.DB.prepare(
+            `SELECT idempotency_key, state, last_error FROM email_outbox
+             WHERE idempotency_key IN (${ph})
+             ORDER BY created_at DESC`
+        ).bind(...certIds).all();
+        for (const r of (emailRows.results || [])) {
+            if (!emailStatusMap[r.idempotency_key]) {
+                emailStatusMap[r.idempotency_key] = { state: r.state, last_error: r.last_error };
+            }
+        }
+    }
 
     // Set of stream_ids the user already has a per_session cert for (any
     // non-terminal state). Drives the dashboard's per-row button: show
@@ -103,6 +121,7 @@ export async function onRequestGet({ params, env, request }) {
                ) THEN 1 ELSE 0 END AS credited
           FROM streams s
          WHERE s.state IN ('live','complete')
+           AND s.scheduled_date = date('now')
       ORDER BY COALESCE(s.actual_start_at, s.created_at) DESC
          LIMIT 1
     `).bind(user.id).first();
@@ -139,13 +158,25 @@ export async function onRequestGet({ params, env, request }) {
             code_state: codeState,
             code_expires_at: user.code_expires_at,
             email_prefs: emailPrefs,
+            show_on_leaderboard: !!user.show_on_leaderboard,
+            badge_token: user.badge_token,
             created_at: user.created_at,
             verified_at: user.verified_at,
+            suspended: !!user.suspended_at,
         },
         attendance: attendanceWithFlags,
-        certs: certs.results || [],
+        certs: (certs.results || []).map(c => ({
+            ...c,
+            email_status: emailStatusMap[c.id]?.state || null,
+            email_error: emailStatusMap[c.id]?.state === "bounced" ? emailStatusMap[c.id].last_error : null,
+        })),
         appeals: appeals.results || [],
         total_cpe_earned: totalCpe,
+        streaks: {
+            current: user.current_streak || 0,
+            longest: user.longest_streak || 0,
+            last_date: user.last_attendance_date || null,
+        },
         code_window_warnings: codeWindowWarnings,
         today: liveToday ? {
             stream_id: liveToday.stream_id,
