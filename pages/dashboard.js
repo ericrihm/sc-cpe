@@ -58,6 +58,8 @@ async function load() {
     var d = await r.json();
     document.getElementById("skel").hidden = true;
     document.getElementById("body").hidden = false;
+    var suspendedBanner = document.getElementById("suspended-banner");
+    if (suspendedBanner) suspendedBanner.hidden = !d.user.suspended;
     document.getElementById("name").textContent = d.user.legal_name;
     document.getElementById("state").textContent = d.user.state;
     userState = d.user.state;
@@ -304,6 +306,27 @@ function certKindLabel(k) {
     return k === "per_session" ? "per-session" : "monthly bundle";
 }
 
+function emailStatusPill(c) {
+    if (!c.email_status) return "";
+    var cls, label;
+    switch (c.email_status) {
+        case "sent": cls = "pill-green"; label = "Email sent"; break;
+        case "queued": cls = "pill-amber"; label = "Email queued"; break;
+        case "bounced": cls = "pill-red"; label = "Bounced"; break;
+        case "failed": cls = "pill-red"; label = "Delivery failed"; break;
+        default: cls = "pill-grey"; label = c.email_status; break;
+    }
+    var title = c.email_error ? escapeHtml(c.email_error) : "";
+    return ' <span class="pill ' + cls + '"' + (title ? ' title="' + title + '"' : '') + '>' + escapeHtml(label) + '</span>';
+}
+
+function certResendButton(c) {
+    if (c.email_status !== "bounced" && c.email_status !== "failed") return "";
+    return ' <button type="button" class="cert-resend-user-btn" data-certid="' + c.id + '" ' +
+        'style="font-size:12px;padding:4px 10px;border:1px solid var(--bad-soft-text,#c44);background:transparent;color:var(--bad-soft-text,#c44);border-radius:4px;cursor:pointer;">' +
+        'Retry email delivery</button>';
+}
+
 function renderCerts(items) {
     var host = document.getElementById("certs");
     host.innerHTML = "";
@@ -424,8 +447,10 @@ function certCard(c, isSuperseded) {
         timelineHtml +
         "</div>" +
         '<span class="pill ' + pill.cls + '"' + (pill.title ? ' title="' + escapeHtml(pill.title) + '"' : "") + ">" + escapeHtml(pill.label) + "</span>" +
+        emailStatusPill(c) +
         "</div>" +
         '<div class="cert-actions">' +
+        certResendButton(c) +
         linkedInButton(c) +
         obBadgeButton(c) +
         cpeGuideButton(c) +
@@ -464,6 +489,29 @@ function certCard(c, isSuperseded) {
     });
     return row;
 }
+
+document.getElementById("certs").addEventListener("click", async function (e) {
+    var btn = e.target.closest(".cert-resend-user-btn");
+    if (!btn || btn.disabled) return;
+    btn.disabled = true;
+    btn.textContent = "sending…";
+    try {
+        var r = await fetch("/api/me/" + encodeURIComponent(token) + "/cert-resend/" + encodeURIComponent(btn.dataset.certid), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+        });
+        var j = await r.json().catch(function () { return {}; });
+        if (!r.ok) throw new Error(j.error || "HTTP " + r.status);
+        var ok = document.createElement("span");
+        ok.className = "pill pill-green";
+        ok.textContent = "Re-queued";
+        btn.replaceWith(ok);
+    } catch (err) {
+        btn.disabled = false;
+        btn.textContent = "Retry email delivery";
+        btn.title = err.message;
+    }
+});
 
 function renderCodeStatus(codeState, codeExpiresAt) {
     var status = document.getElementById("code-status");

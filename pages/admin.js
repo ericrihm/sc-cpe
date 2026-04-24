@@ -52,11 +52,13 @@ async function load() {
       fetchJson("/api/admin/cert-feedback?rating=typo,wrong&limit=100"),
       fetchJson("/api/admin/toggles"),
       fetchJson("/api/admin/security-events").catch(function () { return null; }),
+      fetchJson("/api/admin/email-suppression").catch(function () { return null; }),
     ]);
-    var stats = results[0], hb = results[1], chain = results[2], fb = results[3], toggles = results[4], secEvents = results[5];
+    var stats = results[0], hb = results[1], chain = results[2], fb = results[3], toggles = results[4], secEvents = results[5], supp = results[6];
     renderWarnings(stats);
     renderStats(stats);
     renderToggles(toggles);
+    if (supp) renderSuppression(supp);
     renderHeartbeats(hb);
     renderChain(chain, stats);
     renderAuditTrail(chain);
@@ -128,6 +130,48 @@ function renderToggles(d) {
     box.appendChild(wrap);
   }
 }
+function renderSuppression(d) {
+  var box = $("#suppression-rows");
+  var empty = $("#suppression-empty");
+  box.innerHTML = "";
+  var items = d.suppressions || [];
+  if (items.length === 0) { empty.hidden = false; return; }
+  empty.hidden = true;
+  for (var i = 0; i < items.length; i++) {
+    var s = items[i];
+    var row = document.createElement("div");
+    row.className = "audit-row";
+    row.innerHTML =
+      '<div><div class="ar-label">Email</div><div class="ar-val">' + escapeHtml(s.email_masked) + '</div></div>' +
+      '<div><div class="ar-label">Reason</div><div class="ar-val">' + escapeHtml(s.reason) + '</div></div>' +
+      '<div><div class="ar-label">Since</div><div class="ar-val">' + escapeHtml(s.created_at) + '</div></div>' +
+      '<div><button class="refresh unsuppress-btn" style="font-size:11px;padding:3px 10px;">Remove</button></div>';
+    box.appendChild(row);
+  }
+}
+$("#suppression-rows").addEventListener("click", async function (e) {
+  var btn = e.target.closest(".unsuppress-btn");
+  if (!btn || btn.disabled) return;
+  var email = prompt("Enter the full email address to unsuppress:");
+  if (!email) return;
+  btn.disabled = true;
+  btn.textContent = "removing…";
+  try {
+    var r = await fetch("/api/admin/email-suppression", {
+      method: "DELETE",
+      headers: { "Authorization": "Bearer " + TOKEN, "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email.trim() }),
+    });
+    var j = await r.json().catch(function () { return {}; });
+    if (!r.ok) throw new Error(j.error || "HTTP " + r.status);
+    btn.closest(".audit-row").remove();
+    if (!$("#suppression-rows").querySelector(".audit-row")) $("#suppression-empty").hidden = false;
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = "retry";
+    btn.title = err.message;
+  }
+});
 function renderStats(s) {
   var g = $("#stats"); g.innerHTML = "";
   var queuedAge = s.email_outbox.oldest_queued_age_seconds;
@@ -469,6 +513,13 @@ function buildUserRow(u) {
     stateSpan.style.fontSize = "12px";
     stateSpan.textContent = u.state;
     header.append(nameSpan, emailSpan, stateSpan);
+    if (u.suspended_at) {
+        var suspPill = document.createElement("span");
+        suspPill.className = "stale susp-pill";
+        suspPill.style.cssText = "font-size:11px;padding:2px 6px;background:#5c1515;border-radius:3px;";
+        suspPill.textContent = "SUSPENDED";
+        header.appendChild(suspPill);
+    }
 
     var meta = document.createElement("div");
     meta.className = "user-meta";
@@ -508,7 +559,13 @@ function buildUserRow(u) {
     grantBtn.dataset.uid = u.id;
     grantBtn.style.cssText = "font-size:11px;padding:3px 10px;";
     grantBtn.textContent = "Grant attendance";
-    actions.append(certsBtn, grantBtn);
+    var suspendBtn = document.createElement("button");
+    suspendBtn.className = "refresh suspend-btn";
+    suspendBtn.dataset.uid = u.id;
+    suspendBtn.dataset.suspended = u.suspended_at ? "1" : "";
+    suspendBtn.style.cssText = "font-size:11px;padding:3px 10px;" + (u.suspended_at ? "" : "background:#5c1515;");
+    suspendBtn.textContent = u.suspended_at ? "Unsuspend" : "Suspend";
+    actions.append(certsBtn, grantBtn, suspendBtn);
 
     var expand = document.createElement("div");
     expand.className = "cert-expand";
@@ -619,6 +676,41 @@ if (userResultsBox) {
                 attField.value = attBtn.dataset.uid;
                 attField.scrollIntoView({ behavior: "smooth" });
             }
+            return;
+        }
+        var suspBtn = e.target.closest(".suspend-btn");
+        if (suspBtn && !suspBtn.disabled) {
+            var isSusp = suspBtn.dataset.suspended === "1";
+            var reason = prompt(isSusp ? "Reason for unsuspension:" : "Reason for suspension (required):");
+            if (!reason) return;
+            if (!isSusp && !confirm("Suspend user " + suspBtn.dataset.uid.slice(0, 10) + "…?")) return;
+            suspBtn.disabled = true;
+            suspBtn.textContent = isSusp ? "unsuspending…" : "suspending…";
+            try {
+                await postJson("/api/admin/suspend", {
+                    user_id: suspBtn.dataset.uid,
+                    suspended: !isSusp,
+                    reason: reason,
+                });
+                suspBtn.textContent = isSusp ? "Suspend" : "Unsuspend";
+                suspBtn.dataset.suspended = isSusp ? "" : "1";
+                suspBtn.style.background = isSusp ? "#5c1515" : "";
+                var userRow = suspBtn.closest(".user-row");
+                var existingPill = userRow.querySelector(".susp-pill");
+                if (isSusp && existingPill) existingPill.remove();
+                if (!isSusp) {
+                    var pill = document.createElement("span");
+                    pill.className = "stale susp-pill";
+                    pill.style.cssText = "font-size:11px;padding:2px 6px;background:#5c1515;border-radius:3px;";
+                    pill.textContent = "SUSPENDED";
+                    userRow.querySelector(".user-header").appendChild(pill);
+                }
+            } catch (err) {
+                suspBtn.textContent = isSusp ? "Unsuspend" : "Suspend";
+                suspBtn.title = err.message;
+                alert("Error: " + err.message);
+            }
+            suspBtn.disabled = false;
             return;
         }
         var resendBtn = e.target.closest(".cert-resend-btn");

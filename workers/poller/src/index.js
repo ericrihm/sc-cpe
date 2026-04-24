@@ -403,7 +403,7 @@ async function processAttendance(env, session, items, now) {
 
     const placeholders = channelIds.map((_, i) => `?${i + 1}`).join(",");
     const usersRs = await env.DB.prepare(
-        `SELECT id, yt_channel_id FROM users WHERE state = 'active' AND yt_channel_id IN (${placeholders})`
+        `SELECT id, yt_channel_id FROM users WHERE state = 'active' AND suspended_at IS NULL AND yt_channel_id IN (${placeholders})`
     ).bind(...channelIds).all();
     const byChannel = new Map((usersRs.results || []).map(r => [r.yt_channel_id, r.id]));
     if (byChannel.size === 0) return;

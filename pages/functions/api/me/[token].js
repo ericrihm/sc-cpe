@@ -17,7 +17,8 @@ export async function onRequestGet({ params, env, request }) {
         SELECT id, email, legal_name, yt_channel_id, yt_display_name_seen,
                verification_code, code_expires_at, state, email_prefs,
                show_on_leaderboard, badge_token, created_at, verified_at,
-               current_streak, longest_streak, last_attendance_date
+               current_streak, longest_streak, last_attendance_date,
+               suspended_at
         FROM users WHERE dashboard_token = ?1 AND deleted_at IS NULL
     `).bind(token).first();
 
@@ -39,6 +40,22 @@ export async function onRequestGet({ params, env, request }) {
         FROM certs WHERE user_id = ?1 AND state != 'regenerated'
         ORDER BY period_yyyymm DESC, created_at DESC
     `).bind(user.id).all();
+
+    const certIds = (certs.results || []).map(c => c.id);
+    let emailStatusMap = {};
+    if (certIds.length > 0) {
+        const ph = certIds.map((_, i) => `?${i + 1}`).join(",");
+        const emailRows = await env.DB.prepare(
+            `SELECT idempotency_key, state, last_error FROM email_outbox
+             WHERE idempotency_key IN (${ph})
+             ORDER BY created_at DESC`
+        ).bind(...certIds).all();
+        for (const r of (emailRows.results || [])) {
+            if (!emailStatusMap[r.idempotency_key]) {
+                emailStatusMap[r.idempotency_key] = { state: r.state, last_error: r.last_error };
+            }
+        }
+    }
 
     // Set of stream_ids the user already has a per_session cert for (any
     // non-terminal state). Drives the dashboard's per-row button: show
@@ -145,9 +162,14 @@ export async function onRequestGet({ params, env, request }) {
             badge_token: user.badge_token,
             created_at: user.created_at,
             verified_at: user.verified_at,
+            suspended: !!user.suspended_at,
         },
         attendance: attendanceWithFlags,
-        certs: certs.results || [],
+        certs: (certs.results || []).map(c => ({
+            ...c,
+            email_status: emailStatusMap[c.id]?.state || null,
+            email_error: emailStatusMap[c.id]?.state === "bounced" ? emailStatusMap[c.id].last_error : null,
+        })),
         appeals: appeals.results || [],
         total_cpe_earned: totalCpe,
         streaks: {
