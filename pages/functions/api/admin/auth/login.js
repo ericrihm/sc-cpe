@@ -79,7 +79,9 @@ export async function onRequestPost({ request, env }) {
     await env.RATE_KV.put("admin_nonce:" + nonce, email, { expirationTtl: 900 });
 
     const token = await buildMagicLinkToken(email, expires, nonce, env.ADMIN_COOKIE_SECRET);
-    const redirect = body.redirect || "/admin.html";
+    const rawRedirect = body.redirect || "/admin.html";
+    const redirect = (typeof rawRedirect === "string" && rawRedirect.startsWith("/") && !rawRedirect.startsWith("//"))
+        ? rawRedirect : "/admin.html";
     const siteBase = new URL(request.url).origin;
     const callbackUrl = siteBase + "/api/admin/auth/callback?token=" +
         encodeURIComponent(token) + "&redirect=" + encodeURIComponent(redirect);

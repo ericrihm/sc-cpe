@@ -41,7 +41,28 @@ const PERMISSIONS = [
     "usb=()",
 ].join(", ");
 
-export async function onRequest({ request, next }) {
+const HONEYPOT_RE = /^\/(wp-admin|wp-login|xmlrpc|admin\.php|\.env|\.git|\.svn|\.DS_Store|phpmyadmin|cgi-bin|shell|eval-stdin|vendor\/phpunit|_profiler|actuator|debug|telescope|config\.json|server-status)/i;
+
+export async function onRequest({ request, next, env }) {
+    const url = new URL(request.url);
+    if (HONEYPOT_RE.test(url.pathname)) {
+        if (env.RATE_KV) {
+            const bucket = new Date().toISOString().slice(0, 13);
+            const key = `sec:honeypot:${bucket}`;
+            const cur = parseInt(await env.RATE_KV.get(key), 10) || 0;
+            env.RATE_KV.put(key, String(cur + 1), { expirationTtl: 86400 }).catch(() => {});
+            if (cur < 100) {
+                const ip = request.headers.get("CF-Connecting-IP") || "?";
+                const ua = (request.headers.get("User-Agent") || "?").slice(0, 200);
+                env.RATE_KV.put(`honeypot_log:${bucket}:${cur}`, JSON.stringify({
+                    path: url.pathname.slice(0, 200), ip_prefix: ip.split(".").slice(0, 2).join(".") + ".*",
+                    ua, ts: new Date().toISOString(),
+                }), { expirationTtl: 86400 }).catch(() => {});
+            }
+        }
+        return new Response("", { status: 404 });
+    }
+
     const res = await next();
     const ct = res.headers.get("Content-Type") || "";
 

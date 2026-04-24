@@ -282,6 +282,33 @@ function renderSecurityEvents(d) {
     row.append(label, count, sparkLine);
     box.appendChild(row);
   }
+  var honeypotHits = d.honeypot_hits_recent || [];
+  if (honeypotHits.length > 0) {
+    var hpHeader = document.createElement("h4");
+    hpHeader.style.cssText = "margin:16px 0 8px;font-size:13px;color:var(--muted);";
+    hpHeader.textContent = "Honeypot Hits (this hour)";
+    box.appendChild(hpHeader);
+    var hpTable = document.createElement("table");
+    hpTable.style.cssText = "width:100%;font-size:12px;border-collapse:collapse;";
+    hpTable.innerHTML = "<thead><tr><th style='text-align:left;padding:4px 8px;color:var(--muted);'>Path</th>" +
+      "<th style='text-align:left;padding:4px 8px;color:var(--muted);'>IP Prefix</th>" +
+      "<th style='text-align:left;padding:4px 8px;color:var(--muted);'>UA</th></tr></thead>";
+    var tbody = document.createElement("tbody");
+    for (var h = 0; h < honeypotHits.length; h++) {
+      var tr = document.createElement("tr");
+      tr.style.borderBottom = "1px solid var(--border)";
+      var tdPath = document.createElement("td"); tdPath.style.padding = "4px 8px";
+      tdPath.textContent = honeypotHits[h].path || "?";
+      var tdIp = document.createElement("td"); tdIp.style.padding = "4px 8px";
+      tdIp.textContent = honeypotHits[h].ip_prefix || "?";
+      var tdUa = document.createElement("td"); tdUa.style.cssText = "padding:4px 8px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+      tdUa.textContent = (honeypotHits[h].ua || "?").slice(0, 80);
+      tr.append(tdPath, tdIp, tdUa);
+      tbody.appendChild(tr);
+    }
+    hpTable.appendChild(tbody);
+    box.appendChild(hpTable);
+  }
 }
 function escapeHtml(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
