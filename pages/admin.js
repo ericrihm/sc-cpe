@@ -59,11 +59,12 @@ async function load() {
     renderStats(stats);
     renderToggles(toggles);
     renderCronTriggers();
+    renderExportButtons();
     if (supp) renderSuppression(supp);
     renderHeartbeats(hb);
     renderChain(chain, stats);
-    renderAuditTrail(chain);
     renderFeedback(fb);
+    loadAuditTrail();
     if (secEvents) renderSecurityEvents(secEvents);
     $("#ts").textContent = "updated " + new Date().toLocaleTimeString();
   } catch (e) {
@@ -173,6 +174,42 @@ function renderCronTriggers() {
       wrap.append(label, btn);
       box.appendChild(wrap);
     })(blocks[i]);
+  }
+}
+function renderExportButtons() {
+  var box = $("#export-buttons");
+  if (!box || box.childNodes.length > 0) return;
+  var types = ["users", "attendance", "certs"];
+  for (var i = 0; i < types.length; i++) {
+    (function (type) {
+      var btn = document.createElement("button");
+      btn.className = "refresh";
+      btn.style.cssText = "font-size:11px;padding:5px 14px;";
+      btn.textContent = "Export " + type + " CSV";
+      btn.addEventListener("click", function () {
+        var url = "/api/admin/export?type=" + type;
+        var a = document.createElement("a");
+        a.href = url;
+        a.download = "";
+        if (TOKEN && TOKEN !== "__cookie__") {
+          btn.disabled = true;
+          btn.textContent = "downloading…";
+          fetch(url, { headers: { "Authorization": "Bearer " + TOKEN } })
+            .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.blob(); })
+            .then(function (blob) {
+              var u = URL.createObjectURL(blob);
+              a.href = u;
+              a.click();
+              URL.revokeObjectURL(u);
+            })
+            .catch(function (e) { alert("Export failed: " + e.message); })
+            .finally(function () { btn.disabled = false; btn.textContent = "Export " + type + " CSV"; });
+        } else {
+          a.click();
+        }
+      });
+      box.appendChild(btn);
+    })(types[i]);
   }
 }
 function renderSuppression(d) {
@@ -404,82 +441,47 @@ function escapeHtml(s) {
     return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
   });
 }
-function renderAuditTrail(chain) {
+async function loadAuditTrail() {
   var box = $("#audit-rows"); box.innerHTML = "";
   auditEntries = [];
-  if (chain.rows && chain.rows.length > 0) {
-    auditEntries = chain.rows;
-  } else {
-    var entries = [];
-    if (chain.first_break) {
-      entries.push({
-        id: chain.first_break.id,
-        action: "chain_break",
-        entity_type: "audit_chain",
-        entity_id: chain.first_break.id,
-        actor_type: "system",
-        ts: chain.first_break.ts,
-        detail: "expected " + (chain.first_break.expected_prev_hash || "null") + ", got " + (chain.first_break.actual_prev_hash || "null")
-      });
-    }
-    entries.push({
-      id: "summary",
-      action: chain.ok ? "chain_verified" : "chain_broken",
-      entity_type: "audit_chain",
-      entity_id: "verify",
-      actor_type: "system",
-      ts: new Date().toISOString(),
-      detail: chain.rows_checked + " rows checked, unique index " + (chain.unique_index_on_prev_hash ? "present" : "MISSING")
-    });
-    auditEntries = entries;
+  var q = ($("#audit-q").value || "").trim();
+  var fromDate = $("#audit-from").value;
+  var toDate = $("#audit-to").value;
+  var qs = "?limit=200";
+  if (q) qs += "&q=" + encodeURIComponent(q);
+  if (fromDate) qs += "&from=" + encodeURIComponent(fromDate);
+  if (toDate) qs += "&to=" + encodeURIComponent(toDate);
+  try {
+    var data = await fetchJson("/api/admin/audit-log" + qs);
+    auditEntries = data.rows || [];
+  } catch (e) {
+    var errDiv = document.createElement("div");
+    errDiv.className = "err";
+    errDiv.textContent = e.message;
+    box.appendChild(errDiv);
+    return;
   }
   for (var i = 0; i < auditEntries.length; i++) {
     var entry = auditEntries[i];
     var row = document.createElement("div");
     row.className = "audit-row";
-    row.dataset.action = (entry.action || "").toLowerCase();
-    row.dataset.entityType = (entry.entity_type || "").toLowerCase();
-    row.dataset.entityId = String(entry.entity_id || "").toLowerCase();
-    row.dataset.actorType = (entry.actor_type || "").toLowerCase();
-    row.dataset.ts = entry.ts || "";
     row.innerHTML =
       '<div><div class="ar-label">Action</div><div class="ar-val">' + escapeHtml(entry.action) + '</div></div>' +
       '<div><div class="ar-label">Entity</div><div class="ar-val">' + escapeHtml(entry.entity_type) + ':' + escapeHtml(entry.entity_id) + '</div></div>' +
       '<div><div class="ar-label">Actor</div><div class="ar-val">' + escapeHtml(entry.actor_type) + (entry.actor_id ? ':' + escapeHtml(entry.actor_id) : '') + '</div></div>' +
-      '<div><div class="ar-label">Timestamp</div><div class="ar-val">' + escapeHtml(entry.ts) + '</div></div>' +
-      (entry.detail ? '<div style="grid-column:1/-1;"><div class="ar-label">Detail</div><div class="ar-val">' + escapeHtml(entry.detail) + '</div></div>' : '');
+      '<div><div class="ar-label">Timestamp</div><div class="ar-val">' + escapeHtml(entry.ts) + '</div></div>';
     box.appendChild(row);
   }
-  filterAuditRows();
+  $("#audit-count").textContent = auditEntries.length > 0 ? auditEntries.length + " entries" : "No entries found";
 }
-function filterAuditRows() {
-  var q = ($("#audit-q").value || "").toLowerCase().trim();
-  var fromDate = $("#audit-from").value;
-  var toDate = $("#audit-to").value;
-  var rows = document.querySelectorAll("#audit-rows .audit-row");
-  var shown = 0;
-  var total = rows.length;
-  for (var i = 0; i < rows.length; i++) {
-    var row = rows[i];
-    var match = true;
-    if (q) {
-      var text = row.dataset.action + " " + row.dataset.entityType + " " + row.dataset.entityId + " " + row.dataset.actorType;
-      if (text.indexOf(q) === -1) match = false;
-    }
-    if (match && fromDate && row.dataset.ts) {
-      if (row.dataset.ts.slice(0, 10) < fromDate) match = false;
-    }
-    if (match && toDate && row.dataset.ts) {
-      if (row.dataset.ts.slice(0, 10) > toDate) match = false;
-    }
-    if (match) { row.classList.remove("hidden"); shown++; }
-    else { row.classList.add("hidden"); }
-  }
-  $("#audit-count").textContent = total > 0 ? "Showing " + shown + " of " + total + " entries" : "";
+var auditDebounce = null;
+function debouncedAuditLoad() {
+  if (auditDebounce) clearTimeout(auditDebounce);
+  auditDebounce = setTimeout(loadAuditTrail, 400);
 }
-$("#audit-q").addEventListener("input", filterAuditRows);
-$("#audit-from").addEventListener("change", filterAuditRows);
-$("#audit-to").addEventListener("change", filterAuditRows);
+$("#audit-q").addEventListener("input", debouncedAuditLoad);
+$("#audit-from").addEventListener("change", loadAuditTrail);
+$("#audit-to").addEventListener("change", loadAuditTrail);
 $("#auto-refresh").addEventListener("change", function() {
   if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; }
   if (this.checked) { autoRefreshTimer = setInterval(load, 30000); }
@@ -1016,7 +1018,12 @@ function buildAppealRow(a) {
         denyBtn.dataset.aid = a.id;
         denyBtn.style.background = "#5c1515";
         denyBtn.textContent = "Deny";
-        actionsDiv.append(grantBtn, denyBtn);
+        var cancelBtn = document.createElement("button");
+        cancelBtn.className = "refresh appeal-cancel-btn";
+        cancelBtn.dataset.aid = a.id;
+        cancelBtn.style.cssText = "background:transparent;border:1px solid var(--adm-border);color:var(--adm-muted);";
+        cancelBtn.textContent = "Cancel";
+        actionsDiv.append(grantBtn, denyBtn, cancelBtn);
         row.appendChild(actionsDiv);
     } else if (a.resolution_notes) {
         var resDiv = document.createElement("div");
@@ -1044,9 +1051,10 @@ if (appealsBox) {
     appealsBox.addEventListener("click", async function (e) {
         var grantBtn = e.target.closest(".appeal-grant-btn");
         var denyBtn = e.target.closest(".appeal-deny-btn");
-        var btn = grantBtn || denyBtn;
+        var cancelBtn = e.target.closest(".appeal-cancel-btn");
+        var btn = grantBtn || denyBtn || cancelBtn;
         if (!btn || btn.disabled) return;
-        var decision = grantBtn ? "grant" : "deny";
+        var decision = grantBtn ? "grant" : (cancelBtn ? "cancel" : "deny");
         var resolver = prompt("Your admin handle:");
         if (!resolver) return;
         var notes = prompt("Resolution notes (optional):") || "";
