@@ -13,7 +13,13 @@ function fmtAge(s) {
 function card(k, v, cls) {
   var n = document.createElement("div");
   n.className = "card";
-  n.innerHTML = '<div class="k">' + k + '</div><div class="v ' + (cls||'') + '">' + v + '</div>';
+  var kDiv = document.createElement("div");
+  kDiv.className = "k";
+  kDiv.textContent = k;
+  var vDiv = document.createElement("div");
+  vDiv.className = "v " + (cls || "");
+  vDiv.textContent = v;
+  n.append(kDiv, vDiv);
   return n;
 }
 async function fetchJson(path) {
@@ -279,7 +285,7 @@ function renderHeartbeats(d) {
     var s = d.sources[i];
     var tr = document.createElement("tr");
     var cls = s.stale ? "stale" : "ok";
-    var status = s.stale ? "STALE" : (s.last_status || "—");
+    var status = s.stale ? "✗ STALE" : ("✓ " + (s.last_status || "ok"));
     tr.innerHTML =
       '<td data-label="Source">' + s.source + "</td>" +
       '<td data-label="Status" class="' + cls + '">' + status + "</td>" +
@@ -293,12 +299,12 @@ function renderHeartbeats(d) {
 function renderChain(c, s) {
   var g = $("#chain"); g.innerHTML = "";
   g.append(
-    card("Chain OK", c.ok ? "YES" : "NO", c.ok ? "ok" : "stale"),
+    card("Chain OK", c.ok ? "✓ YES" : "✗ NO", c.ok ? "ok" : "stale"),
     card("Rows checked", c.rows_checked),
-    card("Unique index", c.unique_index_on_prev_hash ? "present" : "MISSING",
+    card("Unique index", c.unique_index_on_prev_hash ? "✓ present" : "✗ MISSING",
          c.unique_index_on_prev_hash ? "ok" : "stale"),
-    card("Tip id", '<span class="v small">' + ((s.audit_tip && s.audit_tip.id) || "—") + "</span>"),
-    card("Tip ts", '<span class="v small">' + ((s.audit_tip && s.audit_tip.ts) || "—") + "</span>"),
+    card("Tip id", (s.audit_tip && s.audit_tip.id) || "—"),
+    card("Tip ts", (s.audit_tip && s.audit_tip.ts) || "—"),
   );
   if (c.first_break) {
     var n = document.createElement("div");
@@ -771,7 +777,9 @@ if (userResultsBox) {
             var isSusp = suspBtn.dataset.suspended === "1";
             var reason = prompt(isSusp ? "Reason for unsuspension:" : "Reason for suspension (required):");
             if (!reason) return;
-            if (!isSusp && !confirm("Suspend user " + suspBtn.dataset.uid.slice(0, 10) + "…?")) return;
+            var userHeader = suspBtn.closest(".user-row").querySelector(".user-name");
+            var userName = userHeader ? userHeader.textContent : suspBtn.dataset.uid;
+            if (!isSusp && !confirm("Suspend user " + userName + " (" + suspBtn.dataset.uid + ")?")) return;
             suspBtn.disabled = true;
             suspBtn.textContent = isSusp ? "unsuspending…" : "suspending…";
             try {
@@ -1181,37 +1189,27 @@ async function loadAnalytics() {
     var el = $("#analytics-" + sections[i]);
     if (el) { el.textContent = ""; var p = document.createElement("p"); p.className = "muted"; p.style.fontSize = "12px"; p.textContent = "Loading…"; el.appendChild(p); }
   }
-  try {
-    var results = await Promise.all([
-      fetchJson("/api/admin/analytics/growth" + qs),
-      fetchJson("/api/admin/analytics/engagement" + qs),
-      fetchJson("/api/admin/analytics/certs" + qs),
-      fetchJson("/api/admin/analytics/system" + qs),
-    ]);
-    renderAnalyticsSection("analytics-growth", "Growth", results[0].headlines, {
-      total_users: "Total users", active_users: "Active", verified_users: "Verified",
-      active_attenders_30d: "Active attenders (30d)", new_registrations: "New registrations",
-    }, results[0].series);
-    renderAnalyticsSection("analytics-engagement", "Engagement", results[1].headlines, {
-      avg_attendance_per_stream: "Avg attendance / stream",
-      total_cpe_awarded: "Total CPE awarded",
-      streams_with_zero_attendance: "Streams (0 attendance)",
-    }, results[1].series);
-    renderAnalyticsSection("analytics-certs", "Certificates", results[2].headlines, {
-      issued_this_period: "Issued (period)",
-      pending_now: "Pending now",
-      avg_delivery_seconds: "Avg delivery (s)",
-      view_rate_pct: "View rate %",
-    }, results[2].series);
-    renderAnalyticsSection("analytics-system", "System", results[3].headlines, {
-      email_success_rate_pct: "Email success %",
-      emails_sent: "Emails sent",
-      appeals_open: "Open appeals",
-      avg_appeal_resolution_seconds: "Avg appeal resolution (s)",
-    }, results[3].series);
-  } catch (e) {
-    var el = $("#analytics-growth");
-    if (el) { el.textContent = ""; var d = document.createElement("div"); d.className = "err"; d.textContent = e.message; el.appendChild(d); }
+  var settled = await Promise.allSettled([
+    fetchJson("/api/admin/analytics/growth" + qs),
+    fetchJson("/api/admin/analytics/engagement" + qs),
+    fetchJson("/api/admin/analytics/certs" + qs),
+    fetchJson("/api/admin/analytics/system" + qs),
+  ]);
+  var configs = [
+    ["analytics-growth", "Growth", { total_users: "Total users", active_users: "Active", verified_users: "Verified", active_attenders_30d: "Active attenders (30d)", new_registrations: "New registrations" }],
+    ["analytics-engagement", "Engagement", { avg_attendance_per_stream: "Avg attendance / stream", total_cpe_awarded: "Total CPE awarded", streams_with_zero_attendance: "Streams (0 attendance)" }],
+    ["analytics-certs", "Certificates", { issued_this_period: "Issued (period)", pending_now: "Pending now", avg_delivery_seconds: "Avg delivery (s)", view_rate_pct: "View rate %" }],
+    ["analytics-system", "System", { email_success_rate_pct: "Email success %", emails_sent: "Emails sent", appeals_open: "Open appeals", avg_appeal_resolution_seconds: "Avg appeal resolution (s)" }],
+  ];
+  for (var i = 0; i < settled.length; i++) {
+    var el = $("#" + configs[i][0]);
+    if (!el) continue;
+    if (settled[i].status === "fulfilled") {
+      renderAnalyticsSection(configs[i][0], configs[i][1], settled[i].value.headlines, configs[i][2], settled[i].value.series);
+    } else {
+      el.textContent = "";
+      var d = document.createElement("div"); d.className = "err"; d.textContent = configs[i][1] + ": " + settled[i].reason.message; el.appendChild(d);
+    }
   }
 }
 function renderAnalyticsSection(containerId, title, headlines, labels, series) {
