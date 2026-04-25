@@ -43,6 +43,22 @@
     --drop-border:     light-dark(#8a94a3, #4a5668);
     --drop-bg:         light-dark(#f4f6f8, #1a2330);
     --drop-active-bg:  light-dark(#e3ebf3, #22324a);
+
+    /* ── Type scale ─────────────────────────────── */
+    --text-xs:   0.75rem;      /* 12px */
+    --text-sm:   0.8125rem;    /* 13px */
+    --text-base: 1rem;         /* 16px */
+    --text-lg:   1.125rem;     /* 18px */
+    --text-xl:   1.5rem;       /* 24px */
+    --text-2xl:  2.5rem;       /* 40px */
+
+    /* ── Spacing scale ──────────────────────────── */
+    --space-xs:  4px;
+    --space-sm:  8px;
+    --space-md:  12px;
+    --space-lg:  16px;
+    --space-xl:  24px;
+    --space-2xl: 32px;
 }
 :root[data-theme="dark"] { color-scheme: dark; }
 :root[data-theme="light"] { color-scheme: light; }
@@ -53,7 +69,11 @@ body {
     margin: 0;
     font: 16px/1.5 system-ui, -apple-system, Segoe UI, sans-serif;
     color: var(--fg);
-    background: var(--bg);
+    background:
+        radial-gradient(ellipse at top left,
+            light-dark(rgba(0,87,216,0.04), rgba(124,195,255,0.06)),
+            transparent 40%),
+        var(--bg);
 }
 main.narrow {
     max-width: 640px;
@@ -137,10 +157,11 @@ button:focus-visible {
 }
 .card {
     background: var(--card);
-    border: 1px solid var(--border);
+    border: 1px solid light-dark(rgba(0,0,0,0.06), rgba(255,255,255,0.06));
     border-radius: 8px;
     padding: .85rem 1rem;            /* tighter on narrow screens */
     margin: .85rem 0;
+    box-shadow: 0 1px 3px light-dark(rgba(0,0,0,0.04), rgba(0,0,0,0.3));
 }
 @media (min-width: 640px) {
     .card { padding: 1rem 1.25rem; margin: 1rem 0; }
@@ -300,12 +321,20 @@ main.narrow > h1 a:hover {
     }
     .card:hover {
         border-color: rgba(124, 195, 255, 0.15);
-        box-shadow: 0 0 12px rgba(124, 195, 255, 0.04);
+        box-shadow: 0 2px 12px rgba(124, 195, 255, 0.04);
+    }
+    .card:focus-within {
+        box-shadow: 0 0 0 1px rgba(124, 195, 255, 0.15),
+                    0 0 20px rgba(124, 195, 255, 0.03);
     }
     button:hover {
         box-shadow: 0 0 12px rgba(124, 195, 255, 0.15);
     }
     .site-footer {
-        border-image: linear-gradient(90deg, transparent, rgba(124, 195, 255, 0.12), transparent) 1;
+        border-top: none;
+        border-image: linear-gradient(90deg,
+            transparent 5%,
+            rgba(124, 195, 255, 0.15) 50%,
+            transparent 95%) 1;
     }
 }
