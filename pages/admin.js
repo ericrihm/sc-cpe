@@ -1456,13 +1456,8 @@ if (adminInviteForm) {
         var role = $("#invite-role").value;
         if (!email) return;
         try {
-            var r = await fetch("/api/admin/auth/admins", {
-                method: "POST", credentials: "include",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email: email, role: role }),
-            });
-            var data = await r.json();
-            if (!r.ok) { errEl.textContent = data.error || "Invite failed"; errEl.hidden = false; return; }
+            var data = await postJson("/api/admin/auth/admins", {}, "POST", { email: email, role: role });
+            if (data.error) { errEl.textContent = data.error || "Invite failed"; errEl.hidden = false; return; }
             $("#invite-email").value = "";
             loadAdminList();
         } catch (x) {
