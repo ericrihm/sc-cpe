@@ -36,4 +36,6 @@ node --test \
     pages/functions/api/admin/cert-reissue.test.mjs \
     pages/functions/_lib-security.test.mjs \
     workers/email-sender/src/email-sender.test.mjs \
-    workers/purge/src/scheduled-tasks.test.mjs
+    workers/purge/src/scheduled-tasks.test.mjs \
+    pages/functions/api/admin/audit-log.test.mjs \
+    pages/functions/api/admin/export.test.mjs

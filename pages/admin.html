@@ -65,6 +65,9 @@
     <div class="section-h">Manual triggers <span class="muted" style="font-size:11px;text-transform:none;letter-spacing:0;">— on-demand cron block execution via purge worker</span></div>
     <div id="cron-triggers" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;"></div>
 
+    <div class="section-h">Data Export <span class="muted" style="font-size:11px;text-transform:none;letter-spacing:0;">— download CSV snapshots</span></div>
+    <div id="export-buttons" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;"></div>
+
     <div class="section-h">Email Suppression <span class="muted" style="font-size:11px;text-transform:none;letter-spacing:0;">— bounced/complained addresses blocked from sending</span></div>
     <div id="suppression-rows"></div>
     <p id="suppression-empty" class="muted" style="font-size:12px;" hidden>No suppressed addresses.</p>
@@ -118,6 +121,7 @@
         <option value="open">Open</option>
         <option value="granted">Granted</option>
         <option value="denied">Denied</option>
+        <option value="cancelled">Cancelled</option>
         <option value="any">All</option>
       </select>
       <button class="refresh" id="appeals-refresh" style="margin-left:6px;">Load</button>
