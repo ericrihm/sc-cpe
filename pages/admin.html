@@ -17,6 +17,11 @@
   <div class="sub" id="sub"><a href="/analytics.html">Analytics &rarr;</a></div>
 
   <div id="login" class="login">
+    <div id="passkey-login" hidden style="margin-bottom:16px;">
+      <button id="passkey-login-btn" style="width:100%;max-width:340px;padding:10px;font-size:1rem;cursor:pointer;">Sign in with passkey</button>
+      <div id="passkey-login-err" class="err" hidden style="margin-top:6px;"></div>
+      <p style="margin:12px 0 0;color:var(--adm-muted);font-size:12px;">Or use email below:</p>
+    </div>
     <p style="margin:0 0 12px;color:var(--adm-muted);">Enter your admin email and we'll send you a login link — no token needed.</p>
     <form id="login-form" style="display:flex;flex-direction:column;gap:8px;max-width:340px;">
       <input type="email" id="admin-email" placeholder="admin@example.com" required autocomplete="email" style="padding:8px;border:1px solid var(--adm-border);border-radius:4px;font-size:1rem;background:var(--adm-card);color:var(--adm-fg);">
@@ -156,6 +161,28 @@
     </thead><tbody></tbody></table>
     </div>
     <p id="fb-empty" class="muted" style="font-size:12px;" hidden>No outstanding typo/wrong reports.</p>
+
+    <div class="section-h">Passkeys <span class="muted" style="font-size:11px;text-transform:none;letter-spacing:0;">— passwordless login credentials</span></div>
+    <div id="passkey-enroll" style="margin-bottom:12px;">
+      <button id="passkey-register-btn" class="refresh">Register new passkey</button>
+      <span id="passkey-register-status" class="muted" style="margin-left:8px;font-size:12px;"></span>
+    </div>
+    <div id="passkey-list"></div>
+    <p id="passkey-empty" class="muted" style="font-size:12px;" hidden>No passkeys registered. Add one for instant login.</p>
+
+    <div class="section-h" id="admin-mgmt-header" hidden>Admin management <span class="muted" style="font-size:11px;text-transform:none;letter-spacing:0;">— invite and manage admin accounts (owner only)</span></div>
+    <div id="admin-mgmt" hidden>
+      <form id="admin-invite-form" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+        <input type="email" id="invite-email" placeholder="Email address" required style="flex:1;min-width:200px;">
+        <select id="invite-role" style="background:var(--adm-card);color:var(--adm-fg);border:1px solid var(--adm-border);padding:4px 8px;border-radius:4px;">
+          <option value="admin">Operator</option>
+          <option value="owner">Owner</option>
+        </select>
+        <button type="submit" class="refresh">Invite</button>
+      </form>
+      <div id="admin-invite-err" class="err" hidden></div>
+      <div id="admin-list"></div>
+    </div>
   </div>
 </div>
 

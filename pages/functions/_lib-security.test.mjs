@@ -50,24 +50,27 @@ test("isAdmin: wrong bearer token → false", async () => {
     assert.equal(r, false);
 });
 
-test("isAdmin: correct bearer token → true", async () => {
+test("isAdmin: correct bearer token → returns admin object", async () => {
     const r = await isAdmin(
         { ADMIN_TOKEN: "correct_token" },
         new Request("https://x.dev/api/admin/test", {
             headers: { Authorization: "Bearer correct_token" },
         }),
     );
-    assert.equal(r, true);
+    assert.ok(r);
+    assert.equal(r.role, "owner");
+    assert.equal(r.email, "__bearer__");
 });
 
-test("isAdmin: case-insensitive 'bearer' prefix → true", async () => {
+test("isAdmin: case-insensitive 'bearer' prefix → returns admin object", async () => {
     const r = await isAdmin(
         { ADMIN_TOKEN: "tok" },
         new Request("https://x.dev/api/admin/test", {
             headers: { Authorization: "bearer tok" },
         }),
     );
-    assert.equal(r, true);
+    assert.ok(r);
+    assert.equal(r.role, "owner");
 });
 
 test("isAdmin: empty ADMIN_TOKEN env → false (never matches)", async () => {
