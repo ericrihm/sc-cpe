@@ -12,7 +12,8 @@
 <link rel="stylesheet" href="/dashboard.css">
 </head>
 <body>
-<main class="narrow">
+<main class="narrow wide-dash" role="main">
+    <a href="#body" class="skip-link">Skip to dashboard content</a>
     <h1><a href="/">SC-CPE</a> — My Dashboard</h1>
     <div id="err" class="err" hidden></div>
 
@@ -67,6 +68,10 @@
         </div>
     </section>
     <section id="body" hidden>
+        <div class="last-updated-bar" id="last-updated-bar" hidden>
+            <span id="last-updated-text" class="muted"></span>
+            <button type="button" id="refresh-btn" class="refresh-btn" aria-label="Refresh dashboard">&#8635; Refresh</button>
+        </div>
         <div id="suspended-banner" class="card" style="background:var(--bad-soft,#3a1818);border:1px solid var(--bad-soft-border,#6b2a2a);color:var(--bad-soft-text,#ffb4b4);" hidden>
             <h2 class="card-heading" style="color:inherit;">Account suspended</h2>
             <p>Your account has been suspended. You will not earn attendance credit until the suspension is lifted. If you believe this is an error, please contact the Simply Cyber team.</p>
@@ -162,6 +167,7 @@
             <p id="verified-at-line" class="muted verified-at" hidden></p>
         </div>
 
+        <div class="dashboard-grid">
         <div class="card" id="stats-card">
             <div class="stats-row">
                 <div class="stat-block">
@@ -228,12 +234,14 @@
 
         <div class="card" id="calendar-card">
             <h2>Attendance calendar</h2>
-            <div class="cal-nav">
+            <div class="cal-nav" role="navigation" aria-label="calendar navigation">
                 <button type="button" id="cal-prev" aria-label="previous month">&lsaquo;</button>
                 <strong id="cal-label"></strong>
                 <button type="button" id="cal-next" aria-label="next month">&rsaquo;</button>
             </div>
             <div id="cal" class="cal-grid" aria-label="month calendar"></div>
+            <div id="cal-detail" class="cal-detail" hidden></div>
+            <p id="cal-summary" class="muted cal-summary" hidden></p>
             <p class="muted cal-legend">
                 <span class="cal-dot cal-credited"></span> credited &nbsp;
                 <span class="cal-dot cal-appeal-open"></span> appeal pending &nbsp;
@@ -260,6 +268,8 @@
                 If a name or session count looks wrong, tap <strong>Report an issue</strong>
                 on the cert — feedback goes straight to the admin digest so we can reissue.
             </p>
+        </div>
+
         </div>
 
         <details class="settings-accordion" id="settings-section">
