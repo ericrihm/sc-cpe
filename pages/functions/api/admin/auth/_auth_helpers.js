@@ -94,9 +94,9 @@ export function parseCookies(cookieHeader) {
 }
 
 export const COOKIE_NAME = "__Host-sc-admin";
-export const SESSION_MAX_AGE = 24 * 60 * 60 * 1000;
+export const SESSION_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
 export const MAGIC_LINK_MAX_AGE = 15 * 60 * 1000;
 
-export function sessionCookieHeader(value, maxAge = 86400) {
+export function sessionCookieHeader(value, maxAge = 604800) {
     return `${COOKIE_NAME}=${value}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${maxAge}`;
 }

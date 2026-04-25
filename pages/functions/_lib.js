@@ -386,7 +386,7 @@ export async function isAdmin(env, request) {
             securityEvent(env, "auth_fail:bearer", "").catch(() => {});
             return false;
         }
-        return true;
+        return { id: 0, email: "__bearer__", role: "owner" };
     }
 
     if (!env.ADMIN_COOKIE_SECRET) return false;
@@ -399,9 +399,9 @@ export async function isAdmin(env, request) {
     const session = await parseSessionCookie(cookieValue, env.ADMIN_COOKIE_SECRET);
     if (!session) return false;
     const admin = await env.DB.prepare(
-        "SELECT id FROM admin_users WHERE lower(email) = ?1"
+        "SELECT id, email, role FROM admin_users WHERE lower(email) = ?1"
     ).bind(session.email.toLowerCase()).first();
-    return !!admin;
+    return admin || false;
 }
 
 export async function constantTimeEqual(a, b) {

@@ -1254,6 +1254,224 @@ function renderAnalyticsSection(containerId, title, headlines, labels, series) {
 }
 var analyticsLoadBtn = $("#analytics-load");
 if (analyticsLoadBtn) analyticsLoadBtn.addEventListener("click", loadAnalytics);
+
+// ── Passkey helpers ───────────────────────────────────────────────────
+function bufToB64url(buf) {
+    var bytes = new Uint8Array(buf);
+    var s = "";
+    for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+    return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+function b64urlToBuf(str) {
+    var padded = str.replace(/-/g, "+").replace(/_/g, "/");
+    var bin = atob(padded);
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes.buffer;
+}
+
+async function passkeyLogin() {
+    var errEl = $("#passkey-login-err");
+    errEl.hidden = true;
+    try {
+        var optR = await fetch("/api/admin/auth/passkey/auth-options", { method: "POST" });
+        if (!optR.ok) throw new Error("Failed to get options");
+        var options = await optR.json();
+        options.challenge = b64urlToBuf(options.challenge);
+        var cred = await navigator.credentials.get({ publicKey: options });
+        var body = {
+            id: cred.id,
+            rawId: bufToB64url(cred.rawId),
+            type: cred.type,
+            response: {
+                clientDataJSON: bufToB64url(cred.response.clientDataJSON),
+                authenticatorData: bufToB64url(cred.response.authenticatorData),
+                signature: bufToB64url(cred.response.signature),
+                userHandle: cred.response.userHandle ? bufToB64url(cred.response.userHandle) : null,
+            },
+        };
+        var verR = await fetch("/api/admin/auth/passkey/auth-verify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+        });
+        if (!verR.ok) {
+            var errJ = await verR.json().catch(function() { return {}; });
+            throw new Error(errJ.error || "Verification failed");
+        }
+        location.reload();
+    } catch (e) {
+        if (e.name === "NotAllowedError") return;
+        errEl.textContent = e.message;
+        errEl.hidden = false;
+    }
+}
+
+async function passkeyRegister() {
+    var status = $("#passkey-register-status");
+    var btn = $("#passkey-register-btn");
+    btn.disabled = true;
+    status.textContent = "Starting…";
+    try {
+        var optR = await fetch("/api/admin/auth/passkey/register-options", {
+            method: "POST", credentials: "include",
+        });
+        if (!optR.ok) throw new Error("Failed to get options");
+        var options = await optR.json();
+        options.challenge = b64urlToBuf(options.challenge);
+        options.user.id = b64urlToBuf(options.user.id);
+        if (options.excludeCredentials) {
+            for (var i = 0; i < options.excludeCredentials.length; i++) {
+                options.excludeCredentials[i].id = b64urlToBuf(options.excludeCredentials[i].id);
+            }
+        }
+        var cred = await navigator.credentials.create({ publicKey: options });
+        var body = {
+            id: cred.id,
+            rawId: bufToB64url(cred.rawId),
+            type: cred.type,
+            response: {
+                clientDataJSON: bufToB64url(cred.response.clientDataJSON),
+                attestationObject: bufToB64url(cred.response.attestationObject),
+                transports: cred.response.getTransports ? cred.response.getTransports() : [],
+            },
+        };
+        var verR = await fetch("/api/admin/auth/passkey/register-verify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify(body),
+        });
+        var result = await verR.json();
+        if (!verR.ok) throw new Error(result.error || "Registration failed");
+        status.textContent = "Passkey registered!";
+        status.style.color = "var(--adm-ok)";
+        loadPasskeys();
+    } catch (e) {
+        if (e.name === "NotAllowedError") { status.textContent = "Cancelled."; btn.disabled = false; return; }
+        status.textContent = e.message;
+        status.style.color = "var(--bad)";
+    }
+    btn.disabled = false;
+}
+
+async function loadPasskeys() {
+    try {
+        var data = await fetchJson("/api/admin/auth/passkeys");
+        var list = $("#passkey-list");
+        var empty = $("#passkey-empty");
+        list.innerHTML = "";
+        if (!data.passkeys || data.passkeys.length === 0) {
+            empty.hidden = false;
+            return;
+        }
+        empty.hidden = true;
+        for (var i = 0; i < data.passkeys.length; i++) {
+            var pk = data.passkeys[i];
+            var row = document.createElement("div");
+            row.style.cssText = "display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--adm-border);font-size:13px;";
+            var info = document.createElement("span");
+            info.textContent = "Key " + pk.credential_id_prefix + "… " +
+                (pk.backed_up ? "(synced)" : "(device-bound)") +
+                " — registered " + (pk.created_at || "").slice(0, 10) +
+                (pk.last_used_at ? ", last used " + pk.last_used_at.slice(0, 10) : "");
+            var del = document.createElement("button");
+            del.className = "refresh";
+            del.style.cssText = "font-size:11px;padding:2px 8px;background:#5c1515;margin-left:auto;";
+            del.textContent = "Remove";
+            del.dataset.id = pk.id;
+            del.addEventListener("click", function() {
+                var id = this.dataset.id;
+                if (!confirm("Remove this passkey?")) return;
+                postJson("/api/admin/auth/passkeys", {}, "DELETE", { passkey_id: id }).then(loadPasskeys);
+            });
+            row.append(info, del);
+            list.appendChild(row);
+        }
+    } catch (e) {}
+}
+
+async function loadAdminList() {
+    try {
+        var data = await fetchJson("/api/admin/auth/admins");
+        if (data.your_role === "owner") {
+            var hdr = $("#admin-mgmt-header");
+            var mgmt = $("#admin-mgmt");
+            if (hdr) hdr.hidden = false;
+            if (mgmt) mgmt.hidden = false;
+        }
+        var list = $("#admin-list");
+        if (!list) return;
+        list.innerHTML = "";
+        for (var i = 0; i < data.admins.length; i++) {
+            var a = data.admins[i];
+            var row = document.createElement("div");
+            row.style.cssText = "display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--adm-border);font-size:13px;";
+            var info = document.createElement("span");
+            info.textContent = a.email + " — " +
+                (a.role === "owner" ? "Owner" : "Operator") +
+                " — " + (a.passkey_count || 0) + " passkey(s)" +
+                " — joined " + (a.created_at || "").slice(0, 10);
+            row.appendChild(info);
+            if (data.your_role === "owner") {
+                var del = document.createElement("button");
+                del.className = "refresh";
+                del.style.cssText = "font-size:11px;padding:2px 8px;background:#5c1515;margin-left:auto;";
+                del.textContent = "Remove";
+                del.dataset.id = a.id;
+                del.dataset.email = a.email;
+                del.addEventListener("click", function() {
+                    var id = parseInt(this.dataset.id);
+                    var email = this.dataset.email;
+                    if (!confirm("Remove admin " + email + "? They will lose all access.")) return;
+                    postJson("/api/admin/auth/admins", {}, "DELETE", { admin_id: id }).then(loadAdminList);
+                });
+                row.appendChild(del);
+            }
+            list.appendChild(row);
+        }
+    } catch (e) {}
+}
+
+function postJson(path, headers, method, body) {
+    var opts = { method: method || "POST", credentials: "include", headers: { "Content-Type": "application/json" } };
+    if (TOKEN && TOKEN !== "__cookie__") opts.headers["Authorization"] = "Bearer " + TOKEN;
+    if (body) opts.body = JSON.stringify(body);
+    return fetch(path, opts).then(function(r) { return r.json(); });
+}
+
+var passkeyLoginBtn = $("#passkey-login-btn");
+if (passkeyLoginBtn) passkeyLoginBtn.addEventListener("click", passkeyLogin);
+
+var passkeyRegBtn = $("#passkey-register-btn");
+if (passkeyRegBtn) passkeyRegBtn.addEventListener("click", passkeyRegister);
+
+var adminInviteForm = $("#admin-invite-form");
+if (adminInviteForm) {
+    adminInviteForm.addEventListener("submit", async function(e) {
+        e.preventDefault();
+        var errEl = $("#admin-invite-err");
+        errEl.hidden = true;
+        var email = $("#invite-email").value.trim();
+        var role = $("#invite-role").value;
+        if (!email) return;
+        try {
+            var r = await fetch("/api/admin/auth/admins", {
+                method: "POST", credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email: email, role: role }),
+            });
+            var data = await r.json();
+            if (!r.ok) { errEl.textContent = data.error || "Invite failed"; errEl.hidden = false; return; }
+            $("#invite-email").value = "";
+            loadAdminList();
+        } catch (x) {
+            errEl.textContent = "Network error";
+            errEl.hidden = false;
+        }
+    });
+}
+
 (async function init() {
     try {
         var testR = await fetch("/api/admin/ops-stats", { credentials: "include" });
@@ -1263,9 +1481,16 @@ if (analyticsLoadBtn) analyticsLoadBtn.addEventListener("click", loadAnalytics);
             $("#app").style.display = "";
             load();
             loadAppeals();
+            loadPasskeys();
+            loadAdminList();
             return;
         }
     } catch (e) {}
+
+    if (window.PublicKeyCredential) {
+        var pkl = $("#passkey-login");
+        if (pkl) pkl.hidden = false;
+    }
 
     var params = new URLSearchParams(location.search);
     if (params.get("error") === "expired") {

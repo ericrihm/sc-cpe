@@ -270,7 +270,21 @@ CREATE TABLE IF NOT EXISTS admin_users (
     email TEXT UNIQUE NOT NULL,
     role TEXT NOT NULL DEFAULT 'admin',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    created_by TEXT NOT NULL DEFAULT 'migration'
+    created_by TEXT NOT NULL DEFAULT 'migration',
+    invited_by INTEGER REFERENCES admin_users(id),
+    display_name TEXT
+);
+
+CREATE TABLE IF NOT EXISTS admin_passkeys (
+    id TEXT PRIMARY KEY,
+    admin_id INTEGER NOT NULL REFERENCES admin_users(id),
+    credential_id TEXT NOT NULL UNIQUE,
+    public_key BLOB NOT NULL,
+    counter INTEGER NOT NULL DEFAULT 0,
+    transports TEXT,
+    backed_up INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    last_used_at TEXT
 );
 
 -- Email suppression list. Populated by the Resend bounce/complaint webhook.

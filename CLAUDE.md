@@ -422,6 +422,27 @@ tag instead of `width="100%"`.
   unit tests across 3 test files. Docs: `docs/DEV_SETUP.md` (developer
   setup) and `docs/ADMIN_ONBOARDING.md` (admin guide).
 
+- **Admin passkey login + management** — added 2026-04-24. WebAuthn/passkey
+  authentication for admin dashboard: instant biometric login without
+  email dependency. Manual WebAuthn implementation using Web Crypto API
+  (no npm dependencies). Migration 014 adds `admin_passkeys` table +
+  `invited_by`/`display_name` columns on `admin_users`. Session extended
+  from 24h to 7 days. `isAdmin()` now returns `{ id, email, role }` or
+  `false` (bearer token returns `role: "owner"`). New endpoints:
+  `POST /api/admin/auth/passkey/register-options`,
+  `POST /api/admin/auth/passkey/register-verify`,
+  `POST /api/admin/auth/passkey/auth-options`,
+  `POST /api/admin/auth/passkey/auth-verify`,
+  `GET/DELETE /api/admin/auth/passkeys` (manage own passkeys),
+  `GET/POST/DELETE /api/admin/auth/admins` (owner-only admin management
+  with invite emails), `GET /api/admin/auth/me` (identity + role).
+  Roles: `owner` (full control, can manage admins) vs `admin` (operator,
+  read/write but no admin management). Admin dashboard UI: passkey login
+  button on login screen, passkey enrollment section, admin list with
+  invite/remove (owner only). Requires `ADMIN_COOKIE_SECRET` Pages
+  secret. RP ID is bound to hostname — if custom domain is added, existing
+  passkeys will need re-registration.
+
 ## Where to look for more context
 
 - `docs/RUNBOOK.md` — operator-facing ops procedures

@@ -41,4 +41,9 @@ node --test \
     pages/functions/api/admin/export.test.mjs \
     pages/functions/api/admin/streams.test.mjs \
     pages/functions/api/admin/suspend.test.mjs \
-    pages/functions/api/admin/email-suppression.test.mjs
+    pages/functions/api/admin/email-suppression.test.mjs \
+    pages/functions/api/admin/auth/webauthn.test.mjs \
+    pages/functions/api/admin/auth/passkey-auth.test.mjs \
+    pages/functions/api/admin/auth/passkeys.test.mjs \
+    pages/functions/api/admin/auth/admins.test.mjs \
+    pages/functions/api/admin/auth/me.test.mjs
