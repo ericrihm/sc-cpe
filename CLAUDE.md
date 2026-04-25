@@ -211,6 +211,21 @@ ADMIN_TOKEN="$(tr -d '\n' < ~/.cloudflare/sc-cpe-admin-token)" \
 - **Input validation at boundaries only.** Trust internal calls; validate
   user input in the endpoint that receives it.
 
+## Diagrams
+
+Mermaid sources live in `docs/assets/*.mmd`. Each produces a dark + light SVG
+pair rendered via `node scripts/render-diagrams.mjs` (requires global `mmdc`
+from `@mermaid-js/mermaid-cli`). The script reports aspect ratios and flags
+diagrams outside 0.3–6.0 W:H — those need a fixed `width` in the README `<img>`
+tag instead of `width="100%"`.
+
+- **Render all:** `node scripts/render-diagrams.mjs`
+- **CI check:** `node scripts/render-diagrams.mjs --check` (exits 1 on bad ratios)
+- **Narrow diagrams** (like `how-it-works`, 0.19:1): use `width="280"` and
+  `<p align="center">` in the README. Do NOT set `width="100%"`.
+- **Configs:** `docs/assets/mermaid-config.json` (dark), `mermaid-config-light.json`.
+- After editing any `.mmd` file, re-run the render script and commit the SVGs.
+
 ## Known gaps (as of 2026-04-17)
 
 - **Out-of-band leaked secrets** (chat/screenshots, NOT git history) —
