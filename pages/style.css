@@ -70,6 +70,7 @@ main.narrow {
    a 1440px+ browser, while staying within readable measure (~80ch). */
 @media (min-width: 960px) {
     main.narrow { max-width: 720px; }
+    main.narrow.wide-dash { max-width: 1080px; }
 }
 h1 { font-size: 1.75rem; margin-bottom: .25rem; line-height: 1.2; }
 h1 a { color: var(--accent); text-decoration: none; }
@@ -184,6 +185,21 @@ dd.small { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-siz
 }
 a { color: var(--accent); }
 
+/* ── Skip link (accessibility) ────────────────────────── */
+
+.skip-link {
+    position: absolute; left: -9999px; top: auto;
+    width: 1px; height: 1px; overflow: hidden;
+    z-index: 9999; padding: 8px 16px;
+    background: var(--accent); color: var(--accent-fg);
+    border-radius: 0 0 6px 6px; text-decoration: none; font-weight: 600;
+}
+.skip-link:focus {
+    position: fixed; left: 50%; top: 0;
+    transform: translateX(-50%);
+    width: auto; height: auto; overflow: visible;
+}
+
 /* ── Page title gradient (inner pages) ────────────────── */
 
 main.narrow > h1 {
@@ -224,7 +240,7 @@ main.narrow > h1 a:hover {
 /* ── Footer ───────────────────────────────────────────── */
 
 .site-footer {
-    max-width: 640px;
+    max-width: 1080px;
     margin: 0 auto;
     padding: 2rem 0;
     border-top: 1px solid var(--border);

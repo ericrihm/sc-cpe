@@ -35,6 +35,8 @@ if (!token) {
 var err = document.getElementById("err");
 var loadInProgress = false;
 var badgeToken = null;
+var lastLoadedAt = null;
+var lastUpdatedTimer = null;
 
 function showLogin() {
     document.getElementById("skel").hidden = true;
@@ -160,7 +162,23 @@ async function load() {
     if (d.user.state === "active") {
         renderRenewalTracker(d.user.email_prefs, Number(d.total_cpe_earned != null ? d.total_cpe_earned : 0));
     }
+    lastLoadedAt = Date.now();
+    updateLastUpdated();
+    var bar = document.getElementById("last-updated-bar");
+    if (bar) bar.hidden = false;
     } finally { loadInProgress = false; }
+}
+
+function updateLastUpdated() {
+    if (!lastLoadedAt) return;
+    var el = document.getElementById("last-updated-text");
+    if (!el) return;
+    var secs = Math.floor((Date.now() - lastLoadedAt) / 1000);
+    if (secs < 5) el.textContent = "Updated just now";
+    else if (secs < 60) el.textContent = "Updated " + secs + "s ago";
+    else el.textContent = "Updated " + Math.floor(secs / 60) + "m ago";
+    if (lastUpdatedTimer) clearInterval(lastUpdatedTimer);
+    lastUpdatedTimer = setInterval(updateLastUpdated, 10000);
 }
 
 function formatDateTime(iso) {
@@ -365,6 +383,7 @@ function renderCerts(items) {
         host.appendChild(certCard(primary, false));
         if (history.length) {
             var wrap = document.createElement("div");
+            wrap.className = "cert-history-wrap";
             var btn = document.createElement("button");
             btn.type = "button"; btn.className = "cert-history-toggle";
             btn.textContent = "Show " + history.length + " earlier version" + (history.length > 1 ? "s" : "");
@@ -831,9 +850,14 @@ document.getElementById("cal-next").addEventListener("click", function () {
 });
 document.getElementById("cal").addEventListener("click", function (e) {
     var btn = e.target.closest(".cal-appeal-cta");
-    if (!btn) return;
-    e.stopPropagation();
-    showAppealPopover(btn.dataset.date, btn.getBoundingClientRect());
+    if (btn) { e.stopPropagation(); showAppealPopover(btn.dataset.date, btn.getBoundingClientRect()); return; }
+    var cell = e.target.closest(".cal-cell.has-credit");
+    if (cell && cell.dataset.iso) toggleCalDetail(cell.dataset.iso);
+});
+document.getElementById("cal").addEventListener("keydown", function (e) {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    var cell = e.target.closest(".cal-cell.has-credit");
+    if (cell && cell.dataset.iso) { e.preventDefault(); toggleCalDetail(cell.dataset.iso); }
 });
 
 function renderCalendar() {
@@ -890,6 +914,12 @@ function renderCalendar() {
         var dots = [];
         if (credited.has(iso)) {
             cell.classList.add("has-credit");
+            cell.dataset.iso = iso;
+            cell.setAttribute("tabindex", "0");
+            cell.setAttribute("role", "button");
+            cell.setAttribute("aria-expanded", "false");
+            cell.setAttribute("aria-controls", "cal-detail");
+            cell.setAttribute("aria-label", day + ", credited — click to expand");
             dots.push('<span class="cal-dot cal-credited" title="credited"></span>');
         }
         var appeals = appealsByDate.get(iso) || [];
@@ -926,6 +956,60 @@ function renderCalendar() {
         cell.title = titleParts.join(" \u00b7 ") || iso;
         grid.appendChild(cell);
     }
+
+    var monthPrefix = y + "-" + String(m + 1).padStart(2, "0");
+    var monthCount = 0;
+    for (var ci = 0; ci < calData.attendance.length; ci++) {
+        if ((calData.attendance[ci].scheduled_date || "").startsWith(monthPrefix)) monthCount++;
+    }
+    var summary = document.getElementById("cal-summary");
+    if (monthCount > 0) {
+        summary.textContent = monthCount + " day" + (monthCount === 1 ? "" : "s") + " attended this month";
+        summary.hidden = false;
+    } else {
+        summary.hidden = true;
+    }
+
+    var detail = document.getElementById("cal-detail");
+    detail.hidden = true;
+    calSelectedDate = null;
+}
+
+var calSelectedDate = null;
+function toggleCalDetail(iso) {
+    var detail = document.getElementById("cal-detail");
+    var grid = document.getElementById("cal");
+    var prev = grid.querySelector(".cal-selected");
+    if (prev) { prev.classList.remove("cal-selected"); prev.setAttribute("aria-expanded", "false"); }
+
+    if (calSelectedDate === iso) {
+        calSelectedDate = null;
+        detail.hidden = true;
+        return;
+    }
+    calSelectedDate = iso;
+
+    var cell = grid.querySelector('.cal-cell[data-iso="' + iso + '"]');
+    if (cell) { cell.classList.add("cal-selected"); cell.setAttribute("aria-expanded", "true"); }
+
+    var att = null;
+    for (var i = 0; i < calData.attendance.length; i++) {
+        if (calData.attendance[i].scheduled_date === iso) { att = calData.attendance[i]; break; }
+    }
+    if (!att) { detail.hidden = true; return; }
+
+    var title = escapeHtml(att.title || att.yt_video_id);
+    var yt = "https://youtu.be/" + encodeURIComponent(att.yt_video_id);
+    var badge = attendanceBadge(att);
+    var meta = [formatDate(att.scheduled_date), att.earned_cpe + " CPE"];
+    if (att.first_msg_at) meta.push("message at " + formatDateTime(att.first_msg_at));
+    if (att.credited_at) meta.push("credited " + formatDateTime(att.credited_at));
+
+    detail.innerHTML =
+        '<div class="cal-detail-title"><a href="' + yt + '" target="_blank" rel="noopener">' + title + '</a>' +
+        ' <span class="pill ' + badge.cls + '">' + escapeHtml(badge.label) + '</span></div>' +
+        '<div class="cal-detail-meta">' + meta.join(" · ") + '</div>';
+    detail.hidden = false;
 }
 
 // --- Streak tracking ---
@@ -1276,5 +1360,11 @@ if (loginForm) {
         }
     });
 }
+
+document.getElementById("refresh-btn").addEventListener("click", function () {
+    var btn = document.getElementById("refresh-btn");
+    btn.disabled = true;
+    load().then(function () { btn.disabled = false; }).catch(function () { btn.disabled = false; });
+});
 
 load();
