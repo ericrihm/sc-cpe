@@ -436,6 +436,24 @@ tag instead of `width="100%"`.
   evidence details. Last-updated indicator + manual refresh button.
   Skip link, ARIA landmarks, keyboard support. Type scale audit
   (min 11px). Card entrance animation with reduced-motion fallback.
+- **Dashboard Phase D** — shipped 2026-04-25. Visual polish + behavioral
+  UX overhaul. Ownership-framing microcopy ("CPE you've earned", "your
+  streak", "your certificates"). Endowed progress empty states. Loss-
+  aversion streak nudge (>3 days: "Don't break your N-day streak").
+  CSS type scale tokens (`--text-xs` through `--text-2xl`) and spacing
+  tokens (`--space-xs` through `--space-2xl`) in `style.css`. Card
+  visual hierarchy: body gradient, soft shadows, card-type differentiation.
+  Stats card upgrade: tabular-nums, uppercase labels, stat dividers,
+  review-mode gradient. Dark mode premium: stat glow, card focus-within
+  glow, footer gradient refinement. Cert document gradient, action
+  separator. Attendance smooth expand via `max-height` transition,
+  evidence hash shield icon. Calendar press effect, today cell background,
+  CPE-aware monthly summary. CPE count-up animation (first load, respects
+  reduced-motion). Renewal tracker promoted above dashboard-grid when
+  configured; setup CTA when not. Mobile sticky last-updated bar,
+  44px touch targets on cal-nav/cert icons. Codex-reviewed: 5 bugs
+  fixed (streak re-hide, renewal promo sync, active-user microcopy,
+  qualifying-message qualifier, touch target minimums).
 
 ## Where to look for more context
 

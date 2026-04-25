@@ -167,22 +167,36 @@
             <p id="verified-at-line" class="muted verified-at" hidden></p>
         </div>
 
+        <div id="renewal-promo" class="card renewal-promo" hidden>
+            <div class="renewal-promo-content">
+                <div class="renewal-promo-summary" id="renewal-promo-summary"></div>
+                <div class="renewal-bar-track"><div class="renewal-bar-fill" id="renewal-promo-bar"></div></div>
+                <div class="renewal-promo-meta" id="renewal-promo-meta"></div>
+            </div>
+        </div>
+
+        <div id="renewal-promo-setup" class="card renewal-promo-setup" hidden>
+            <span class="renewal-promo-cta-text">Track your CISSP/CISM renewal progress</span>
+            <button type="button" id="renewal-promo-setup-btn" class="renewal-promo-setup-btn">Set up tracker</button>
+        </div>
+
         <div class="dashboard-grid">
         <div class="card" id="stats-card">
             <div class="stats-row">
                 <div class="stat-block">
                     <div class="stat-value" id="total">--</div>
-                    <div class="stat-label">CPE earned</div>
+                    <div class="stat-label">CPE you've earned</div>
                 </div>
                 <div class="stat-block" id="streak-current-wrap" hidden>
                     <div class="stat-value" id="streak-current">0</div>
-                    <div class="stat-label">current streak</div>
+                    <div class="stat-label">your streak</div>
                 </div>
                 <div class="stat-block" id="streak-best-wrap" hidden>
                     <div class="stat-value" id="streak-best">0</div>
-                    <div class="stat-label">longest streak</div>
+                    <div class="stat-label">your best</div>
                 </div>
             </div>
+            <div class="streak-nudge" id="streak-nudge" hidden></div>
             <button type="button" id="share-btn" class="share-btn" hidden>Share achievement</button>
             <a id="profile-link" class="share-btn" style="display:none;margin-left:8px;font-size:.8rem;" target="_blank" rel="noopener">View public profile</a>
         </div>
@@ -233,7 +247,7 @@
         </div>
 
         <div class="card" id="calendar-card">
-            <h2>Attendance calendar</h2>
+            <h2>Your calendar</h2>
             <div class="cal-nav" role="navigation" aria-label="calendar navigation">
                 <button type="button" id="cal-prev" aria-label="previous month">&lsaquo;</button>
                 <strong id="cal-label"></strong>
@@ -251,21 +265,21 @@
         </div>
 
         <div class="card" id="attendance-card">
-            <h2>Attendance history</h2>
-            <button type="button" class="daily-expand-btn" id="att-expand-btn">Show attendance history</button>
+            <h2>Your attendance</h2>
+            <button type="button" class="daily-expand-btn" id="att-expand-btn">Show your attendance</button>
             <div id="att" class="att-list" hidden></div>
-            <p id="att-empty" hidden class="muted">No attendance records yet. The Daily Threat Briefing streams weekdays at 8:00 AM ET. Post any 3+ character message in the live chat to earn 0.5 CPE per session.</p>
+            <p id="att-empty" hidden class="muted">Your attendance log starts with your first briefing. The Daily Threat Briefing streams weekdays at 8:00 AM ET — post a 3+ character message in the live chat to start earning CPE.</p>
         </div>
 
         <div class="card" id="certs-card">
-            <h2>Certificates</h2>
-            <button type="button" class="daily-expand-btn" id="certs-expand-btn">Show certificates</button>
+            <h2>Your certificates</h2>
+            <button type="button" class="daily-expand-btn" id="certs-expand-btn">Show your certificates</button>
             <div id="cert-dl-bar" class="cert-dl-bar" hidden>
                 <button type="button" id="cert-dl-btn">Download All (ZIP)</button>
                 <span class="dl-status" id="cert-dl-status"></span>
             </div>
             <div id="certs" class="cert-list" hidden></div>
-            <p id="cert-empty" hidden class="muted">No certificates yet. Certificates are issued at the start of each month for the prior month's attendance. Attend your first briefing and your first cert will arrive next month.</p>
+            <p id="cert-empty" hidden class="muted">Your first certificate will appear here after your first month of attendance. Certificates are signed and delivered at the start of each month.</p>
             <p class="muted cert-footer">
                 If a name or session count looks wrong, tap <strong>Report an issue</strong>
                 on the cert — feedback goes straight to the admin digest so we can reissue.
