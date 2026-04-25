@@ -131,8 +131,23 @@
 .att-list { display: flex; flex-direction: column; gap: 10px; }
 .att-row {
     border: 1px solid var(--border); border-radius: 6px; padding: 12px 14px;
-    background: var(--card);
+    background: var(--card); cursor: pointer;
 }
+.att-row:hover { border-color: var(--border-strong); }
+.att-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.att-detail {
+    font-size: 12px; color: var(--muted); margin-top: 8px;
+    padding-top: 8px; border-top: 1px solid var(--border);
+    display: none;
+}
+.att-row.att-expanded .att-detail { display: block; }
+.att-detail-row { display: flex; gap: 8px; margin-bottom: 4px; }
+.att-detail-label { font-weight: 600; color: var(--fg-strong); min-width: 100px; }
+.att-expand-indicator {
+    font-size: 11px; color: var(--muted); margin-left: 8px;
+    transition: transform 0.2s;
+}
+.att-expanded .att-expand-indicator { transform: rotate(90deg); }
 .att-row-top {
     display: flex; justify-content: space-between; align-items: baseline;
     gap: 8px; flex-wrap: wrap;
@@ -424,6 +439,20 @@
 @keyframes toast-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes toast-out { from { opacity: 1; } to { opacity: 0; } }
 
+/* ── Dashboard modes ─────────────────────────────── */
+.daily-collapsed .att-list,
+.daily-collapsed .cert-list,
+.daily-collapsed .cert-dl-bar { display: none; }
+.daily-collapsed .daily-expand-btn { display: inline-block; }
+.daily-expand-btn {
+    display: none; font-size: 12px; margin-top: 6px;
+    padding: 6px 12px; min-height: 32px;
+    background: transparent; color: var(--accent); border: 1px solid var(--border);
+    border-radius: 4px; cursor: pointer;
+}
+.daily-expand-btn:hover { background: var(--accent-soft-bg); border-color: var(--accent); filter: none; }
+[data-mode="review"] #stats-card { border-left: 4px solid var(--accent); }
+
 /* ── Last-updated bar ────────────────────────────── */
 .last-updated-bar {
     display: flex; align-items: center; justify-content: flex-end;
@@ -454,7 +483,18 @@
     .dashboard-grid > #certs-card { grid-column: 2; }
 }
 
+/* ── Card entrance animation ─────────────────────── */
+#body > .card, .dashboard-grid > .card, .settings-inner > .card {
+    animation: card-enter 0.3s ease-out;
+}
+@keyframes card-enter {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .today-card.today-live, .gs-dot.gs-next, .toast { animation: none; }
     .skeleton { animation: none; }
+    #body > .card, .dashboard-grid > .card, .settings-inner > .card { animation: none; }
+    .att-expand-indicator { transition: none; }
 }

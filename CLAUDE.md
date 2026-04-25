@@ -422,6 +422,21 @@ tag instead of `width="100%"`.
   unit tests across 3 test files. Docs: `docs/DEV_SETUP.md` (developer
   setup) and `docs/ADMIN_ONBOARDING.md` (admin guide).
 
+- **Dashboard Phase B** — shipped 2026-04-25 (PR #78). Card ordering
+  (today at top, window warnings follow), getting-started 3-step progress
+  bar, state-based card visibility, settings accordion (`<details>`),
+  toast notifications, improved empty states, `prefers-reduced-motion`.
+- **Dashboard Phase C** — shipped 2026-04-25 (PR #79). Two-column CSS
+  grid on desktop (>960px): stats + calendar left, attendance + certs
+  right. `wide-dash` class on `<main>` widens max-width to 1080px.
+  Interactive calendar (click credited day → inline detail panel with
+  `aria-expanded`). Cert card 2-column grid. Dashboard modes: daily
+  (08-11 ET weekdays — attendance/certs collapsed with expand button)
+  vs review (stats emphasized). Attendance row expand/collapse for
+  evidence details. Last-updated indicator + manual refresh button.
+  Skip link, ARIA landmarks, keyboard support. Type scale audit
+  (min 11px). Card entrance animation with reduced-motion fallback.
+
 ## Where to look for more context
 
 - `docs/RUNBOOK.md` — operator-facing ops procedures
