@@ -72,6 +72,16 @@
             <p>Your account has been suspended. You will not earn attendance credit until the suspension is lifted. If you believe this is an error, please contact the Simply Cyber team.</p>
         </div>
 
+        <div id="today-card" class="card today-card" hidden>
+            <h2 class="card-heading">Today's Daily Threat Briefing</h2>
+            <p id="today-title" class="muted"></p>
+            <p id="today-status"></p>
+            <p id="today-hint" class="muted" hidden>
+                Post a qualifying message (3+ characters, letters or numbers) in the
+                live chat to get credited. This page refreshes automatically.
+            </p>
+        </div>
+
         <div id="window-warn-card" class="card window-warn" hidden>
             <h2 class="card-heading">Code posted outside the live window</h2>
             <p id="window-warn-body"></p>
@@ -82,7 +92,28 @@
             </p>
         </div>
 
-        <div class="card">
+        <div id="getting-started" class="card getting-started" hidden>
+            <h2 class="card-heading">Getting started</h2>
+            <div class="gs-steps">
+                <div class="gs-step" id="gs-register">
+                    <div class="gs-dot gs-done"></div>
+                    <div class="gs-label">Register</div>
+                </div>
+                <div class="gs-connector"></div>
+                <div class="gs-step" id="gs-verify">
+                    <div class="gs-dot"></div>
+                    <div class="gs-label">Verify in chat</div>
+                </div>
+                <div class="gs-connector"></div>
+                <div class="gs-step" id="gs-first-cpe">
+                    <div class="gs-dot"></div>
+                    <div class="gs-label">First CPE earned</div>
+                </div>
+            </div>
+            <p id="gs-hint" class="muted gs-hint"></p>
+        </div>
+
+        <div class="card" id="identity-card">
             <h2 id="name"></h2>
             <p>Status: <strong id="state"></strong></p>
             <div id="pending" hidden>
@@ -150,16 +181,6 @@
             <a id="profile-link" class="share-btn" style="display:none;margin-left:8px;font-size:.8rem;" target="_blank" rel="noopener">View public profile</a>
         </div>
 
-        <div class="card" id="today-card" hidden>
-            <h2 class="card-heading">Today's Daily Threat Briefing</h2>
-            <p id="today-title" class="muted"></p>
-            <p id="today-status"></p>
-            <p id="today-hint" class="muted" hidden>
-                Post a qualifying message (3+ characters, letters or numbers) in the
-                live chat to get credited. This page refreshes automatically.
-            </p>
-        </div>
-
         <div class="card link-card" id="link-card" hidden>
             <h2 class="card-heading">Link your YouTube channel</h2>
             <p class="muted remember-desc">
@@ -205,7 +226,7 @@
             </div>
         </div>
 
-        <div class="card">
+        <div class="card" id="calendar-card">
             <h2>Attendance calendar</h2>
             <div class="cal-nav">
                 <button type="button" id="cal-prev" aria-label="previous month">&lsaquo;</button>
@@ -221,94 +242,97 @@
             </p>
         </div>
 
-        <div class="card">
+        <div class="card" id="attendance-card">
             <h2>Attendance history</h2>
             <div id="att" class="att-list" hidden></div>
-            <p id="att-empty" hidden class="muted">No attendance records yet. See you at the next Daily Threat Briefing.</p>
+            <p id="att-empty" hidden class="muted">No attendance records yet. The Daily Threat Briefing streams weekdays at 8:00 AM ET. Post any 3+ character message in the live chat to earn 0.5 CPE per session.</p>
         </div>
 
-        <div class="card">
+        <div class="card" id="certs-card">
             <h2>Certificates</h2>
             <div id="cert-dl-bar" class="cert-dl-bar" hidden>
                 <button type="button" id="cert-dl-btn">Download All (ZIP)</button>
                 <span class="dl-status" id="cert-dl-status"></span>
             </div>
             <div id="certs" class="cert-list" hidden></div>
-            <p id="cert-empty" hidden class="muted">No certificates yet. Certs are issued monthly.</p>
+            <p id="cert-empty" hidden class="muted">No certificates yet. Certificates are issued at the start of each month for the prior month's attendance. Attend your first briefing and your first cert will arrive next month.</p>
             <p class="muted cert-footer">
                 If a name or session count looks wrong, tap <strong>Report an issue</strong>
                 on the cert — feedback goes straight to the admin digest so we can reissue.
             </p>
         </div>
 
-        <h2 class="section-heading">Settings</h2>
-
-        <div class="card" id="renewal-card" hidden>
-            <h2 class="card-heading">Certification renewal tracker</h2>
-            <div id="renewal-display" hidden>
-                <div class="renewal-summary" id="renewal-summary"></div>
-                <div class="renewal-bar-track"><div class="renewal-bar-fill" id="renewal-bar"></div></div>
-                <div class="renewal-deadline" id="renewal-deadline"></div>
-                <button type="button" class="renewal-edit-btn" id="renewal-edit-btn">Edit</button>
-                <button type="button" class="renewal-edit-btn renewal-remove-btn" id="renewal-remove-btn">Remove</button>
-            </div>
-            <div id="renewal-setup">
-                <p class="muted rotate-desc">Track progress toward your certification renewal CPE requirement.</p>
-                <form class="renewal-form" id="renewal-form">
-                    <label>Certification name <input type="text" id="renewal-cert-name" placeholder="CISSP, CISM, etc." maxlength="100" required></label>
-                    <label>Renewal deadline <input type="date" id="renewal-deadline-input" required></label>
-                    <label>CPE required <input type="number" id="renewal-cpe-req" min="1" max="9999" placeholder="60" required></label>
-                    <div class="renewal-actions">
-                        <button type="submit">Save</button>
-                        <button type="button" class="appeal-cancel" id="renewal-cancel-btn" hidden>Cancel</button>
+        <details class="settings-accordion" id="settings-section">
+            <summary class="section-heading">Settings</summary>
+            <div class="settings-inner">
+                <div class="card" id="renewal-card" hidden>
+                    <h2 class="card-heading">Certification renewal tracker</h2>
+                    <div id="renewal-display" hidden>
+                        <div class="renewal-summary" id="renewal-summary"></div>
+                        <div class="renewal-bar-track"><div class="renewal-bar-fill" id="renewal-bar"></div></div>
+                        <div class="renewal-deadline" id="renewal-deadline"></div>
+                        <button type="button" class="renewal-edit-btn" id="renewal-edit-btn">Edit</button>
+                        <button type="button" class="renewal-edit-btn renewal-remove-btn" id="renewal-remove-btn">Remove</button>
                     </div>
-                    <span id="renewal-msg" class="muted prefs-hint" hidden></span>
-                </form>
-            </div>
-        </div>
+                    <div id="renewal-setup">
+                        <p class="muted rotate-desc">Track progress toward your certification renewal CPE requirement.</p>
+                        <form class="renewal-form" id="renewal-form">
+                            <label>Certification name <input type="text" id="renewal-cert-name" placeholder="CISSP, CISM, etc." maxlength="100" required></label>
+                            <label>Renewal deadline <input type="date" id="renewal-deadline-input" required></label>
+                            <label>CPE required <input type="number" id="renewal-cpe-req" min="1" max="9999" placeholder="60" required></label>
+                            <div class="renewal-actions">
+                                <button type="submit">Save</button>
+                                <button type="button" class="appeal-cancel" id="renewal-cancel-btn" hidden>Cancel</button>
+                            </div>
+                            <span id="renewal-msg" class="muted prefs-hint" hidden></span>
+                        </form>
+                    </div>
+                </div>
 
-        <div class="card" id="prefs-card" hidden>
-            <h2 class="card-heading">Certificate delivery</h2>
-            <p class="muted rotate-desc">
-                Most certification bodies (including (ISC)²) accept the
-                bundled monthly certificate. Pick individual per-session
-                certs only if your certification body specifically asks
-                for per-activity documentation at audit — uncommon.
-                You can also request a one-off per-session cert on any
-                attendance row above.
-            </p>
-            <div id="prefs-radios" class="prefs-radios">
-                <label><input type="radio" name="cert_style" value="bundled"> One monthly bundle <span class="muted prefs-hint">(recommended)</span></label>
-                <label><input type="radio" name="cert_style" value="per_session"> Individual cert for every attended session</label>
-                <label><input type="radio" name="cert_style" value="both"> Both (bundle + per-session)</label>
-            </div>
-            <p id="prefs-msg" class="muted prefs-hint" hidden></p>
-        </div>
+                <div class="card" id="prefs-card" hidden>
+                    <h2 class="card-heading">Certificate delivery</h2>
+                    <p class="muted rotate-desc">
+                        Most certification bodies (including (ISC)&sup2;) accept the
+                        bundled monthly certificate. Pick individual per-session
+                        certs only if your certification body specifically asks
+                        for per-activity documentation at audit — uncommon.
+                        You can also request a one-off per-session cert on any
+                        attendance row above.
+                    </p>
+                    <div id="prefs-radios" class="prefs-radios">
+                        <label><input type="radio" name="cert_style" value="bundled"> One monthly bundle <span class="muted prefs-hint">(recommended)</span></label>
+                        <label><input type="radio" name="cert_style" value="per_session"> Individual cert for every attended session</label>
+                        <label><input type="radio" name="cert_style" value="both"> Both (bundle + per-session)</label>
+                    </div>
+                    <p id="prefs-msg" class="muted prefs-hint" hidden></p>
+                </div>
 
-        <div class="card" id="email-prefs-card" hidden>
-            <h2 class="card-heading">Email preferences</h2>
-            <p class="muted rotate-desc">
-                Choose which engagement emails you receive. Transactional emails
-                (registration, cert delivery, security) are always sent.
-            </p>
-            <div class="prefs-radios" id="email-prefs-checks">
-                <label><input type="checkbox" data-cat="monthly_digest" checked> Monthly digest</label>
-                <label><input type="checkbox" data-cat="cert_nudge" checked> Certificate reminders</label>
-                <label><input type="checkbox" data-cat="renewal_nudge" checked> Renewal reminders</label>
-                <label><input type="checkbox" data-cat="streak_milestone" checked> Streak milestones</label>
-            </div>
-            <p id="email-prefs-msg" class="muted prefs-hint" hidden></p>
-        </div>
+                <div class="card" id="email-prefs-card" hidden>
+                    <h2 class="card-heading">Email preferences</h2>
+                    <p class="muted rotate-desc">
+                        Choose which engagement emails you receive. Transactional emails
+                        (registration, cert delivery, security) are always sent.
+                    </p>
+                    <div class="prefs-radios" id="email-prefs-checks">
+                        <label><input type="checkbox" data-cat="monthly_digest" checked> Monthly digest</label>
+                        <label><input type="checkbox" data-cat="cert_nudge" checked> Certificate reminders</label>
+                        <label><input type="checkbox" data-cat="renewal_nudge" checked> Renewal reminders</label>
+                        <label><input type="checkbox" data-cat="streak_milestone" checked> Streak milestones</label>
+                    </div>
+                    <p id="email-prefs-msg" class="muted prefs-hint" hidden></p>
+                </div>
 
-        <div class="card" id="leaderboard-card" hidden>
-            <h2 class="card-heading">Community leaderboard</h2>
-            <label class="check">
-                <input type="checkbox" id="leaderboard-toggle">
-                <span>Show me on the <a href="/leaderboard.html">community leaderboard</a>
-                <span class="muted leaderboard-hint">Your first name and last initial will be visible. Email and full name are never shown.</span></span>
-            </label>
-            <span id="leaderboard-msg" class="muted prefs-hint" hidden></span>
-        </div>
+                <div class="card" id="leaderboard-card" hidden>
+                    <h2 class="card-heading">Community leaderboard</h2>
+                    <label class="check">
+                        <input type="checkbox" id="leaderboard-toggle">
+                        <span>Show me on the <a href="/leaderboard.html">community leaderboard</a>
+                        <span class="muted leaderboard-hint">Your first name and last initial will be visible. Email and full name are never shown.</span></span>
+                    </label>
+                    <span id="leaderboard-msg" class="muted prefs-hint" hidden></span>
+                </div>
+            </div>
+        </details>
 
         <h2 class="section-heading">Account</h2>
 
@@ -381,6 +405,7 @@
         <a href="/terms.html">Terms</a>
         <a href="/privacy.html">Privacy</a>
     </footer>
+    <div id="toast-container" class="toast-container" aria-live="polite"></div>
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG" crossorigin="anonymous" defer></script>
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
