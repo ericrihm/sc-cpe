@@ -19,7 +19,7 @@
 
 # SC-CPE
 
-Automated CPE/CEU certificate issuance for security professionals who attend the Simply Cyber Daily Threat Briefing livestream, with cryptographic proof of attendance and offline-verifiable signed credentials.
+Security professionals need CPE/CEU credits to keep their certifications active, but tracking attendance is manual, records are inconsistent, and there's no way for an auditor to independently verify a claim. SC-CPE fixes this — it watches the Simply Cyber Daily Threat Briefing YouTube live chat, matches per-user verification codes, and issues PAdES-T signed PDF certificates that are cryptographically verifiable offline, years later, without contacting the issuer.
 
 ---
 
@@ -246,8 +246,10 @@ D1 migrations in `db/migrations/` are applied automatically during deploy — th
 
 ---
 
+## API
+
 <details>
-<summary><strong>API Surface (49 endpoints)</strong></summary>
+<summary><strong>49 endpoints — expand for full table</strong></summary>
 
 ### Public
 
