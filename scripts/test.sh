@@ -38,4 +38,7 @@ node --test \
     workers/email-sender/src/email-sender.test.mjs \
     workers/purge/src/scheduled-tasks.test.mjs \
     pages/functions/api/admin/audit-log.test.mjs \
-    pages/functions/api/admin/export.test.mjs
+    pages/functions/api/admin/export.test.mjs \
+    pages/functions/api/admin/streams.test.mjs \
+    pages/functions/api/admin/suspend.test.mjs \
+    pages/functions/api/admin/email-suppression.test.mjs
