@@ -65,11 +65,13 @@ Your dashboard link arrives by email from `certs@signalplane.co`. Lost it? Just 
 
 ## How It Works
 
+<p align="center">
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/diagram-how-it-works-dark.svg">
   <source media="(prefers-color-scheme: light)" srcset="docs/assets/diagram-how-it-works-light.svg">
-  <img alt="How it works — registration through cert delivery" src="docs/assets/diagram-how-it-works-light.svg" width="100%">
+  <img alt="How it works — registration through cert delivery" src="docs/assets/diagram-how-it-works-light.svg" width="280">
 </picture>
+</p>
 
 <details>
 <summary><strong>Detailed data flow</strong></summary>
@@ -345,7 +347,7 @@ Security disclosure: [`security.txt`](https://sc-cpe-web.pages.dev/.well-known/s
 
 ```bash
 scripts/install_hooks.sh                 # pre-push hook → runs test suite
-bash scripts/test.sh                     # pure-logic tests (251 tests)
+bash scripts/test.sh                     # pure-logic tests (388 tests)
 scripts/check_schema.sh                  # diff live D1 schema vs repo
 ADMIN_TOKEN=... ORIGIN=https://sc-cpe-web.pages.dev \
   scripts/smoke_hardening.sh             # read-only probe of deployed origin
