@@ -11,14 +11,10 @@ export async function onRequestPost({ request, env }) {
 
     if (!body.id || !body.response) return json({ error: "missing_credential" }, 400);
 
-    const challengeKey = "webauthn_challenge:" + (body.response.clientDataJSON
-        ? undefined : "");
-
     const url = new URL(request.url);
     const expectedOrigin = url.origin;
     const expectedRpId = url.hostname;
 
-    const allChallenges = [];
     const clientDataJSON = body.response.clientDataJSON;
     if (!clientDataJSON) return json({ error: "missing_client_data" }, 400);
 
