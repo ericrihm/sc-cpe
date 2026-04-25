@@ -1,3 +1,4 @@
+var firstLoad = true;
 var STORAGE_KEY = "sc_cpe_session";
 var SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -143,7 +144,12 @@ async function load() {
     }
 
     var cpe = Number(d.total_cpe_earned != null ? d.total_cpe_earned : 0);
-    document.getElementById("total").textContent = cpe.toFixed(1);
+    var totalEl = document.getElementById("total");
+    if (firstLoad && cpe > 0 && !prefersReducedMotion()) {
+        animateValue(totalEl, cpe, 600);
+    } else {
+        totalEl.textContent = cpe.toFixed(1);
+    }
     document.getElementById("share-btn").hidden = cpe <= 0;
 
     renderGettingStarted(d.user, cpe);
@@ -166,6 +172,7 @@ async function load() {
     updateLastUpdated();
     var bar = document.getElementById("last-updated-bar");
     if (bar) bar.hidden = false;
+    firstLoad = false;
     } finally { loadInProgress = false; }
 }
 
@@ -282,7 +289,7 @@ function renderAttendance(items) {
         var detailRows = [];
         if (a.first_msg_at) detailRows.push('<div class="att-detail-row"><span class="att-detail-label">Message time</span><span>' + escapeHtml(formatDateTime(a.first_msg_at)) + '</span></div>');
         if (a.credited_at) detailRows.push('<div class="att-detail-row"><span class="att-detail-label">Credited</span><span>' + escapeHtml(formatDateTime(a.credited_at)) + '</span></div>');
-        if (hasEvidence) detailRows.push('<div class="att-detail-row"><span class="att-detail-label">Evidence hash</span><span class="dash">' + escapeHtml(a.first_msg_sha256) + '</span></div>');
+        if (hasEvidence) detailRows.push('<div class="att-detail-row"><span class="att-detail-label">Evidence hash</span><span class="dash att-hash"><svg class="att-shield" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>' + escapeHtml(a.first_msg_sha256) + '</span></div>');
         detailRows.push('<div class="att-detail-row"><span class="att-detail-label">Source</span><span>' + escapeHtml(a.source) + '</span></div>');
         detailRows.push('<div class="att-detail-row"><span class="att-detail-label">Stream</span><span class="dash">' + escapeHtml(a.yt_video_id) + '</span></div>');
 
@@ -351,7 +358,7 @@ function certStatePill(c, isSuperseded) {
         case "delivered": return { cls: "pill-green", label: "Delivered" };
         case "viewed_by_auditor": return { cls: "pill-green", label: "Viewed by auditor" };
         case "generated": return { cls: "pill-amber", label: "Signed \u2014 not yet delivered" };
-        case "pending": return { cls: "pill-amber", label: "Signing\u2026" };
+        case "pending": return { cls: "pill-amber", label: "Preparing your signed PDF" };
         case "revoked": return { cls: "pill-red", label: "Revoked" };
         default: return { cls: "pill-grey", label: c.state };
     }
@@ -510,7 +517,7 @@ function certCard(c, isSuperseded) {
         linkedInButton(c) +
         obBadgeButton(c) +
         cpeGuideButton(c) +
-        '<a class="cert-verify" href="/verify.html?t=' + encodeURIComponent(c.public_token) + '" target="_blank" rel="noopener">Open certificate \u2197</a>' +
+        '<a class="cert-verify" href="/verify.html?t=' + encodeURIComponent(c.public_token) + '" target="_blank" rel="noopener">View your certificate \u2197</a>' +
         '<details class="fb-details" data-cert="' + c.id + '">' +
         "<summary>Report an issue</summary>" +
         '<div class="fb-picker">' +
@@ -738,6 +745,21 @@ document.getElementById("resend-btn").addEventListener("click", async function (
     }
 });
 
+function prefersReducedMotion() {
+    return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function animateValue(el, end, duration) {
+    var startTime = null;
+    function step(ts) {
+        if (!startTime) startTime = ts;
+        var progress = Math.min((ts - startTime) / duration, 1);
+        el.textContent = (progress * end).toFixed(1);
+        if (progress < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+}
+
 function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, function (c) {
         return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
@@ -874,15 +896,14 @@ function renderToday(today) {
     var hint = document.getElementById("today-hint");
     if (today.credited) {
         card.classList.add("today-credited");
-        // Static safe HTML with no user-controlled content
-        status.innerHTML = "<strong class='today-credited'>&#10003; Credited</strong> &nbsp;0.5 CPE recorded for this session.";
+        status.innerHTML = "<strong class='today-credited'>&#10003; You've earned 0.5 CPE for today's briefing</strong>";
         hint.hidden = true;
     } else if (today.state === "live") {
         card.classList.add("today-live");
         if (userState === "pending_verification") {
             status.innerHTML = "<strong class='today-waiting'>&#128308; The briefing is live now!</strong> Post your <code>SC-CPE{...}</code> code in the YouTube live chat to verify your account and get credit for this session.";
         } else {
-            status.innerHTML = "<strong class='today-waiting'>&#9203; Waiting for qualifying message</strong>";
+            status.innerHTML = "<strong class='today-waiting'>&#9203; The briefing is live — post a message in chat to earn credit</strong>";
         }
         hint.hidden = true;
         if (refreshTimer) clearTimeout(refreshTimer);
@@ -901,10 +922,10 @@ function renderToday(today) {
               (lastCredit ? " (most recent " + lastCredit.scheduled_date + ")." : ".")
             : "";
         status.innerHTML =
-            "<strong class='today-missed'>This session ended without credit.</strong> " +
-            "We didn\u2019t see your code in the chat for this briefing." + priorLine +
+            "<strong class='today-missed'>Today\u2019s briefing has ended.</strong> " +
+            "Your next chance to earn credit is tomorrow\u2019s session." + priorLine +
             " <br><span class='muted' style='font-size:12px;'>" +
-            "If you believe you posted a qualifying message, open an appeal from the attendance calendar." +
+            "If you attended and didn\u2019t receive credit, open an appeal from the calendar." +
             "</span>";
         hint.hidden = true;
     }
@@ -1034,15 +1055,20 @@ function renderCalendar() {
 
     var monthPrefix = y + "-" + String(m + 1).padStart(2, "0");
     var monthCount = 0;
+    var monthCpe = 0;
     for (var ci = 0; ci < calData.attendance.length; ci++) {
-        if ((calData.attendance[ci].scheduled_date || "").startsWith(monthPrefix)) monthCount++;
+        if ((calData.attendance[ci].scheduled_date || "").startsWith(monthPrefix)) {
+            monthCount++;
+            monthCpe += Number(calData.attendance[ci].earned_cpe || 0);
+        }
     }
     var summary = document.getElementById("cal-summary");
     if (monthCount > 0) {
-        summary.textContent = monthCount + " day" + (monthCount === 1 ? "" : "s") + " attended this month";
+        summary.textContent = monthCount + " day" + (monthCount === 1 ? "" : "s") + " attended · " + monthCpe.toFixed(1) + " CPE earned this month";
         summary.hidden = false;
     } else {
-        summary.hidden = true;
+        summary.textContent = "This month is ready for your first check-in";
+        summary.hidden = false;
     }
 
     var detail = document.getElementById("cal-detail");
@@ -1091,11 +1117,35 @@ function toggleCalDetail(iso) {
 function renderStreaks(streaks, attendance) {
     var current = streaks.current || 0;
     var best = streaks.longest || 0;
-    if (current === 0 && best === 0 && !attendance.length) return;
-    document.getElementById("streak-current-wrap").hidden = false;
-    document.getElementById("streak-best-wrap").hidden = false;
-    document.getElementById("streak-current").textContent = current;
-    document.getElementById("streak-best").textContent = best;
+    var curWrap = document.getElementById("streak-current-wrap");
+    var bestWrap = document.getElementById("streak-best-wrap");
+    var nudge = document.getElementById("streak-nudge");
+    if (current === 0 && best === 0 && !attendance.length) {
+        curWrap.hidden = true;
+        bestWrap.hidden = true;
+        if (nudge) nudge.hidden = true;
+        return;
+    }
+    if (current > 0) {
+        curWrap.hidden = false;
+        document.getElementById("streak-current").textContent = current;
+    } else {
+        curWrap.hidden = true;
+    }
+    if (best > 0) {
+        bestWrap.hidden = false;
+        document.getElementById("streak-best").textContent = best;
+    } else {
+        bestWrap.hidden = true;
+    }
+    if (nudge) {
+        if (current > 3) {
+            nudge.textContent = "Don't break your " + current + "-day streak";
+            nudge.hidden = false;
+        } else {
+            nudge.hidden = true;
+        }
+    }
 }
 
 // --- Renewal countdown tracker ---
@@ -1107,10 +1157,30 @@ function renderRenewalTracker(emailPrefs, totalCpe) {
     var tracker = emailPrefs && emailPrefs.renewal_tracker;
     if (tracker && tracker.cert_name && tracker.deadline && tracker.cpe_required) {
         showRenewalDisplay(tracker);
+        showRenewalPromo(tracker);
     } else {
         document.getElementById("renewal-display").hidden = true;
         document.getElementById("renewal-setup").hidden = false;
+        document.getElementById("renewal-promo").hidden = true;
+        document.getElementById("renewal-promo-setup").hidden = false;
     }
+}
+
+function showRenewalPromo(tracker) {
+    var promo = document.getElementById("renewal-promo");
+    promo.hidden = false;
+    document.getElementById("renewal-promo-setup").hidden = true;
+    var pct = Math.min(100, (currentCpe / tracker.cpe_required) * 100);
+    var bar = document.getElementById("renewal-promo-bar");
+    bar.style.width = pct + "%";
+    bar.className = "renewal-bar-fill" + (pct >= 100 ? " bar-ok" : pct >= 60 ? "" : " bar-warn");
+    document.getElementById("renewal-promo-summary").textContent =
+        tracker.cert_name + ": " + currentCpe.toFixed(1) + " / " + tracker.cpe_required + " CPE";
+    var dl = new Date(tracker.deadline + "T00:00:00");
+    var daysLeft = Math.ceil((dl - new Date()) / 86400000);
+    var dlStr = dl.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+    document.getElementById("renewal-promo-meta").textContent =
+        daysLeft > 0 ? dlStr + " — " + daysLeft + " days left" : dlStr + " — past due";
 }
 
 function showRenewalDisplay(tracker) {
@@ -1152,6 +1222,8 @@ document.getElementById("renewal-remove-btn").addEventListener("click", async fu
         document.getElementById("renewal-display").hidden = true;
         document.getElementById("renewal-setup").hidden = false;
         document.getElementById("renewal-form").reset();
+        document.getElementById("renewal-promo").hidden = true;
+        document.getElementById("renewal-promo-setup").hidden = false;
         showToast("Renewal tracker removed", "ok");
     } catch (e) { msg.textContent = "failed: " + e.message; showToast("Failed: " + e.message, "err"); }
 });
@@ -1173,6 +1245,7 @@ document.getElementById("renewal-form").addEventListener("submit", async functio
         msg.hidden = true;
         document.getElementById("renewal-cancel-btn").hidden = true;
         showRenewalDisplay(tracker);
+        showRenewalPromo(tracker);
         showToast("Renewal tracker saved", "ok");
     } catch (e) { msg.textContent = "failed: " + e.message; showToast("Failed: " + e.message, "err"); }
 });
@@ -1433,6 +1506,16 @@ if (loginForm) {
             btn.disabled = false;
             btn.textContent = original;
         }
+    });
+}
+
+var renewalPromoSetup = document.getElementById("renewal-promo-setup-btn");
+if (renewalPromoSetup) {
+    renewalPromoSetup.addEventListener("click", function () {
+        var accordion = document.getElementById("settings-section");
+        if (accordion) accordion.open = true;
+        var renewalCard = document.getElementById("renewal-card");
+        if (renewalCard) renewalCard.scrollIntoView({ behavior: "smooth", block: "center" });
     });
 }
 
