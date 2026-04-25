@@ -261,6 +261,9 @@ function renderAttendance(items) {
         var a = items[i];
         var row = document.createElement("div");
         row.className = "att-row";
+        row.setAttribute("tabindex", "0");
+        row.setAttribute("role", "button");
+        row.setAttribute("aria-expanded", "false");
         var title = escapeHtml(a.title || a.yt_video_id);
         var yt = "https://youtu.be/" + encodeURIComponent(a.yt_video_id);
         var badge = attendanceBadge(a);
@@ -276,16 +279,40 @@ function renderAttendance(items) {
         var actions = a.per_session_cert_exists
             ? '<span class="att-ps-done">per-session cert issued</span>'
             : '<button type="button" class="att-ps-btn" data-stream="' + a.stream_id + '">Request per-session cert</button>';
+        var detailRows = [];
+        if (a.first_msg_at) detailRows.push('<div class="att-detail-row"><span class="att-detail-label">Message time</span><span>' + escapeHtml(formatDateTime(a.first_msg_at)) + '</span></div>');
+        if (a.credited_at) detailRows.push('<div class="att-detail-row"><span class="att-detail-label">Credited</span><span>' + escapeHtml(formatDateTime(a.credited_at)) + '</span></div>');
+        if (hasEvidence) detailRows.push('<div class="att-detail-row"><span class="att-detail-label">Evidence hash</span><span class="dash">' + escapeHtml(a.first_msg_sha256) + '</span></div>');
+        detailRows.push('<div class="att-detail-row"><span class="att-detail-label">Source</span><span>' + escapeHtml(a.source) + '</span></div>');
+        detailRows.push('<div class="att-detail-row"><span class="att-detail-label">Stream</span><span class="dash">' + escapeHtml(a.yt_video_id) + '</span></div>');
+
         row.innerHTML =
             '<div class="att-row-top"><div>' +
-            '<div class="att-title"><a href="' + yt + '" target="_blank" rel="noopener">' + title + "</a></div>" +
+            '<div class="att-title"><a href="' + yt + '" target="_blank" rel="noopener">' + title + '</a><span class="att-expand-indicator">&#9654;</span></div>' +
             '<div class="att-meta">' + meta + "</div>" +
             "</div>" + headerRight + "</div>" +
+            '<div class="att-detail">' + detailRows.join("") + '</div>' +
             '<div class="att-actions">' + actions + "</div>";
         host.appendChild(row);
     }
 }
 
+function toggleAttRow(row) {
+    var expanded = row.classList.toggle("att-expanded");
+    row.setAttribute("aria-expanded", expanded ? "true" : "false");
+}
+document.getElementById("att").addEventListener("click", function (e) {
+    if (e.target.closest(".att-ps-btn")) return;
+    if (e.target.closest("a")) return;
+    var row = e.target.closest(".att-row");
+    if (row) toggleAttRow(row);
+});
+document.getElementById("att").addEventListener("keydown", function (e) {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    if (e.target.closest(".att-ps-btn")) return;
+    var row = e.target.closest(".att-row");
+    if (row) { e.preventDefault(); toggleAttRow(row); }
+});
 document.getElementById("att").addEventListener("click", async function (e) {
     var btn = e.target.closest(".att-ps-btn");
     if (!btn || btn.disabled) return;
@@ -766,7 +793,45 @@ function renderGettingStarted(user, totalCpe) {
     }
 }
 
+function getETHour() {
+    try {
+        var parts = new Intl.DateTimeFormat("en-US", {
+            timeZone: "America/New_York", hour: "numeric", hour12: false,
+        }).formatToParts(new Date());
+        for (var i = 0; i < parts.length; i++) {
+            if (parts[i].type === "hour") return parseInt(parts[i].value, 10);
+        }
+    } catch (e) {}
+    return new Date().getHours();
+}
+
+function getETDow() {
+    try {
+        var parts = new Intl.DateTimeFormat("en-US", {
+            timeZone: "America/New_York", weekday: "short",
+        }).formatToParts(new Date());
+        var map = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+        for (var i = 0; i < parts.length; i++) {
+            if (parts[i].type === "weekday") return map[parts[i].value] || 0;
+        }
+    } catch (e) {}
+    return new Date().getDay();
+}
+
+function getDashboardMode(user) {
+    if (user.state === "pending_verification") return "onboarding";
+    if (user.state === "active" && !user.yt_channel_id) return "onboarding";
+    var dow = getETDow();
+    var h = getETHour();
+    if (dow >= 1 && dow <= 5 && h >= 8 && h < 11) return "daily";
+    return "review";
+}
+
 function applyCardVisibility(user) {
+    var mode = getDashboardMode(user);
+    var body = document.getElementById("body");
+    body.dataset.mode = mode;
+
     var isPending = user.state === "pending_verification";
     var isActive = user.state === "active";
     var hasChannel = !!user.yt_channel_id;
@@ -777,6 +842,16 @@ function applyCardVisibility(user) {
     }
     if (isActive && !hasChannel) {
         document.getElementById("link-card").hidden = false;
+    }
+
+    var att = document.getElementById("attendance-card");
+    var certs = document.getElementById("certs-card");
+    if (mode === "daily") {
+        if (att && !att.dataset.userExpanded) att.classList.add("daily-collapsed");
+        if (certs && !certs.dataset.userExpanded) certs.classList.add("daily-collapsed");
+    } else {
+        if (att) att.classList.remove("daily-collapsed");
+        if (certs) certs.classList.remove("daily-collapsed");
     }
 }
 
@@ -1360,6 +1435,17 @@ if (loginForm) {
         }
     });
 }
+
+document.getElementById("att-expand-btn").addEventListener("click", function () {
+    var card = document.getElementById("attendance-card");
+    card.classList.remove("daily-collapsed");
+    card.dataset.userExpanded = "1";
+});
+document.getElementById("certs-expand-btn").addEventListener("click", function () {
+    var card = document.getElementById("certs-card");
+    card.classList.remove("daily-collapsed");
+    card.dataset.userExpanded = "1";
+});
 
 document.getElementById("refresh-btn").addEventListener("click", function () {
     var btn = document.getElementById("refresh-btn");
