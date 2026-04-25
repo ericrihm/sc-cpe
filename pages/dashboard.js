@@ -144,6 +144,9 @@ async function load() {
     document.getElementById("total").textContent = cpe.toFixed(1);
     document.getElementById("share-btn").hidden = cpe <= 0;
 
+    renderGettingStarted(d.user, cpe);
+    applyCardVisibility(d.user);
+
     renderWindowWarnings(d.code_window_warnings || []);
 
     calData = { attendance: d.attendance || [], appeals: d.appeals || [] };
@@ -611,9 +614,11 @@ document.getElementById("prefs-radios").addEventListener("change", async functio
             body: JSON.stringify({ cert_style: radio.value }),
         });
         if (!r.ok) throw new Error("HTTP " + r.status);
-        msg.textContent = "saved \u2014 next monthly run will respect this.";
+        msg.textContent = "saved";
+        showToast("Cert delivery preference saved", "ok");
     } catch (err) {
         msg.textContent = "failed: " + err.message;
+        showToast("Failed to save: " + err.message, "err");
     }
 });
 
@@ -693,10 +698,74 @@ function escapeHtml(s) {
     });
 }
 
+function showToast(message, type) {
+    var container = document.getElementById("toast-container");
+    if (!container) return;
+    var el = document.createElement("div");
+    el.className = "toast " + (type === "err" ? "toast-err" : "toast-ok");
+    el.textContent = message;
+    container.appendChild(el);
+    setTimeout(function () { el.remove(); }, 3100);
+}
+
+function renderGettingStarted(user, totalCpe) {
+    var card = document.getElementById("getting-started");
+    var isVerified = user.state === "active";
+    var hasChannel = !!user.yt_channel_id;
+    var isLinked = isVerified && hasChannel;
+    var hasCpe = totalCpe > 0;
+    if (isLinked && hasCpe) { card.hidden = true; return; }
+    card.hidden = false;
+    var step1 = document.getElementById("gs-register");
+    var step2 = document.getElementById("gs-verify");
+    var step3 = document.getElementById("gs-first-cpe");
+    var conn1 = step1.nextElementSibling;
+    var conn2 = step2.nextElementSibling;
+    var hint = document.getElementById("gs-hint");
+    step1.querySelector(".gs-dot").className = "gs-dot gs-done";
+    conn1.className = isLinked ? "gs-connector gs-done" : "gs-connector";
+    if (isLinked) {
+        step2.querySelector(".gs-dot").className = "gs-dot gs-done";
+        step2.className = "gs-step";
+        conn2.className = hasCpe ? "gs-connector gs-done" : "gs-connector";
+        if (hasCpe) {
+            step3.querySelector(".gs-dot").className = "gs-dot gs-done";
+            step3.className = "gs-step";
+        } else {
+            step3.querySelector(".gs-dot").className = "gs-dot gs-next";
+            step3.className = "gs-step gs-active";
+            hint.textContent = "Attend a Daily Threat Briefing and post a message in the live chat to earn your first 0.5 CPE.";
+        }
+    } else {
+        step2.querySelector(".gs-dot").className = "gs-dot gs-next";
+        step2.className = "gs-step gs-active";
+        step3.querySelector(".gs-dot").className = "gs-dot";
+        step3.className = "gs-step";
+        hint.textContent = isVerified
+            ? "Post your SC-CPE code in the YouTube live chat during the briefing to link your channel."
+            : "Post your SC-CPE verification code in the YouTube live chat during the briefing to verify your account.";
+    }
+}
+
+function applyCardVisibility(user) {
+    var isPending = user.state === "pending_verification";
+    var isActive = user.state === "active";
+    var hasChannel = !!user.yt_channel_id;
+    var ids = ["stats-card", "calendar-card", "attendance-card", "certs-card", "settings-section"];
+    for (var i = 0; i < ids.length; i++) {
+        var el = document.getElementById(ids[i]);
+        if (el) el.hidden = isPending;
+    }
+    if (isActive && !hasChannel) {
+        document.getElementById("link-card").hidden = false;
+    }
+}
+
 var refreshTimer = null;
 var userState = "active";
 function renderToday(today) {
     var card = document.getElementById("today-card");
+    card.classList.remove("today-live", "today-credited", "today-ended");
     if (!today) {
         card.hidden = true;
         if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
@@ -710,9 +779,12 @@ function renderToday(today) {
     var status = document.getElementById("today-status");
     var hint = document.getElementById("today-hint");
     if (today.credited) {
+        card.classList.add("today-credited");
+        // Static safe HTML with no user-controlled content
         status.innerHTML = "<strong class='today-credited'>&#10003; Credited</strong> &nbsp;0.5 CPE recorded for this session.";
         hint.hidden = true;
     } else if (today.state === "live") {
+        card.classList.add("today-live");
         if (userState === "pending_verification") {
             status.innerHTML = "<strong class='today-waiting'>&#128308; The briefing is live now!</strong> Post your <code>SC-CPE{...}</code> code in the YouTube live chat to verify your account and get credit for this session.";
         } else {
@@ -723,6 +795,7 @@ function renderToday(today) {
         refreshTimer = setTimeout(function () { refreshTimer = null; load(); }, 30000);
         return;
     } else {
+        card.classList.add("today-ended");
         var credits = (calData.attendance || []).length;
         var lastCredit = credits
             ? calData.attendance.slice().sort(function (a, b) {
@@ -920,7 +993,8 @@ document.getElementById("renewal-remove-btn").addEventListener("click", async fu
         document.getElementById("renewal-display").hidden = true;
         document.getElementById("renewal-setup").hidden = false;
         document.getElementById("renewal-form").reset();
-    } catch (e) { msg.textContent = "failed: " + e.message; }
+        showToast("Renewal tracker removed", "ok");
+    } catch (e) { msg.textContent = "failed: " + e.message; showToast("Failed: " + e.message, "err"); }
 });
 document.getElementById("renewal-form").addEventListener("submit", async function (e) {
     e.preventDefault();
@@ -940,7 +1014,8 @@ document.getElementById("renewal-form").addEventListener("submit", async functio
         msg.hidden = true;
         document.getElementById("renewal-cancel-btn").hidden = true;
         showRenewalDisplay(tracker);
-    } catch (e) { msg.textContent = "failed: " + e.message; }
+        showToast("Renewal tracker saved", "ok");
+    } catch (e) { msg.textContent = "failed: " + e.message; showToast("Failed: " + e.message, "err"); }
 });
 
 // --- Bulk cert download ---
@@ -1111,9 +1186,11 @@ document.getElementById("leaderboard-toggle").addEventListener("change", async f
             body: JSON.stringify({ show_on_leaderboard: e.target.checked }),
         });
         if (!r.ok) throw new Error("HTTP " + r.status);
-        msg.textContent = e.target.checked ? "You're on the leaderboard!" : "Removed from leaderboard.";
+        msg.textContent = e.target.checked ? "On the leaderboard" : "Removed";
+        showToast(e.target.checked ? "You're on the leaderboard!" : "Removed from leaderboard", "ok");
     } catch (err) {
         msg.textContent = "Failed: " + err.message;
+        showToast("Failed: " + err.message, "err");
         e.target.checked = !e.target.checked;
     }
 });
@@ -1138,8 +1215,10 @@ document.getElementById("email-prefs-checks").addEventListener("change", async f
         });
         if (!r.ok) throw new Error("HTTP " + r.status);
         msg.textContent = "saved";
+        showToast("Email preferences saved", "ok");
     } catch (err) {
         msg.textContent = "failed: " + err.message;
+        showToast("Failed: " + err.message, "err");
         cb.checked = !cb.checked;
     }
 });
