@@ -232,12 +232,19 @@ deletes the throwaway DB. It does not touch production.
 Add a TXT record for `_dmarc.signalplane.co`:
 
 ```
-v=DMARC1; p=none; rua=mailto:dmarc-reports@signalplane.co
+v=DMARC1; p=none; rua=mailto:certs@signalplane.co
 ```
 
 DKIM is configured via Resend. SPF is set. This adds DMARC reporting
-without enforcement (`p=none`). Once reports confirm alignment, consider
-escalating to `p=quarantine`.
+without enforcement (`p=none`). Use `certs@signalplane.co` for aggregate
+reports at launch because it is the monitored mailbox; filter subjects
+containing `Report domain:` into the DMARC-AUTO label.
+
+Once reports confirm alignment, escalate to the launch target:
+
+```
+v=DMARC1; p=quarantine; rua=mailto:certs@signalplane.co; adkim=s; aspf=s; fo=1
+```
 
 Verify: `dig TXT _dmarc.signalplane.co +short`
 
