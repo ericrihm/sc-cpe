@@ -137,7 +137,7 @@ Your dashboard link arrives by email from `certs@signalplane.co`. Lost it? Just 
 | Database | Cloudflare D1 (SQLite) |
 | Storage | Cloudflare R2 (certs, chat, backups) |
 | Caching | Cloudflare KV (rate limits, circuit breakers) |
-| Email | Resend (DKIM + SPF + DMARC) |
+| Email | Resend (DKIM + SPF; DMARC DNS pending) |
 | Certs | Python + WeasyPrint + endesive (PAdES-T) |
 | CI/CD | GitHub Actions (13 workflows) |
 
@@ -339,7 +339,7 @@ D1 migrations in `db/migrations/` are applied automatically during deploy — th
 |:-------|:--------|
 | `sc-cpe-web.pages.dev` | Web + API (canonical origin) |
 | `cpe.simplycyber.io` | Reserved — future DNS wiring |
-| `signalplane.co` | Email domain (DKIM + SPF + DMARC) |
+| `signalplane.co` | Email domain (Resend DKIM + SPF; DMARC DNS pending) |
 
 Security disclosure: [`security.txt`](https://sc-cpe-web.pages.dev/.well-known/security.txt) or email `certs@signalplane.co` with `[SECURITY]` in the subject.
 
