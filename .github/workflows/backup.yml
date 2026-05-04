@@ -33,7 +33,7 @@ jobs:
         run: bash scripts/backup_d1.sh --upload-r2
 
       - name: Upload backup artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: d1-backup-${{ github.run_id }}
           path: /tmp/sc-cpe-backups/sc-cpe-*.sql
