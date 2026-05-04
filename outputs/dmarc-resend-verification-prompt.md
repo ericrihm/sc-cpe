@@ -10,7 +10,7 @@ Goal: finish the launch-blocking email authentication check for `signalplane.co`
 
 Known facts from the repo and live DNS as of 2026-04-27:
 
-- `CLAUDE.md` records the gap: Resend DKIM/SPF are present, but `signalplane.co` has no DMARC record.
+- `AGENTS.md` records the gap: Resend DKIM/SPF are present, but `signalplane.co` has no DMARC record.
 - `docs/LAUNCH_READINESS.md` marks DMARC as P0 before public announcement.
 - `dig TXT _dmarc.signalplane.co +short` currently returns no record.
 - `dig TXT signalplane.co +short` returns only Namecheap forwarding SPF: `v=spf1 include:spf.efwd.registrar-servers.com ~all`.
@@ -62,7 +62,7 @@ Tasks:
 
 6. Update docs only after DNS is actually live:
    - `README.md`: remove “DMARC DNS pending”.
-   - `CLAUDE.md`: remove the known gap entry or replace it with the verified date.
+   - `AGENTS.md`: remove the known gap entry or replace it with the verified date.
    - `docs/LAUNCH_READINESS.md`: check off the DMARC P0 item with the verification date.
    - `docs/RUNBOOK.md`: keep the verification command and current record.
 

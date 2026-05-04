@@ -569,4 +569,4 @@ for a second opinion.
   upgrade, dark mode premium, transitions, mobile polish
 - `pages/style.css` — type scale tokens, spacing tokens, body gradient,
   card shadow defaults
-- `CLAUDE.md` — update Known gaps with Phase D changes
+- `AGENTS.md` — update Known gaps with Phase D changes

@@ -2,15 +2,15 @@
 
 ## Overview
 
-A Claude Code plugin that generates, audits, scores, and iteratively improves README files across any project. Packages the responsive diagram rendering pipeline, multi-viewport screenshot analysis, and multi-dimensional scoring rubric developed in the sc-cpe project into a reusable tool.
+A Codex plugin that generates, audits, scores, and iteratively improves README files across any project. Packages the responsive diagram rendering pipeline, multi-viewport screenshot analysis, and multi-dimensional scoring rubric developed in the sc-cpe project into a reusable tool.
 
 **Core thesis:** Your README is your portfolio. This plugin treats it as a first-class engineering artifact — scored, tested, and iterated on like production code.
 
 ## Plugin Structure
 
 ```
-~/.claude/plugins/readme-engineer/
-├── .claude-plugin/
+~/.codex/plugins/readme-engineer/
+├── .codex-plugin/
 │   └── plugin.json                # name, description, version, author
 ├── skills/
 │   ├── readme-generate/
@@ -62,7 +62,7 @@ A Claude Code plugin that generates, audits, scores, and iteratively improves RE
 **Workflow:**
 1. Run `score.mjs` for automated structural checks
 2. Screenshot README at 5 viewports (375, 768, 1280, 1920, 2560px)
-3. Claude evaluates subjective dimensions (impact quality, decision depth, clarity)
+3. Codex evaluates subjective dimensions (impact quality, decision depth, clarity)
 4. Produce scorecard with per-dimension breakdown
 5. Produce prioritized fix list ordered by impact-per-effort
 6. Analyze screenshots for responsive issues (diagram readability, layout problems)

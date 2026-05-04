@@ -130,5 +130,5 @@ chmod +x .githooks/pre-push
 
 ## Architecture context
 
-See `CLAUDE.md` for invariants, deployment details, and known gaps.
+See `AGENTS.md` for invariants, deployment details, and known gaps.
 See `docs/DESIGN.md` for architecture decisions.

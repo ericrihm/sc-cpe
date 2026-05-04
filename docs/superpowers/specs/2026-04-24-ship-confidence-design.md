@@ -175,7 +175,7 @@ In the batch case (me/[token] returns multiple certs), use a single query with `
 
 ### Problem
 
-The project has 7+ secrets (ADMIN_TOKEN, OB_SIGNING_KEY, RESEND_API_KEY, RESEND_WEBHOOK_SECRET, PDF_SIGNING_KEY_PASSWORD, CLOUDFLARE_API_TOKEN, WATCHDOG_SECRET). CLAUDE.md documents rotation dates, but there's no automated reminder. A forgotten rotation is a silent security gap.
+The project has 7+ secrets (ADMIN_TOKEN, OB_SIGNING_KEY, RESEND_API_KEY, RESEND_WEBHOOK_SECRET, PDF_SIGNING_KEY_PASSWORD, CLOUDFLARE_API_TOKEN, WATCHDOG_SECRET). AGENTS.md documents rotation dates, but there's no automated reminder. A forgotten rotation is a silent security gap.
 
 ### Design
 
