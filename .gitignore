@@ -16,3 +16,5 @@ outputs/handoffs/
 scripts/.backfill_progress.json
 .codex/
 AGENTS.md
+CLAUDE.md
+.claude/
