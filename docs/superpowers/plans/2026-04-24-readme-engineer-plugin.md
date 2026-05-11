@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a Claude Code plugin with four skills (generate, audit, improve, diagrams) that creates, scores, and iteratively improves README files across any project.
+**Goal:** Build a Codex plugin with four skills (generate, audit, improve, diagrams) that creates, scores, and iteratively improves README files across any project.
 
-**Architecture:** Multi-skill Claude Code plugin at `C:/dev/readme-engineer/` with bundled Node.js scripts for automated scoring, Puppeteer screenshot analysis, and Mermaid CLI rendering. Skills are markdown files with YAML frontmatter that guide Claude's behavior. Scripts do the mechanical work and return JSON for Claude to interpret.
+**Architecture:** Multi-skill Codex plugin at `C:/dev/readme-engineer/` with bundled Node.js scripts for automated scoring, Puppeteer screenshot analysis, and Mermaid CLI rendering. Skills are markdown files with YAML frontmatter that guide Codex's behavior. Scripts do the mechanical work and return JSON for Codex to interpret.
 
-**Tech Stack:** Node.js (ESM via .mjs), Puppeteer, @mermaid-js/mermaid-cli, Claude Code plugin format
+**Tech Stack:** Node.js (ESM via .mjs), Puppeteer, @mermaid-js/mermaid-cli, Codex plugin format
 
 ---
 
@@ -14,7 +14,7 @@
 
 ```
 C:/dev/readme-engineer/
-├── .claude-plugin/
+├── .codex-plugin/
 │   └── plugin.json                  # Plugin metadata (Task 1)
 ├── skills/
 │   ├── readme-generate/
@@ -46,14 +46,14 @@ C:/dev/readme-engineer/
 ### Task 1: Plugin Scaffold
 
 **Files:**
-- Create: `C:/dev/readme-engineer/.claude-plugin/plugin.json`
+- Create: `C:/dev/readme-engineer/.codex-plugin/plugin.json`
 - Create: `C:/dev/readme-engineer/package.json`
 - Create: `C:/dev/readme-engineer/.gitignore`
 
 - [ ] **Step 1: Create plugin directory structure**
 
 ```bash
-mkdir -p /c/dev/readme-engineer/.claude-plugin
+mkdir -p /c/dev/readme-engineer/.codex-plugin
 mkdir -p /c/dev/readme-engineer/skills/{readme-generate,readme-audit,readme-improve,readme-diagrams}
 mkdir -p /c/dev/readme-engineer/scripts
 mkdir -p /c/dev/readme-engineer/templates/mermaid-config
@@ -61,7 +61,7 @@ mkdir -p /c/dev/readme-engineer/templates/mermaid-config
 
 - [ ] **Step 2: Create plugin.json**
 
-Create `C:/dev/readme-engineer/.claude-plugin/plugin.json`:
+Create `C:/dev/readme-engineer/.codex-plugin/plugin.json`:
 
 ```json
 {
@@ -497,7 +497,7 @@ description: "Use when scoring, auditing, rating, or evaluating a README file qu
 Content covers the 5-step workflow:
 1. Run `node PLUGIN_DIR/scripts/score.mjs --readme README.md --json` for automated scoring
 2. Run `node PLUGIN_DIR/scripts/screenshot.mjs` for responsive analysis (if diagrams exist)
-3. Claude evaluates subjective quality (impact depth, visual impression, clarity) and adjusts automated scores +/- 1 per dimension
+3. Codex evaluates subjective quality (impact depth, visual impression, clarity) and adjusts automated scores +/- 1 per dimension
 4. Present scorecard in the rubric's output format with bar charts and gap list
 5. Produce prioritized fix list ordered by points/effort, suggest readme-improve for iteration
 
@@ -591,7 +591,7 @@ Create `C:/dev/readme-engineer/README.md` with:
 - What + Why: portfolio thesis, most READMEs written once and never improved
 - Skills table: 4 skills with trigger phrases and descriptions
 - Scoring rubric summary: 3 dimensions, 10 pts each
-- Install: `claude plugin install /path/to/readme-engineer`
+- Install: `codex plugin install /path/to/readme-engineer`
 - Dependencies: `npm install -g puppeteer @mermaid-js/mermaid-cli`
 - Quick Start: 4 example commands
 - License: MIT
@@ -623,12 +623,12 @@ cd /c/dev/readme-engineer && git add -A && git commit -m "feat: add plugin READM
 - [ ] **Step 6: Register plugin**
 
 ```bash
-claude plugin install /c/dev/readme-engineer
+codex plugin install /c/dev/readme-engineer
 ```
 
 - [ ] **Step 7: Smoke test — audit sc-cpe**
 
-Open Claude Code in `C:/dev/sc-cpe` and say "audit my README". Verify the readme-audit skill loads, score.mjs runs, and a scorecard is produced.
+Open Codex in `C:/dev/sc-cpe` and say "audit my README". Verify the readme-audit skill loads, score.mjs runs, and a scorecard is produced.
 
 - [ ] **Step 8: Fix any issues and final commit**
 

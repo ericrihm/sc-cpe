@@ -1,6 +1,6 @@
-# Claude Code Healing Session
+# Codex Healing Session
 
-Paste this into a Claude Code session in the `sc-cpe` directory when you
+Paste this into a Codex session in the `sc-cpe` directory when you
 receive a self-heal escalation alert (Discord or GitHub issue).
 
 ---
@@ -10,7 +10,7 @@ receive a self-heal escalation alert (Discord or GitHub issue).
 ```
 SC-CPE self-healing escalated. Diagnose and fix.
 
-1. Read CLAUDE.md for project context
+1. Read AGENTS.md for project context
 2. Read docs/RUNBOOK.md for ops procedures  
 3. Check current state:
    - curl -s https://sc-cpe-web.pages.dev/api/health | jq .

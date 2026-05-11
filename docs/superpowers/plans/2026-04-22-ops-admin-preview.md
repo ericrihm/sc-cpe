@@ -1453,14 +1453,14 @@ git commit -m "feat(preview): add PR preview deploy workflow with seed data"
 
 ---
 
-### Task 14: Update CLAUDE.md known gaps
+### Task 14: Update AGENTS.md known gaps
 
 **Files:**
-- Modify: `CLAUDE.md`
+- Modify: `AGENTS.md`
 
 - [ ] **Step 1: Update known gaps section**
 
-In `CLAUDE.md`, find the line:
+In `AGENTS.md`, find the line:
 
 ```
 - CF Pages PR previews remain disabled — current bindings are prod;
@@ -1480,7 +1480,7 @@ Replace those two lines with:
 - [ ] **Step 2: Commit**
 
 ```bash
-git add CLAUDE.md
+git add AGENTS.md
 git commit -m "docs: update known gaps — PR previews configured, backups durable"
 ```
 

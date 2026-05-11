@@ -121,7 +121,7 @@ git commit -m "feat(email): add helper functions (button, code, progress, divide
 **Files:**
 - Modify: `workers/purge/src/index.js:286-305`
 
-The purge worker has its own copy of `emailShell` (CLAUDE.md invariant: must stay in sync). It also needs local copies of the helpers since it can't import from `_lib.js`.
+The purge worker has its own copy of `emailShell` (AGENTS.md invariant: must stay in sync). It also needs local copies of the helpers since it can't import from `_lib.js`.
 
 - [ ] **Step 1: Add helper functions before `emailShell` in purge worker**
 

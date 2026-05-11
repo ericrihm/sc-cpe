@@ -1,10 +1,10 @@
 # Next Session Prompt — QA & Hardening
 
-Paste this into a new Claude Code session:
+Paste this into a new Codex session:
 
 ---
 
-QA/hardening session for the `feat/ops-polish` bundle (PR #67). Goal: find bugs, edge cases, and integration gaps across all 8 shipped features before merge. Read CLAUDE.md first.
+QA/hardening session for the `feat/ops-polish` bundle (PR #67). Goal: find bugs, edge cases, and integration gaps across all 8 shipped features before merge. Read AGENTS.md first.
 
 Work on `main` (or the merge result). Commit fixes as you go. Run `bash scripts/test.sh` after each fix to confirm green. Push when done.
 
@@ -98,7 +98,7 @@ Test each analytics endpoint with boundary inputs:
 
 1. **`docs/DEV_SETUP.md`**: Follow the setup instructions on a clean checkout. Verify every command works. Check that the preview environment table matches `wrangler.toml` `[env.preview]` bindings.
 2. **`docs/ADMIN_ONBOARDING.md`**: Walk through each "Common admin tasks" section against the actual admin.html UI. Verify the dashboard section table matches what's actually rendered. Confirm emergency procedures match the actual kill switch and cron trigger UX.
-3. **`CLAUDE.md`**: Verify the ops-polish entry accurately describes what was shipped. Verify the "Where to look" section includes DEV_SETUP.md and ADMIN_ONBOARDING.md.
+3. **`AGENTS.md`**: Verify the ops-polish entry accurately describes what was shipped. Verify the "Where to look" section includes DEV_SETUP.md and ADMIN_ONBOARDING.md.
 4. **`README.md`**: Verify the API surface table includes `/api/admin/streams`, `/api/admin/suspend`, and `/api/admin/email-suppression`. Verify the endpoint count in the `<summary>` tag is correct (49).
 
 ## Phase 10: Security spot-check
