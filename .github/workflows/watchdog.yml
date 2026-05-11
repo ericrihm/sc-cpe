@@ -216,13 +216,13 @@ jobs:
 
           ---
 
-          ### Claude Code Triage
+          ### AI Triage
 
-          Open Claude Code in \`sc-cpe\` and paste:
+          Open your AI assistant in \`sc-cpe\` and paste:
 
           \`\`\`
           The SC-CPE self-healing system escalated because it couldn't fix: ${SOURCES}
-          Read CLAUDE.md for project context, then docs/RUNBOOK.md for ops procedures.
+          Read AGENTS.md for project context, then docs/RUNBOOK.md for ops procedures.
           Diagnose by checking /api/health, /api/admin/ops-stats, and recent workflow
           runs (gh run list --limit 10). The diagnostic bundle is in the GitHub issue.
           Identify root cause and either fix it directly or provide step-by-step instructions.
